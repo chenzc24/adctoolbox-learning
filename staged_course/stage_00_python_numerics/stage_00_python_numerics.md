@@ -406,28 +406,52 @@ y[n] = b0[n]*w0 + b1[n]*w1 + ... + bM-1[n]*wM-1
 
 后续校准就是估计这个 `w`。
 
-### 3. 随机数 seed 是实验可复现性的基础
+### 3. Monte Carlo 仿真是在看随机系统的分布
 
-ADC 建模中会出现：
+Monte Carlo 不是“加一次随机噪声”的同义词。它的核心是：
 
-- capacitor mismatch
-- thermal noise
-- comparator noise
-- sampling noise
-- Monte Carlo sweep
-
-如果不固定 seed，每次结果都会变。学习阶段建议显式写：
-
-```python
-rng = np.random.default_rng(20260601)
+```text
+定义随机模型
+    -> 抽一次随机 realization
+    -> 跑完整仿真
+    -> 换 seed / realization 重复很多次
+    -> 统计输出指标的分布
 ```
 
-本库的 SAR 建模函数也采用这种写法，把 `rng` 显式传进去：
+所以它回答的不是：
+
+```text
+这个 seed 下 ENOB 是多少？
+```
+
+而是：
+
+```text
+在很多颗随机 mismatch 芯片或很多次随机噪声 realization 下，
+ENOB / SNDR / calibration error 的 median、p10、p90、std 是多少？
+```
+
+在本库的 SAR 建模里，随机性常见在三层：
+
+```text
+1. 芯片级固定随机性
+   nominal_weights -> actual_weights
+   例如 capacitor mismatch。一次抽样代表一颗芯片。
+
+2. 采样级随机性
+   vin -> vin_sampled
+   例如 sampling_noise_rms。每个采样点可以不同。
+
+3. bit decision 级随机性
+   comparator input -> bit decision
+   例如 comparator_noise_rms。每个 sample、每个 bit trial 可以不同。
+```
+
+对应到源码：
 
 ```python
-rng = np.random.default_rng(20260601)
-
 actual_weights = sar_apply_cap_mismatch(nominal_weights, sigma=0.004, rng=rng)
+
 bits = sar_convert(
     vin,
     actual_weights,
@@ -437,17 +461,57 @@ bits = sar_convert(
 )
 ```
 
-初学时可能会见到旧写法：
+其中 `sar_apply_cap_mismatch` 更像“抽一颗随机芯片”，而
+`sampling_noise_rms` / `comparator_noise_rms` 更像“这次采集过程中的随机扰动”。
 
-```python
-np.random.seed(42)
-noise = np.random.normal(0, noise_std, N)
+本库里的典型 Monte Carlo 例子是：
+
+```text
+python/src/adctoolbox/examples/05_debug_digital/exp_d16_sar_unit_cap_mismatch_mc.py
 ```
 
-它也能固定随机数，但会影响全局随机状态。学习本库时，优先使用
-`np.random.default_rng(seed)`，再把 `rng` 传给需要随机数的函数。
+它的结构可以简化成：
 
-这样你改一个参数时，结果变化更容易归因。
+```python
+N_MC = 32
+
+for sigma in mismatch_sigma_list:
+    for trial in range(N_MC):
+        rng = np.random.default_rng(BASE_SEED + trial)
+
+        actual_weights = sar_apply_cap_mismatch(nominal_weights, sigma=sigma, rng=rng)
+        bits_train = sar_convert(vin_train, actual_weights)
+        bits_test = sar_convert(vin_test, actual_weights)
+
+        aout_before = sar_reconstruct(bits_test, nominal_weights)
+        calibrated_weights = calibrate_weight_sine(bits_train, ...)
+        aout_after = bits_test @ calibrated_weights
+
+        # 记录 before / after calibration 的 ENOB
+```
+
+最后不是只看某一次结果，而是对很多次 `trial` 统计：
+
+```text
+min / p10 / median / p90 / max / mean / std
+```
+
+这才是 Monte Carlo 的价值：它让我们看到算法和架构在随机 mismatch 下是否稳健。
+
+因此要区分：
+
+```text
+加一次随机噪声 = 一个随机 realization
+重复很多次 realization 并统计分布 = Monte Carlo
+```
+
+固定 seed 的作用只是让某一次随机实验可复现。本库推荐使用：
+
+```python
+rng = np.random.default_rng(seed)
+```
+
+再把 `rng` 显式传给需要随机数的函数。seed 是工具，Monte Carlo 分布才是工程问题本身。
 
 ### 4. 归一化和单位必须分清
 
@@ -918,7 +982,7 @@ print(bits @ weights_bad)
 1. `bits.shape == (N, M)` 中 `N` 和 `M` 分别代表什么？
 2. 为什么 `bits @ weights` 是 ADC 数字重构，而不只是矩阵运算？
 3. `Fin` 和 `freq = Fin / fs` 有什么区别？
-4. 为什么 Monte Carlo 仿真要固定 random seed？
+4. 为什么“加一次随机噪声”还不等于 Monte Carlo 仿真？
 5. `actual_weights` 和 `digital_weights` 是同一个东西吗？
 
 如果这些问题还答不稳，不建议进入 Stage 01。

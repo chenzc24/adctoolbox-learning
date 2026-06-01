@@ -129,34 +129,40 @@ ADCToolbox 的核心能力：
 如果不能，应该回到哪一块电路或测试条件去修改？
 ```
 
-- 随机噪声及其他非线性的加入
+### Monte Carlo 仿真
 
-通过随机数 seed 控制随机噪声，保证可复现性。
+Monte Carlo 不是“加一次随机噪声”，而是：
 
-本库推荐：
-
-```python
-rng = np.random.default_rng(42)
-noise = noise_std * rng.standard_normal(N)
-vin_noisy = vin + noise
+```text
+定义随机模型
+    -> 抽一次 realization
+    -> 跑完整 ADC 仿真
+    -> 换 seed 重复很多次
+    -> 统计 ENOB / SNDR / calibration error 的分布
 ```
 
-旧写法也能用，但会影响全局随机状态：
+本库中的体现：
 
-```python
-np.random.seed(42)
-noise = np.random.normal(0, noise_std, N)
-vin_noisy = vin + noise
+```text
+sar_apply_cap_mismatch(...)
+    -> 抽一颗随机 CDAC mismatch 芯片
+
+sar_convert(..., sampling_noise_rms=..., comparator_noise_rms=...)
+    -> 加入采样噪声和比较器噪声
+
+exp_d16_sar_unit_cap_mismatch_mc.py
+    -> 对每个 mismatch sigma 跑 N_MC 次，统计 calibration 前后的 ENOB 分布
 ```
 
-SAR 模型中通常把 `rng` 显式传进去：
+关键区别：
+
+```text
+一次随机噪声 = 一个 realization
+很多次 realization + 统计分布 = Monte Carlo
+```
+
+seed 只是为了复现某一次 realization：
 
 ```python
-bits = sar_convert(
-    vin,
-    actual_weights,
-    sampling_noise_rms=40e-6,
-    comparator_noise_rms=40e-6,
-    rng=rng,
-)
+rng = np.random.default_rng(seed)
 ```
