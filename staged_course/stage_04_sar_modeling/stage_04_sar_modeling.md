@@ -11,6 +11,68 @@
 - sampling noise 和 comparator noise 在模型中如何进入。
 - 本库 `sar_convert` 和 `sar_reconstruct` 的数据流。
 
+## 初学者先抓住的主线
+
+SAR ADC 的行为可以先想成一个“二分试探”过程：
+
+```text
+先试 MSB：输入有没有超过 1/2 full-scale？
+再试下一位：在已有判断基础上，再加 1/4 full-scale 试一下。
+继续往下，直到 LSB。
+```
+
+每一位只做一件事：
+
+```text
+临时把当前 weight 加到 DAC 输出上
+比较 vin 和 v_test
+如果 vin 更大，这一位保留为 1
+否则这一位为 0
+```
+
+所以 SAR 模型里最重要的三个对象是：
+
+```text
+vin       -> 要转换的输入
+weights   -> CDAC 每一位能产生多大的 DAC step
+bits      -> 每一步比较器留下的 0/1 决策
+```
+
+先把这个过程看懂，再看 mismatch、noise、redundancy。
+
+## 手算一个 4-bit 例子
+
+理想 4-bit 权重：
+
+```text
+[0.5, 0.25, 0.125, 0.0625]
+```
+
+假设：
+
+```text
+vin = 0.70
+```
+
+逐次逼近：
+
+| bit | weight | v_test | decision | v_dac |
+|---|---:|---:|---:|---:|
+| MSB | 0.5 | 0.5 | 1 | 0.5 |
+| bit1 | 0.25 | 0.75 | 0 | 0.5 |
+| bit2 | 0.125 | 0.625 | 1 | 0.625 |
+| bit3 | 0.0625 | 0.6875 | 1 | 0.6875 |
+
+得到：
+
+```text
+bits = [1, 0, 1, 1]
+aout = 0.6875
+residue = vin - aout = 0.0125
+```
+
+这个表就是 `sar_convert` 的核心逻辑。
+
 ## 数学需要补什么
 
 ### 1. 逐次逼近是贪心搜索
@@ -183,7 +245,7 @@ python/src/adctoolbox/examples/05_debug_digital/exp_d18_sar_redundant_mismatch_t
 本地学习脚本：
 
 ```text
-agent_playground/adctoolbox_learning/demos/sar_adc_model_study.py
+learning/adctoolbox-learning/demos/sar_adc_model_study.py
 ```
 
 ## 对应 API
@@ -199,7 +261,7 @@ from adctoolbox.models import sar_reconstruct
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\sar_adc_model_study.py
+uv run python ..\learning\adctoolbox-learning\demos\sar_adc_model_study.py
 ```
 
 重点看控制台：
@@ -215,7 +277,7 @@ SAR bit-trial trace for one sample
 打开：
 
 ```text
-agent_playground/adctoolbox_learning/demos/sar_adc_model_study.py
+learning/adctoolbox-learning/demos/sar_adc_model_study.py
 ```
 
 修改：
@@ -277,6 +339,32 @@ v_test = v_dac + weights[j]
 bit = vin_norm + noise >= v_test
 v_dac = where(bit, v_test, v_dac)
 ```
+
+建议你按这个顺序给自己讲出来：
+
+```text
+1. sar_ideal_weights 生成 nominal_weights
+2. sar_apply_cap_mismatch 生成 actual_weights
+3. sar_convert 用 actual_weights 产生 bits
+4. sar_reconstruct 用 digital_weights 重构 aout
+```
+
+关键问题是第 3 步和第 4 步可以使用不同权重：
+
+```text
+转换时用 actual analog weights
+重构时用 nominal/calibrated digital weights
+```
+
+这正是后面校准能发挥作用的地方。
+
+## 容易混淆的点
+
+- `actual_weights` 不是“真实答案输出”，它是模拟 CDAC 的实际权重。
+- `nominal_weights` 是数字端以为 ADC 应该有的理想权重。
+- mismatch 会先影响 bit decision，再影响数字重构；校准只能修正可由数字权重补偿的部分。
+- comparator noise 是每次比较时的随机扰动，不是一个固定权重误差。
+- `cap_mismatch_sigma=0.002` 表示相对失配量级，不是 ENOB 直接下降 0.002 bit。
 
 ## 阶段检查问题
 

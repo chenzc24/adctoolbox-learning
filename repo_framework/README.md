@@ -22,7 +22,8 @@ E:\ADCToolbox
 ├── reference_dataset/        # 参考输入数据
 ├── reference_output/         # MATLAB 或黄金参考输出
 ├── resources/                # 本地资源目录，已被 git 忽略
-└── agent_playground/         # 本地实验区，已被 git 忽略
+├── learning/                 # ADCToolbox 学习资料子模块
+└── agent_playground/         # 本地临时实验区，已被 git 忽略
 ```
 
 ## Python 子项目
@@ -133,7 +134,7 @@ uv run adctoolbox-get-examples C:\Users\90590\adctoolbox_examples
 本次整理后的学习目录是：
 
 ```text
-agent_playground/adctoolbox_learning/
+learning/adctoolbox-learning/
 ```
 
 其中：

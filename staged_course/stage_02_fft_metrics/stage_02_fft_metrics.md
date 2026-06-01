@@ -10,6 +10,35 @@
 - SNR、SNDR、SFDR、THD、ENOB、NSD 分别衡量什么。
 - 为什么频谱分析必须排除 DC、fundamental、harmonics。
 
+## 初学者先抓住的主线
+
+FFT 阶段不是为了“画一张漂亮频谱图”，而是为了把 ADC 输出拆成几类能量：
+
+```text
+DC                  -> 偏置
+fundamental          -> 你真正输入的正弦
+harmonics            -> 非线性失真
+other spurs          -> 杂散、失配、干扰
+remaining bins       -> 噪声底
+```
+
+所有动态指标都来自这些能量的分类和相除。你可以先记住：
+
+| 指标 | 初学者直觉 |
+|---|---|
+| SNR | 信号比随机噪声高多少 |
+| SNDR | 信号比噪声加失真高多少 |
+| SFDR | 最大单个 spur 离信号多远 |
+| THD | 谐波失真总共有多强 |
+| ENOB | 把 SNDR 翻译成“等效多少 bit” |
+| NSD | 噪声摊到每 Hz 后是多少 |
+
+所以看到 `analyze_spectrum` 的结果时，先不要只盯 ENOB。先问：
+
+```text
+到底是噪声坏了，还是 spur/harmonic 坏了？
+```
+
 ## 数学需要补什么
 
 ### 1. 正弦信号
@@ -252,7 +281,9 @@ python 02_spectrum\exp_s04_sweep_dynamic_range.py
 ```text
 python/src/adctoolbox/fundamentals/frequency.py
 python/src/adctoolbox/spectrum/analyze_spectrum.py
+python/src/adctoolbox/spectrum/compute_spectrum.py
 python/src/adctoolbox/spectrum/_harmonics.py
+python/src/adctoolbox/spectrum/_estimate_noise_power.py
 ```
 
 阅读重点：
@@ -261,6 +292,34 @@ python/src/adctoolbox/spectrum/_harmonics.py
 - harmonic bin 怎么折叠。
 - noise bin 怎么排除。
 - `enob` 是用哪个指标计算的。
+
+读 `analyze_spectrum` 时，可以只追踪这条逻辑：
+
+```text
+输入 waveform
+-> 计算 FFT
+-> 找 fundamental
+-> 找 harmonics
+-> 剩下的 bins 估计 noise
+-> 汇总 SNR / SNDR / SFDR / THD / ENOB
+```
+
+如果你读不懂所有参数，先抓住这些参数：
+
+```text
+fs              -> 采样率
+win_type        -> 窗口类型
+side_bin        -> 主频附近合并多少 bin
+max_scale_range -> full-scale 归一化参考
+```
+
+## 容易混淆的点
+
+- `SNR` 不包含 harmonic distortion；`SNDR` 包含。
+- `SFDR` 只看最大的单个 spur，不代表总噪声。
+- `ENOB` 是由 `SNDR` 换算来的，所以失真也会拉低 ENOB。
+- coherent sampling 不是玄学，它只是让信号能量刚好落在 FFT bin 上。
+- window 不是“让结果更好”，而是在 non-coherent 时减少 leakage 带来的误判。
 
 ## 阶段检查问题
 

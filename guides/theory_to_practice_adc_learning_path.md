@@ -13,7 +13,7 @@ cd E:\ADCToolbox\python
 本学习目录位于：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\
+E:\ADCToolbox\learning\adctoolbox-learning\
 ```
 
 ## 0. 先建立全局地图
@@ -171,13 +171,13 @@ python 02_spectrum\exp_s04_sweep_dynamic_range.py
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+uv run python ..\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 输出位置：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\
 ```
 
 观察：
@@ -298,7 +298,7 @@ python 04_debug_analog\exp_a22_analyze_error_spectrum.py
 本地整合 demo 的对应输出：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\02_analog_error_debug.png
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\02_analog_error_debug.png
 ```
 
 观察：
@@ -428,7 +428,7 @@ from adctoolbox.models import sar_apply_cap_mismatch, sar_convert, sar_reconstru
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\sar_adc_model_study.py
+uv run python ..\learning\adctoolbox-learning\demos\sar_adc_model_study.py
 ```
 
 官方示例：
@@ -493,7 +493,7 @@ python 05_debug_digital\exp_d14_overflow_check.py
 本地整合 demo 对应输出：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\04_digital_debug_bits_and_weights.png
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\04_digital_debug_bits_and_weights.png
 ```
 
 观察：
@@ -574,7 +574,7 @@ python 05_debug_digital\exp_d18_sar_redundant_mismatch_training_length_sweep.py
 本地整合 demo 对应输出：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\03_sar_model_and_calibration.png
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\03_sar_model_and_calibration.png
 ```
 
 观察：
@@ -772,7 +772,7 @@ python 04_debug_analog\exp_a22_analyze_error_spectrum.py
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\sar_adc_model_study.py
+uv run python ..\learning\adctoolbox-learning\demos\sar_adc_model_study.py
 ```
 
 ### Phase E：进入校准
@@ -799,13 +799,13 @@ python 05_debug_digital\exp_d18_sar_redundant_mismatch_training_length_sweep.py
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+uv run python ..\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 看：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\
 ```
 
 你应该能把这些输出和理论对应起来：

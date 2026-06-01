@@ -6,7 +6,7 @@ Run the SAR ADC study:
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\sar_adc_model_study.py
+uv run python ..\learning\adctoolbox-learning\demos\sar_adc_model_study.py
 ```
 
 The model flow is:
@@ -39,4 +39,4 @@ Useful experiments:
 3. Increase `comparator_noise_rms` and observe how SNR/ENOB degrade.
 4. Change `num_bits` to 8, 10, 12, 14, or 16 and compare the ideal limit.
 
-Generated files are written to `agent_playground/adctoolbox_learning/outputs/sar_adc_model/`.
+Generated files are written to `learning/adctoolbox-learning/outputs/sar_adc_model/`.

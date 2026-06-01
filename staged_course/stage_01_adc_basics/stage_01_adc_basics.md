@@ -10,6 +10,56 @@
 - 为什么本库中的信号经常被归一化到 `0.0 ~ 1.0`。
 - 为什么 SAR 模型的输入 `vin`、输出 `bits`、重构 `aout` 是三种不同对象。
 
+## 初学者先抓住的主线
+
+ADC 最核心的事只有一句话：
+
+```text
+把连续电压，在离散时间点上，变成有限个数字 code。
+```
+
+这句话拆成三步：
+
+```text
+连续电压        -> 采样 sampling        -> 一串时间样本
+一串时间样本    -> 量化 quantization    -> 一串 code
+一串 code/bits  -> 数字重构             -> 可分析的输出波形
+```
+
+在 ADCToolbox 的 SAR 模型里，对应关系是：
+
+```text
+vin   -> 采样后的输入电压
+bits  -> 每个样本的 SAR 比较结果
+aout  -> bits 乘权重后的重构输出
+```
+
+所以初学时不要把 `vin`、`bits`、`aout` 混成“同一个 ADC 输出”。它们分别处在 ADC 流程的不同位置。
+
+## 一个 3-bit ADC 小例子
+
+假设输入范围是 `0.0 ~ 1.0`，3-bit ADC 有：
+
+```text
+2^3 = 8 个 code
+LSB = 1.0 / 8 = 0.125
+```
+
+那么大致可以理解为：
+
+| 输入电压范围 | code |
+|---|---|
+| 0.000 到 0.125 | 0 |
+| 0.125 到 0.250 | 1 |
+| 0.250 到 0.375 | 2 |
+| ... | ... |
+| 0.875 到 1.000 | 7 |
+
+这说明两个重点：
+
+- code 不是连续的，输入电压的微小变化可能不会立刻改变 code。
+- 量化误差不是 bug，而是有限 bit 数天然带来的误差。
+
 ## 数学需要补什么
 
 ### 1. 离散序列
@@ -204,8 +254,8 @@ python/src/adctoolbox/examples/03_generate_signals/
 本地学习脚本：
 
 ```text
-agent_playground/adctoolbox_learning/demos/sar_adc_model_study.py
-agent_playground/adctoolbox_learning/demos/whole_workflow_demo.py
+learning/adctoolbox-learning/demos/sar_adc_model_study.py
+learning/adctoolbox-learning/demos/whole_workflow_demo.py
 ```
 
 ## 对应 API
@@ -222,13 +272,13 @@ from adctoolbox import snr_to_enob, enob_to_snr, amplitudes_to_snr
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+uv run python ..\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 看输出：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\01_spectrum_clean_vs_nonideal.png
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\01_spectrum_clean_vs_nonideal.png
 ```
 
 观察：
@@ -242,7 +292,7 @@ E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\01_spe
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\sar_adc_model_study.py
+uv run python ..\learning\adctoolbox-learning\demos\sar_adc_model_study.py
 ```
 
 观察控制台中的：
@@ -266,7 +316,7 @@ SAR bit-trial trace for one sample
 打开：
 
 ```text
-agent_playground/adctoolbox_learning/demos/sar_adc_model_study.py
+learning/adctoolbox-learning/demos/sar_adc_model_study.py
 ```
 
 修改：
@@ -286,6 +336,29 @@ num_bits = 16
 
 - 理想情况下 bit 数越高，ENOB 越高。
 - 但加入噪声后，ENOB 不一定随 bit 数无限提高。
+
+## 本阶段代码阅读
+
+建议按这个顺序读，不要跳着读：
+
+```text
+python/src/adctoolbox/siggen/nonidealities.py
+python/src/adctoolbox/fundamentals/snr_nsd.py
+python/src/adctoolbox/fundamentals/metrics.py
+python/src/adctoolbox/models/sar.py
+```
+
+阅读重点：
+
+- `ADC_Signal_Generator` 里怎么构造 sine、noise、harmonic。
+- `snr_to_enob` 和 `enob_to_snr` 只是公式转换，不是重新测量 ADC。
+- `sar_convert` 为什么输出的是 `bits`，不是最终 waveform。
+
+读完后，能画出这条链就够了：
+
+```text
+signal generator -> vin -> sar_convert -> bits -> sar_reconstruct -> aout
+```
 
 ## 阶段检查问题
 

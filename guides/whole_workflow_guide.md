@@ -7,13 +7,13 @@ The runnable demo is:
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+uv run python ..\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 Outputs are written to:
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\
 ```
 
 This folder is ignored by git, so it is safe for experiments.
@@ -203,7 +203,7 @@ To inspect the saved SAR arrays:
 ```python
 import numpy as np
 
-data = np.load(r"E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\sar_model_data.npz")
+data = np.load(r"E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\sar_model_data.npz")
 print(data.files)
 print(data["nonideal_bits"].shape)
 print(data["calibrated_weights"])
@@ -214,7 +214,7 @@ print(data["calibrated_weights"])
 Open:
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+E:\ADCToolbox\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 Start with these constants:
@@ -291,7 +291,7 @@ stale tests that still use old names.
 For local study, keep your scripts in:
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\
+E:\ADCToolbox\learning\adctoolbox-learning\
 ```
 
 That keeps experiments out of tracked source.

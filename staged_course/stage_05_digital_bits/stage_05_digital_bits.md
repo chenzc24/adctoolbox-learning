@@ -9,6 +9,65 @@
 - 为什么校准前必须理解 raw bits。
 - 为什么不要只把 ADC 输出看成一条 analog waveform。
 
+## 初学者先抓住的主线
+
+Stage 04 里你已经看到：
+
+```text
+vin -> sar_convert -> bits -> sar_reconstruct -> aout
+```
+
+Stage 05 专门停在中间的 `bits` 上。原因是：
+
+```text
+aout 是 bits 加权后的结果
+bits 才更接近 ADC 内部每一次比较器决策
+```
+
+如果只看 `aout`，很多问题已经被权重求和混在一起。看 `bits` 可以回答更底层的问题：
+
+```text
+某一位是不是几乎不翻转？
+某一位是不是明显偏 0 或偏 1？
+权重比例是不是接近二进制？
+低位增加后是否真的提高性能？
+冗余结构有没有足够余量？
+```
+
+## 一个 bit matrix 小例子
+
+假设 4 个采样点、3-bit SAR：
+
+```text
+B =
+sample0: [0, 0, 1]
+sample1: [0, 1, 0]
+sample2: [1, 0, 0]
+sample3: [1, 1, 0]
+```
+
+如果权重是：
+
+```text
+w = [4, 2, 1]
+```
+
+重构结果：
+
+```text
+y = [1, 2, 4, 6]
+```
+
+bit activity：
+
+```text
+MSB: 2/4 = 50%
+bit1: 2/4 = 50%
+LSB: 1/4 = 25%
+```
+
+这说明 activity 是按“每一列”统计的，不是按每个样本统计。
+
 ## 数学需要补什么
 
 ### 1. bit matrix
@@ -151,7 +210,7 @@ python/src/adctoolbox/examples/05_debug_digital/
 本地完整 demo 输出：
 
 ```text
-agent_playground/adctoolbox_learning/outputs/whole_workflow/04_digital_debug_bits_and_weights.png
+learning/adctoolbox-learning/outputs/whole_workflow/04_digital_debug_bits_and_weights.png
 ```
 
 ## 对应 API
@@ -230,6 +289,32 @@ python/src/adctoolbox/dout/analyze_weight_radix.py
 - bit activity 如何计算。
 - radix 如何由 weights 得到。
 - effective resolution 是怎样的启发式估计。
+
+读代码时先追踪：
+
+```text
+bits
+weights
+activity
+radix
+enob_by_bits
+```
+
+建议先读最简单的 `analyze_bit_activity.py`。它通常只有一个核心动作：
+
+```text
+对每一列 bit 求平均
+```
+
+这能帮你建立信心：很多“数字诊断”并不神秘，只是把 bit matrix 用工程意义解释出来。
+
+## 容易混淆的点
+
+- bit activity 接近 50% 不代表 ADC 一定好，只代表这一位在当前输入下翻转得比较均衡。
+- activity 偏离 50% 不一定是坏事；也可能是输入 DC、幅度或测试信号分布导致。
+- radix 不是频谱指标，它只描述权重之间的比例关系。
+- ENOB sweep 不是校准，它只是观察使用不同 bit 子集时性能怎么变化。
+- raw bits 如果已经不合理，后面校准很可能只是在拟合坏数据。
 
 ## 阶段检查问题
 

@@ -3,9 +3,9 @@
 Run from the Python package directory:
 
     cd E:/ADCToolbox/python
-    uv run python ../agent_playground/adctoolbox_learning/demos/sar_adc_model_study.py
+    uv run python ../learning/adctoolbox-learning/demos/sar_adc_model_study.py
 
-This playground is intentionally outside tracked source. It demonstrates the
+This learning demo lives in the learning submodule. It demonstrates the
 main pieces of an ADC behavioral model:
 
 1. Generate a coherent input sine.
@@ -191,7 +191,7 @@ def save_learning_plots(
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     cfg = CFG
     rng = np.random.default_rng(cfg.rng_seed)

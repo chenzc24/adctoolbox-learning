@@ -3,9 +3,9 @@
 Run from the Python package directory:
 
     cd E:/ADCToolbox/python
-    uv run python ../agent_playground/adctoolbox_learning/demos/whole_workflow_demo.py
+    uv run python ../learning/adctoolbox-learning/demos/whole_workflow_demo.py
 
-Everything is saved under agent_playground/adctoolbox_learning/outputs/,
+Everything is saved under learning/adctoolbox-learning/outputs/,
 which is ignored by git.
 """
 
@@ -302,7 +302,7 @@ def write_summary(summary: dict) -> None:
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     fin, fin_bin = find_coherent_frequency(FS, FIN_TARGET, N)
     norm_freq = fin / FS
@@ -364,7 +364,7 @@ def main() -> None:
 
     print()
     print(f"Outputs saved under: {OUTPUT_DIR}")
-    print("Read agent_playground/adctoolbox_learning/guides/whole_workflow_guide.md for the novice walkthrough.")
+    print("Read learning/adctoolbox-learning/guides/whole_workflow_guide.md for the novice walkthrough.")
 
 
 if __name__ == "__main__":

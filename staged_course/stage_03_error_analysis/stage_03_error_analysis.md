@@ -9,6 +9,44 @@
 - error PDF、error autocorrelation、error spectrum 分别回答什么问题。
 - 如何根据 residual 判断噪声、失真、memory、glitch 等问题。
 
+## 初学者先抓住的主线
+
+Stage 02 的频谱指标回答：
+
+```text
+这个 ADC 输出有多差？
+```
+
+Stage 03 的 residual 分析回答：
+
+```text
+它像是哪一种差法？
+```
+
+核心流程是：
+
+```text
+原始输出 y[n]
+-> 拟合一个最像它的 ideal sine
+-> residual = y[n] - fitted_sine[n]
+-> 分析 residual 的形状
+```
+
+你可以把 fitted sine 看成“ADC 应该输出的主信号”，把 residual 看成“主信号解释不了的剩余部分”。剩余部分越有结构，越说明问题可能不是纯随机噪声。
+
+## 三张图分别看什么
+
+如果 demo 给你三类 residual 图，按这个顺序看：
+
+| 图 | 先问什么 |
+|---|---|
+| error vs sample/time | 有没有周期、突变、包络变化 |
+| error PDF | 像 Gaussian、uniform，还是有长尾/多峰 |
+| error autocorrelation | 相邻样本之间是否相关 |
+| error spectrum | residual 里有没有固定频率 spur |
+
+初学者最常见误区是只看 PDF。PDF 能看幅度分布，但看不出“这个误差是不是每隔固定周期出现”。所以 PDF、ACF、spectrum 要一起看。
+
 ## 数学需要补什么
 
 ### 1. 模型分解
@@ -232,13 +270,13 @@ python 04_debug_analog\exp_a23_analyze_error_autocorrelation.py
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+uv run python ..\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 看：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\02_analog_error_debug.png
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\02_analog_error_debug.png
 ```
 
 ## 本阶段代码阅读
@@ -257,6 +295,30 @@ python/src/adctoolbox/aout/analyze_error_autocorr.py
 - residual 怎么计算。
 - error 如何转成 LSB。
 - autocorrelation 怎么归一化。
+
+读代码时先追踪这些变量：
+
+```text
+data
+frequency_estimate
+fitted_signal
+residuals
+rmse
+```
+
+你暂时不需要完全理解所有迭代细节。先确认：
+
+```text
+fit_sine_4param(data) 不是“滤波”
+它是在找一个最能解释 data 的理想正弦
+```
+
+## 容易混淆的点
+
+- residual 小，不代表 ADC 完美；它只表示在当前输入和当前模型下剩余误差小。
+- residual 有周期结构，通常比 residual RMS 更值得警惕。
+- error PDF 像 Gaussian，通常说明随机噪声占主导，但不能单独证明没有 spur。
+- sine fitting 频率不准时，residual 会出现假的低频结构或拍频。
 
 ## 阶段检查问题
 

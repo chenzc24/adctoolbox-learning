@@ -10,6 +10,53 @@
 - 为什么校准通常改善 SFDR/THD，但不一定显著改善随机噪声导致的 SNR。
 - 如何用 spectrum 验证校准效果。
 
+## 初学者先抓住的主线
+
+校准不是重新做一次 ADC 转换。校准做的是：
+
+```text
+已经有 raw bits
+现在重新估计每一列 bit 应该乘多大的数字权重
+```
+
+也就是：
+
+```text
+校准前：aout_before = bits @ nominal_weights
+校准后：aout_after  = bits @ calibrated_weights
+```
+
+`bits` 没变，变的是 `weights`。
+
+从初学者角度，`calibrate_weight_sine` 可以先理解成：
+
+```text
+我知道输入应该是一条正弦
+我也知道每个采样点的 bit pattern
+那我能不能求一组 weights，让 bits @ weights 尽量像一条正弦？
+```
+
+这就是最小二乘的工程含义。
+
+## 一个极简类比
+
+假设你有三列 bit：
+
+```text
+y = b0*w0 + b1*w1 + b2*w2
+```
+
+但真实 ADC 的 `w0, w1, w2` 因为电容失配不等于理想值。你采了很多点，于是有很多方程：
+
+```text
+sample0: b00*w0 + b01*w1 + b02*w2 ≈ sine0
+sample1: b10*w0 + b11*w1 + b12*w2 ≈ sine1
+sample2: b20*w0 + b21*w1 + b22*w2 ≈ sine2
+...
+```
+
+样本越多，方程越多，就越能稳定估计 `w`。这就是为什么训练长度会影响校准稳定性。
+
 ## 数学需要补什么
 
 ### 1. 从重构开始
@@ -198,7 +245,7 @@ python/src/adctoolbox/examples/05_debug_digital/exp_d18_sar_redundant_mismatch_t
 本地完整 demo：
 
 ```text
-agent_playground/adctoolbox_learning/demos/whole_workflow_demo.py
+learning/adctoolbox-learning/demos/whole_workflow_demo.py
 ```
 
 ## 对应 API
@@ -261,14 +308,14 @@ python 05_debug_digital\exp_d18_sar_redundant_mismatch_training_length_sweep.py
 
 ```powershell
 cd E:\ADCToolbox\python
-uv run python ..\agent_playground\adctoolbox_learning\demos\whole_workflow_demo.py
+uv run python ..\learning\adctoolbox-learning\demos\whole_workflow_demo.py
 ```
 
 看：
 
 ```text
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\03_sar_model_and_calibration.png
-E:\ADCToolbox\agent_playground\adctoolbox_learning\outputs\whole_workflow\spectrum_metrics.csv
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\03_sar_model_and_calibration.png
+E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\spectrum_metrics.csv
 ```
 
 重点比较：
@@ -299,6 +346,24 @@ python/src/adctoolbox/calibration/_post_process.py
 - redundant/rank-deficient bit 如何处理。
 - 输出 `calibrated_signal` 如何生成。
 
+读代码时建议先按文件职责理解：
+
+| 文件 | 初学者先理解什么 |
+|---|---|
+| `_prepare_input.py` | 把 bits、freq、nominal weights 整理成统一形式 |
+| `_estimate_frequencies.py` | 如果没给准频率，如何估计输入频率 |
+| `_lstsq_solver.py` | 真正求最小二乘解 |
+| `_patch_rank_deficiency.py` | bit 列不独立时如何处理 |
+| `_post_process.py` | 如何缩放、整理、返回校准结果 |
+
+先不要试图一次读懂所有数学细节。先确认你能说清楚：
+
+```text
+输入是什么
+未知量是什么
+输出的 calibrated weights 用在哪里
+```
+
 ## 校准前后应该怎么看
 
 不要只看 ENOB。
@@ -321,6 +386,14 @@ ENOB
 | ENOB 改善很小 | 原本主要受随机噪声限制 |
 | THD 改善 | weight mismatch 导致的谐波被修正 |
 | 校准后变差 | 频率估计不准、样本不足、overfit、输入不符合 sine 假设 |
+
+## 容易混淆的点
+
+- `calibrated_signal` 是用校准权重重构出的信号，不是 ADC 重新采样得到的信号。
+- `harmonic_order` 不是“校准几次谐波”，而是在拟合模型里显式允许若干谐波项，避免它们污染权重估计。
+- 校准结果接近 `actual_weights` 是好现象，但工程上最终更关心独立测试数据上的性能。
+- 如果输入信号太小，某些 bit 没有充分翻转，对应权重会更难估。
+- 如果随机噪声已经主导，权重校准不会让 SNR 奇迹般大幅提升。
 
 ## 阶段检查问题
 
