@@ -1,0 +1,14 @@
+# Generated demo outputs; regenerate by running scripts in demos/.
+outputs/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local environment/editor noise
+.venv/
+.env
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
