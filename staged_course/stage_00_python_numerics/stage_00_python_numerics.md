@@ -1,4 +1,4 @@
-# Stage 00: Python 数值仿真基础
+# Stage 00: Python 数值仿真与系统架构基础
 
 ## 本阶段目标
 
@@ -9,6 +9,7 @@
 - `@` 矩阵乘法在 ADC 重构中代表什么。
 - 为什么仿真脚本要固定随机种子。
 - 为什么工程建模里要反复区分单位、归一化范围和 full-scale。
+- ADCToolbox 如何用“建模、分析、校准”支撑 ADC 设计闭环。
 
 如果这一阶段不稳，后面读 `sar_convert`、`sar_reconstruct`、`calibrate_weight_sine` 时会很容易把物理含义和数组维度混在一起。
 
@@ -72,19 +73,309 @@ aout = bits @ weights
 aout.shape == (n_samples,)
 ```
 
-而 SAR ADC 的 raw bits 是二维矩阵：
+对 ADC 来说，最常见的数据流是：
+
+```text
+理想正弦波参数
+    -> 离散采样后的 vin
+    -> sar_convert 得到 raw bit decisions / codes
+    -> sar_reconstruct 得到 aout
+```
+
+这里的“离散采样”不是卷积，而是在采样时刻上对正弦函数逐点取值。
+
+这个数据流可以直接在本库代码里看到。
+
+`python/src/adctoolbox/siggen/nonidealities.py` 里的
+`ADC_Signal_Generator` 会先建立采样时间：
+
+```python
+self.t = np.arange(N) / Fs
+```
+
+然后生成干净正弦：
+
+```python
+signal = A * np.sin(2 * np.pi * Fin * t) + DC
+```
+
+也就是说，连续时间里的理想正弦：
+
+```text
+vin(t) = DC + A * sin(2π Fin t)
+```
+
+进入 Python 后会变成逐点采样的数组：
+
+```text
+t[n] = n / Fs
+vin[n] = DC + A * sin(2π Fin n / Fs)
+```
+
+在 coherent sampling 的例子里，本库也常写成：
+
+```python
+n = np.arange(N)
+vin = INPUT_DC + INPUT_AMPLITUDE * np.sin(2.0 * np.pi * fin_bin * n / N)
+```
+
+这里 `fin_bin / N` 就是归一化频率 `Fin / Fs`。
+
+要理解 coherent sampling，先从 DFT 的性质开始。
+
+DFT 不是在分析无限长的连续信号，而是在分析一段有限长度的离散数据：
+
+```text
+x[0], x[1], ..., x[N-1]
+```
+
+DFT 默认这 N 个点会按 N 点周期重复：
+
+```text
+x[n + N] = x[n]
+```
+
+换成真实时间，采样率是 `Fs`，所以这段数据的时间窗口长度是：
+
+```text
+T = N / Fs
+```
+
+这个周期延拓信号的基频是：
+
+```text
+f0 = 1 / T = Fs / N
+```
+
+DFT 的第 `k` 个 bin 对应的物理频率就是：
+
+```text
+f_k = k * Fs / N
+```
+
+从“时域到频域”的角度看，DFT 系数就是信号和第 `k` 个复指数基底取内积：
+
+```text
+X[k] = sum_n x[n] * exp(-j 2π k n / N)
+```
+
+频谱幅度就是这个复系数的模，或经过缩放后的模。也就是说，频域里看到的
+第 `k` 个 bin，本质上是在问：
+
+```text
+这段数据里有多少 k * Fs / N 这个频率成分？
+```
+
+如果输入正弦频率刚好满足：
+
+```text
+Fin / Fs = fin_bin / N
+```
+
+等价于：
+
+```text
+Fin = fin_bin * Fs / N
+```
+
+那么它正好等于 DFT 的某个基底频率，能量会集中在对应的
+`fin_bin` 上。这里的 `fin_bin` 同时有两个含义：
+
+```text
+1. 输入正弦在 DFT 里的 bin index
+2. N 个采样点窗口里正弦完成的周期数
+```
+
+这就是 coherent sampling：采样窗口里正好包含整数个输入周期。
+
+如果 `Fin` 不是 `Fs / N` 的整数倍，N 点数据首尾不能无缝周期延拓。
+DFT 只能用多个 bin 一起表示这个频率，频域上就表现为 spectral leakage。
+
+实际使用时要分两种情况：
+
+```text
+Fin 已定：
+    选择合适的 Fs 和 N，让 fin_bin = Fin * N / Fs 是整数
+
+Fs 和 N 已定：
+    调整 Fin 到最近的 coherent frequency，即 Fin = fin_bin * Fs / N
+```
+
+本库里的 `find_coherent_frequency(fs, fin_target, n_fft)` 属于第二种情况：
+在目标 `Fin` 附近找一个合适的整数 `fin_bin`，再返回真正用于仿真的
+`Fin_actual`。这样做的主要目的，是让单音频谱分析时能量落在 FFT bin 上，
+减少 leakage，方便后续看 SNR、SNDR、SFDR 和 sine-based calibration。
+
+注意区分连续傅里叶变换、傅里叶级数和 DFT：
+
+| 方法 | 分析对象 | 频域形式 | 本阶段要记住什么 |
+|---|---|---|---|
+| 连续傅里叶变换 CTFT | 连续时间、无限长度或非周期信号 | 连续频率 | 不是本库 FFT 数据流的直接模型 |
+| 傅里叶级数 | 连续时间、周期为 `T` 的信号 | `k / T` 离散频率 | 基频由周期 `T` 决定 |
+| DFT / FFT | `N` 点离散数据，默认 N 点周期延拓 | `k * Fs / N` 离散 bin | coherent sampling 要让 `Fin` 对齐某个 bin |
+
+对应到数组形式，`vin` 通常是一维数组：
+
+```python
+vin.shape == (n_samples,)
+```
+
+它表示一串按时间排列的输入采样点。例如：
+
+```text
+vin[0] -> 第 0 个采样时刻的输入电压
+vin[1] -> 第 1 个采样时刻的输入电压
+...
+```
+
+然后 `python/src/adctoolbox/models/sar.py` 里的 `sar_convert` 接收这个
+`vin` 和 SAR 权重：
+
+```python
+bits = sar_convert(vin, weights, quant_range=(0.0, 1.0))
+```
+
+注意，`sar_convert` 的直接输出还不是 `aout`，而是 raw bit decisions。
+源码 docstring 里写的返回形状是：
+
+```text
+codes.shape == vin.shape + (B,)
+```
+
+如果 `vin.shape == (n_samples,)`，那么：
 
 ```python
 bits.shape == (n_samples, n_bits)
 ```
 
-第 0 维是时间样本，第 1 维是 bit 位置。约定是：
+这张矩阵的每一行对应一个输入采样点，每一列对应 SAR 转换过程中的一个 bit：
+
+```text
+bits[n, 0] -> 第 n 个样本的 MSB decision
+bits[n, 1] -> 第 n 个样本的第 2 个 bit decision
+...
+bits[n, -1] -> 第 n 个样本的 LSB decision
+```
+
+也就是说，第 0 维是时间样本，第 1 维是 bit 位置。约定是：
 
 ```text
 bits[:, 0]      -> MSB
 bits[:, -1]     -> LSB
 bits[n, :]      -> 第 n 个样本的完整 bit decision vector
 ```
+
+例如：
+
+```python
+bits = np.array([
+    [0, 0, 1],
+    [0, 1, 0],
+    [1, 0, 1],
+])
+```
+
+它表示 3 个输入采样点，每个采样点有 3 位 SAR decision：
+
+```text
+第 0 行 [0, 0, 1] -> 第 0 个样本的完整 bit decision
+第 1 行 [0, 1, 0] -> 第 1 个样本的完整 bit decision
+第 2 行 [1, 0, 1] -> 第 2 个样本的完整 bit decision
+第 0 列 [0, 0, 1] -> 所有样本的 MSB decision
+第 1 列 [0, 1, 0] -> 所有样本的第 2 个 bit decision
+第 2 列 [1, 0, 1] -> 所有样本的 LSB decision
+```
+
+重构之后的 `aout` 又回到一维数组：
+
+```python
+aout = sar_reconstruct(bits, weights, quant_range=(0.0, 1.0))
+```
+
+```python
+aout.shape == (n_samples,)
+```
+
+它表示每个输入采样点对应的重构模拟值。
+
+所以本库中最小的 SAR 数据流可以记成：
+
+```python
+n = np.arange(N)
+vin = DC + A * np.sin(2 * np.pi * Fin * n / Fs)
+
+weights = sar_ideal_weights(n_bits)
+bits = sar_convert(vin, weights)
+aout = sar_reconstruct(bits, weights)
+```
+
+对应的 shape 是：
+
+```text
+vin.shape     == (N,)
+weights.shape == (n_bits,)
+bits.shape    == (N, n_bits)
+aout.shape    == (N,)
+```
+
+如果要加入更真实的 ADC 行为，非理想因素通常加在四个位置：
+
+```text
+1. 输入波形阶段
+   vin -> vin_nonideal
+
+2. SAR 权重阶段
+   nominal_weights -> actual_weights
+
+3. SAR 转换阶段
+   vin + sampling noise / comparator noise -> bits
+
+4. 数字重构阶段
+   bits @ digital_weights -> aout
+```
+
+对应到本库代码，输入波形阶段的非理想性主要在
+`python/src/adctoolbox/siggen/nonidealities.py`，例如：
+
+```text
+apply_thermal_noise
+apply_jitter
+apply_static_nonlinearity
+apply_memory_effect
+apply_reference_error
+apply_clipping
+apply_drift
+```
+
+SAR 权重阶段的非理想性可以用实际 CDAC 权重表示：
+
+```python
+nominal_weights = sar_ideal_weights(n_bits)
+actual_weights = sar_apply_cap_mismatch(nominal_weights, sigma=0.004, rng=rng)
+```
+
+转换阶段的随机噪声由 `sar_convert` 参数加入：
+
+```python
+bits = sar_convert(
+    vin,
+    actual_weights,
+    sampling_noise_rms=40e-6,
+    comparator_noise_rms=40e-6,
+    rng=rng,
+)
+```
+
+重构阶段要区分“实际模拟权重”和“数字重构权重”：
+
+```python
+aout_uncalibrated = sar_reconstruct(bits, nominal_weights)
+aout_actual_weight = sar_reconstruct(bits, actual_weights)
+aout_calibrated = sar_reconstruct(bits, calibrated_weights)
+```
+
+同一组 `bits`，使用不同的 `digital_weights`，会得到不同的 `aout`。
+这就是后续位权重校准问题的核心。
 
 ### 2. ADC 数字重构就是矩阵乘法
 
@@ -131,6 +422,31 @@ ADC 建模中会出现：
 rng = np.random.default_rng(20260601)
 ```
 
+本库的 SAR 建模函数也采用这种写法，把 `rng` 显式传进去：
+
+```python
+rng = np.random.default_rng(20260601)
+
+actual_weights = sar_apply_cap_mismatch(nominal_weights, sigma=0.004, rng=rng)
+bits = sar_convert(
+    vin,
+    actual_weights,
+    sampling_noise_rms=40e-6,
+    comparator_noise_rms=40e-6,
+    rng=rng,
+)
+```
+
+初学时可能会见到旧写法：
+
+```python
+np.random.seed(42)
+noise = np.random.normal(0, noise_std, N)
+```
+
+它也能固定随机数，但会影响全局随机状态。学习本库时，优先使用
+`np.random.default_rng(seed)`，再把 `rng` 传给需要随机数的函数。
+
 这样你改一个参数时，结果变化更容易归因。
 
 ### 4. 归一化和单位必须分清
@@ -166,6 +482,336 @@ quant_range = (-Vref, +Vref)   # differential-style range
 | `rng` | 某次芯片/噪声 realization |
 
 学习时建议先读代码变量，再强迫自己说出它对应的物理对象。
+
+## System Architecture: ADCToolbox 的系统闭环
+
+Stage 00 不只是在学 NumPy。`vin`、`bits`、`weights`、`aout`
+这些数组，是后面所有工程闭环的共同语言。
+
+可以先把 ADCToolbox 的能力分成三类：
+
+```text
+造数据：ADC 建模
+看数据：数据分析
+修数据：校准方法
+```
+
+对应到代码模块，大致是：
+
+```text
+ADC 建模：
+python/src/adctoolbox/models/
+python/src/adctoolbox/siggen/
+python/src/adctoolbox/oversampling/
+python/src/adctoolbox/timeinterleave/
+
+数据分析：
+python/src/adctoolbox/spectrum/
+python/src/adctoolbox/aout/
+python/src/adctoolbox/dout/
+python/src/adctoolbox/fundamentals/
+python/src/adctoolbox/toolset/
+
+校准方法：
+python/src/adctoolbox/calibration/
+python/src/adctoolbox/dout/
+python/src/adctoolbox/timeinterleave/
+```
+
+这三类能力会组成几个不同层次的闭环。
+
+### 1. 程序建模 / 数字校准闭环
+
+功能类型：
+
+```text
+造数据 + 看数据 + 修数据
+```
+
+涉及模块：
+
+```text
+models/
+siggen/
+spectrum/
+aout/
+dout/
+calibration/
+fundamentals/
+```
+
+闭环逻辑：
+
+```text
+理想 ADC 行为模型
+-> 加入指定非理想
+-> 生成 vin / bits / aout
+-> 分析频谱、残差、bit activity、INL/DNL
+-> 判断非理想造成了什么数据特征
+-> 运行数字校准算法
+-> 用校准参数重新处理输出
+-> 比较校准前后结果
+-> 调整模型或校准算法
+```
+
+以 SAR 电容失配为例：
+
+```text
+sar_ideal_weights
+-> sar_apply_cap_mismatch 得到 actual_weights
+-> sar_convert(vin, actual_weights) 得到 bits
+-> sar_reconstruct(bits, nominal_weights) 得到未校准输出
+-> calibrate_weight_sine(bits) 估计 calibrated_weights
+-> bits @ calibrated_weights 得到校准后输出
+-> 比较校准前后 SNDR / ENOB / spur / residual
+```
+
+最终目的：
+
+```text
+验证某类非理想是否会造成目标现象；
+验证数字校准算法能不能修正这个现象；
+建立“非理想类型 -> 数据表现 -> 校准效果”的因果关系。
+```
+
+核心问题：
+
+```text
+这个误差能不能被数字校准修掉？
+需要多少数据、什么输入、什么频率条件？
+校准后的参数是否稳定、是否能泛化？
+```
+
+### 2. 电路设计 / 仿真验证闭环
+
+功能类型：
+
+```text
+看数据 + 修数据 + 造数据对照
+```
+
+涉及模块：
+
+```text
+spectrum/
+aout/
+dout/
+calibration/
+models/
+siggen/
+fundamentals/
+toolset/
+```
+
+闭环逻辑：
+
+```text
+电路设计
+-> Spectre / SPICE / Verilog-A 仿真
+-> 导出波形或数字码
+-> 导入 ADCToolbox 分析
+-> 和行为模型中的非理想特征比对
+-> 判断主要误差来源
+-> 判断是改电路，还是交给数字校准
+-> 修改电路或数字后端
+-> 再仿真
+```
+
+最终目的：
+
+```text
+把电路仿真中的性能问题映射到具体误差来源和设计决策。
+```
+
+核心问题：
+
+```text
+这个性能问题来自哪块电路？
+是 CDAC mismatch、comparator noise、reference settling、sampling jitter，还是 clipping？
+是修改电容/比较器/reference/clock，还是用数字校准补偿？
+```
+
+典型例子：
+
+```text
+电路仿真 SNDR 下降
+-> ADCToolbox 分析 spur / harmonics / residual
+-> 用 CDAC mismatch 行为模型复现类似结果
+-> calibrate_weight_sine 后指标恢复
+-> 判断主要问题可能是 bit weight error
+-> 若校准足够：数字后端使用 calibrated_weights
+-> 若校准不足：回到 CDAC 尺寸、版图匹配、冗余结构设计
+```
+
+### 3. 芯片测试 / 数据诊断闭环
+
+功能类型：
+
+```text
+看数据 + 修数据 + 造数据对照
+```
+
+涉及模块：
+
+```text
+spectrum/
+aout/
+dout/
+calibration/
+timeinterleave/
+models/
+siggen/
+toolset/
+```
+
+闭环逻辑：
+
+```text
+真实芯片测试数据
+-> 导入 ADCToolbox
+-> 分析 spectrum / residual / INL / DNL / bit activity
+-> 和行为模型中的典型非理想模式对照
+-> 反推可能问题来源
+-> 尝试数字校准或补偿
+-> 改变测试条件验证假设
+-> 反馈到测试方案、电路设计或数字算法
+```
+
+最终目的：
+
+```text
+从真实测量数据中诊断 ADC 问题，并判断问题属于测试、算法还是电路。
+```
+
+核心问题：
+
+```text
+芯片上的异常像哪类非理想？
+是测试 setup 问题，还是芯片设计问题？
+校准能否改善真实数据？
+不同输入频率、幅度、温度、电源条件下问题是否一致？
+```
+
+### 4. 架构探索 / 规格权衡闭环
+
+功能类型：
+
+```text
+造数据 + 看数据，必要时修数据
+```
+
+涉及模块：
+
+```text
+models/
+siggen/
+spectrum/
+aout/
+oversampling/
+timeinterleave/
+calibration/
+fundamentals/
+```
+
+闭环逻辑：
+
+```text
+设定 ADC 架构和目标规格
+-> 选择 bit 数、采样率、OSR、冗余结构、输入范围
+-> 行为级快速仿真
+-> 加入噪声、失配、非线性预算
+-> 分析 SNR / SNDR / SFDR / ENOB / INL / DNL
+-> 评估校准需求
+-> 调整架构参数
+-> 重复仿真
+```
+
+最终目的：
+
+```text
+在电路细节完成前，快速判断某种架构是否可能达到目标规格。
+```
+
+核心问题：
+
+```text
+需要多少 bit？
+需要多少冗余？
+允许多少电容失配？
+是否必须加入数字校准？
+模拟设计压力能否通过数字校准降低？
+性能、功耗、面积、复杂度如何取舍？
+```
+
+### 5. 算法开发 / 回归验证闭环
+
+功能类型：
+
+```text
+造数据 + 修数据 + 看数据
+```
+
+涉及模块：
+
+```text
+calibration/
+models/
+siggen/
+spectrum/
+aout/
+dout/
+tests/
+examples/
+```
+
+闭环逻辑：
+
+```text
+提出新的分析或校准算法
+-> 用可控模型生成测试数据
+-> 跑算法
+-> 和已知 truth 对比
+-> 看指标是否改善
+-> 加入更多 corner case
+-> 写测试和示例
+-> 回归验证
+```
+
+最终目的：
+
+```text
+保证 ADCToolbox 的算法本身可靠、可复现、可维护。
+```
+
+核心问题：
+
+```text
+算法在理想条件下是否正确？
+在噪声、失配、频率偏差、数据长度不足时是否稳定？
+会不会只对某个训练数据有效，换一个输入就失败？
+```
+
+总结起来，ADCToolbox 不是单纯的 ADC 仿真器，也不是单纯的频谱工具。
+它的最终目标是：
+
+```text
+建立 ADC 行为建模、数据分析、数字校准、电路仿真和芯片测试之间的工程闭环。
+```
+
+一句话版：
+
+```text
+ADCToolbox 用“造数据、看数据、修数据”三类能力，
+把 ADC 的非理想问题变成可复现、可诊断、可校准、可反馈到电路设计和测试验证的工程流程。
+```
+
+最核心的工程判断是：
+
+```text
+这个 ADC 性能问题是什么造成的？
+它能不能在数字域校准？
+如果不能，应该回到哪一块电路或测试条件去修改？
+```
 
 ## 本库对应代码
 
