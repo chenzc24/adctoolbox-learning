@@ -36,9 +36,12 @@ Use `schema/EXAMPLE_NOTE_TEMPLATE.md` for every new example note.
 
 ## Priority Queue
 
-- `examples/04_debug_analog/exp_a01_fit_sine_4param.py`
-- `examples/05_debug_digital/exp_d01_cal_weight_sine_lite.py`
-- `examples/05_debug_digital/exp_d02_cal_weight_sine.py`
+- done: `examples/04_debug_analog/exp_a01_fit_sine_4param.py`
+  -> [Example: sine fit 4-parameter](../source_notes/examples/exp_a01_fit_sine_4param.md)
+- done: `examples/05_debug_digital/exp_d01_cal_weight_sine_lite.py`
+  -> [Example: lite sine weight calibration](../source_notes/examples/exp_d01_cal_weight_sine_lite.md)
+- done: `examples/05_debug_digital/exp_d02_cal_weight_sine.py`
+  -> [Example: full sine weight calibration](../source_notes/examples/exp_d02_cal_weight_sine.md)
 - `examples/05_debug_digital/exp_d03_redundancy_comparison.py`
 - `examples/05_debug_digital/exp_d16_sar_unit_cap_mismatch_mc.py`
 - `examples/05_debug_digital/exp_d18_sar_redundant_mismatch_training_length_sweep.py`

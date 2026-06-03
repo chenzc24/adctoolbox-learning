@@ -85,9 +85,12 @@ answered it.
     `wiki/source_notes/adc_test_analysis_calibration_pdf.md`,
     `wiki/source_notes/data_conversion_handbook_note.md`,
     `wiki/source_notes/adc_metric_concept_docx.md`,
-    `wiki/source_notes/adc_physical_system_structure_docx.md`
+    `wiki/source_notes/adc_physical_system_structure_docx.md`,
+    `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`,
+    `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`,
+    `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`
   - Still missing high-priority raw notes:
-    remaining PDF/DOCX source details, example evidence notes, and a
+    remaining PDF/DOCX source details, remaining example evidence notes, and a
     MATLAB-to-Python translation comparison table.
 
 - What exact rule promotes a page from `draft` to `stable`?
@@ -100,7 +103,12 @@ answered it.
 - How should future example notes be organized?
   - Answered structurally by: `schema/EXAMPLE_NOTE_TEMPLATE.md` and
     `wiki/workflows/example_ingest_map.md`
-  - Remaining content-layer work: ingest individual examples.
+  - First ingested examples:
+    `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`,
+    `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`,
+    `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`
+  - Remaining content-layer work: ingest redundancy, SAR mismatch Monte Carlo,
+    and training-length examples.
 
 - How should future proof pages be organized?
   - Answered structurally by: `schema/PROOF_PAGE_TEMPLATE.md`

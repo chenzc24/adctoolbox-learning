@@ -18,11 +18,11 @@ Flash ADCs, folding/interpolating ADCs, switched-capacitor settling, Pipeline
 ADCs, time interleaving, oversampling, dither, filtering, complex phase/systems,
 MATLAB fundamentals, MATLAB code reading, ADC test/calibration PDF material,
 the Data Conversion Handbook, and learner DOCX notes on metrics and physical
-ADC structure.
+ADC structure, and the first three ADCToolbox example evidence notes.
 
 ## Current Source Note Count
 
-Current generated source notes: 29.
+Current generated source notes: 32.
 
 ## Distilled Raw Markdown Notes
 
@@ -73,6 +73,12 @@ Lower priority or index/meta notes:
 - `ADC关键metric及concept.docx`
 - `ADC工作物理系统结构.docx`
 
+## Distilled Example Evidence Notes
+
+- `python/src/adctoolbox/examples/04_debug_analog/exp_a01_fit_sine_4param.py`
+- `python/src/adctoolbox/examples/05_debug_digital/exp_d01_cal_weight_sine_lite.py`
+- `python/src/adctoolbox/examples/05_debug_digital/exp_d02_cal_weight_sine.py`
+
 ## Remaining PDF And DOCX Gap
 
 PDF and DOCX sources are imported but not yet fully distilled. Highest
@@ -104,7 +110,7 @@ Recommended next pass:
 1. Chapter-specific handbook notes for sampled-data fundamentals and converter
    testing if needed by future pages.
 2. Source note for `ADC核心概念详细解析.pdf`.
-3. Example evidence notes from `wiki/workflows/example_ingest_map.md`.
+3. Remaining example evidence notes from `wiki/workflows/example_ingest_map.md`.
 4. MATLAB-to-Python translation comparison table for calibration and spectrum
    examples.
 5. Additional proof pages for identifiability, redundant SAR reachability, and

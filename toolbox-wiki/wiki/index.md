@@ -73,6 +73,9 @@ Planned:
 - [Switched-capacitor settling and noise](source_notes/switched_cap_settling_noise_ch6.md): Source note for charge redistribution, settling error, kT/C noise, and calibration limits.
 - [Time-interleaved ADCs](source_notes/time_interleaving_ch13.md): Source note for interleaving, offset/gain/timing mismatch, and spur behavior.
 - [Reading ADC MATLAB code](source_notes/matlab_code_reading_note.md): Source note for reading MATLAB ADC code by input/output, math type, and data flow.
+- [Example: sine fit 4-parameter](source_notes/examples/exp_a01_fit_sine_4param.md): Evidence note for noisy sine fitting and residual checks.
+- [Example: lite sine weight calibration](source_notes/examples/exp_d01_cal_weight_sine_lite.md): Evidence note for fast bit-weight calibration and before/after spectrum comparison.
+- [Example: full sine weight calibration](source_notes/examples/exp_d02_cal_weight_sine.md): Evidence note for full bit-weight calibration, spectrum comparison, and weight error comparison.
 - [Comparator chapter](source_notes/comparator_ch7.md): Source note for comparator offset, noise, speed, metastability, and calibration limits.
 - [Flash ADCs](source_notes/flash_adc_ch8.md): Source note for parallel threshold comparison, thermometer codes, bubble errors, and Flash complexity.
 - [Folding and interpolating ADCs](source_notes/folding_interpolating_adc_ch9.md): Source note for reducing Flash complexity through analog preprocessing.

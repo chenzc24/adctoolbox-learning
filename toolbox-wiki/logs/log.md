@@ -1,5 +1,11 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] ingest | Add first example evidence notes
+
+- Added example notes for `exp_a01_fit_sine_4param.py`, `exp_d01_cal_weight_sine_lite.py`, and `exp_d02_cal_weight_sine.py`.
+- Updated `wiki/workflows/example_ingest_map.md` to mark the first three queued examples as ingested.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `open_questions.md`, `progress.md`, and `audits/raw_distillation_2026-06-03.md`.
+
 ## [2026-06-03] ingest | Start PDF and DOCX source distillation
 
 - Added source notes for `ADC测试分析与校准.pdf`, `Data Conversion Handbook.pdf`, `ADC关键metric及concept.docx`, and `ADC工作物理系统结构.docx`.
