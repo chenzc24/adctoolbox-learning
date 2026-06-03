@@ -88,9 +88,12 @@ answered it.
     `wiki/source_notes/adc_physical_system_structure_docx.md`,
     `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`,
     `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`,
-    `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`
+    `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`,
+    `wiki/source_notes/examples/exp_d03_redundancy_comparison.md`,
+    `wiki/source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md`,
+    `wiki/source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md`
   - Still missing high-priority raw notes:
-    remaining PDF/DOCX source details, remaining example evidence notes, and a
+    remaining PDF/DOCX source details, next example candidates, and a
     MATLAB-to-Python translation comparison table.
 
 - What exact rule promotes a page from `draft` to `stable`?
@@ -106,9 +109,12 @@ answered it.
   - First ingested examples:
     `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`,
     `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`,
-    `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`
-  - Remaining content-layer work: ingest redundancy, SAR mismatch Monte Carlo,
-    and training-length examples.
+    `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`,
+    `wiki/source_notes/examples/exp_d03_redundancy_comparison.md`,
+    `wiki/source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md`,
+    `wiki/source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md`
+  - Remaining content-layer work: ingest next candidates listed in
+    `wiki/workflows/example_ingest_map.md`.
 
 - How should future proof pages be organized?
   - Answered structurally by: `schema/PROOF_PAGE_TEMPLATE.md`

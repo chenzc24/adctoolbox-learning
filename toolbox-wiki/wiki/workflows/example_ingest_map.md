@@ -42,9 +42,19 @@ Use `schema/EXAMPLE_NOTE_TEMPLATE.md` for every new example note.
   -> [Example: lite sine weight calibration](../source_notes/examples/exp_d01_cal_weight_sine_lite.md)
 - done: `examples/05_debug_digital/exp_d02_cal_weight_sine.py`
   -> [Example: full sine weight calibration](../source_notes/examples/exp_d02_cal_weight_sine.md)
-- `examples/05_debug_digital/exp_d03_redundancy_comparison.py`
-- `examples/05_debug_digital/exp_d16_sar_unit_cap_mismatch_mc.py`
-- `examples/05_debug_digital/exp_d18_sar_redundant_mismatch_training_length_sweep.py`
+- done: `examples/05_debug_digital/exp_d03_redundancy_comparison.py`
+  -> [Example: redundancy comparison](../source_notes/examples/exp_d03_redundancy_comparison.md)
+- done: `examples/05_debug_digital/exp_d16_sar_unit_cap_mismatch_mc.py`
+  -> [Example: SAR unit-cap mismatch Monte Carlo](../source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md)
+- done: `examples/05_debug_digital/exp_d18_sar_redundant_mismatch_training_length_sweep.py`
+  -> [Example: SAR training-length sweep](../source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md)
+
+## Next Example Candidates
+
+- `examples/05_debug_digital/exp_d15_sar_unit_cap_mismatch_uncal_spectra.py`
+- `examples/05_debug_digital/exp_d17_sar_msb_error_binary_vs_repeat_calibration.py`
+- `examples/04_debug_analog/exp_a31_fit_static_nonlin.py`
+- `examples/04_debug_analog/exp_a32_inl_from_sine_sweep_length.py`
 
 ## Required Links Per Example
 

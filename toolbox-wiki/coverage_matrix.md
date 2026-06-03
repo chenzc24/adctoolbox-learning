@@ -27,7 +27,7 @@ source-code, workflow, rigor, and source-note coverage.
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
 | PDF/DOCX source distillation | partial | n/a | planned | partial | yes | seed |
 | MATLAB learning bridge | partial | n/a | partial | n/a | yes | seed |
-| Example evidence notes | partial | yes | partial | partial | yes | seed |
+| Example evidence notes | partial | yes | partial | partial | yes | usable |
 | Retrieval and maintenance structure | yes | n/a | yes | yes | n/a | stable |
 
 ## Existing Coverage
@@ -86,6 +86,9 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`
 - `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`
 - `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`
+- `wiki/source_notes/examples/exp_d03_redundancy_comparison.md`
+- `wiki/source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md`
+- `wiki/source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md`
 - `schema/PROMOTION_RULES.md`
 - `schema/SEMANTIC_LINT_CHECKLIST.md`
 - `schema/PROOF_PAGE_TEMPLATE.md`
@@ -103,7 +106,7 @@ source-code, workflow, rigor, and source-note coverage.
 5. Source notes for remaining PDF/DOCX sources: `ADC核心概念详细解析.pdf`,
    `ADC工作物理系统结构.docx` follow-up details, `MATLAB.docx`, and selected
    handbook chapter-level pages.
-6. Remaining example evidence notes from `wiki/workflows/example_ingest_map.md`
+6. Next example candidates from `wiki/workflows/example_ingest_map.md`
 7. MATLAB-to-Python translation comparison table.
 
 ## Promotion Rule

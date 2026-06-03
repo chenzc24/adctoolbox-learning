@@ -76,6 +76,9 @@ Planned:
 - [Example: sine fit 4-parameter](source_notes/examples/exp_a01_fit_sine_4param.md): Evidence note for noisy sine fitting and residual checks.
 - [Example: lite sine weight calibration](source_notes/examples/exp_d01_cal_weight_sine_lite.md): Evidence note for fast bit-weight calibration and before/after spectrum comparison.
 - [Example: full sine weight calibration](source_notes/examples/exp_d02_cal_weight_sine.md): Evidence note for full bit-weight calibration, spectrum comparison, and weight error comparison.
+- [Example: redundancy comparison](source_notes/examples/exp_d03_redundancy_comparison.md): Evidence note for strict binary versus redundant calibration under MSB mismatch.
+- [Example: SAR unit-cap mismatch Monte Carlo](source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md): Evidence note for mismatch sigma sweeps and ENOB distributions.
+- [Example: SAR training-length sweep](source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md): Evidence note for training/test separation and overfitting in redundant SAR calibration.
 - [Comparator chapter](source_notes/comparator_ch7.md): Source note for comparator offset, noise, speed, metastability, and calibration limits.
 - [Flash ADCs](source_notes/flash_adc_ch8.md): Source note for parallel threshold comparison, thermometer codes, bubble errors, and Flash complexity.
 - [Folding and interpolating ADCs](source_notes/folding_interpolating_adc_ch9.md): Source note for reducing Flash complexity through analog preprocessing.

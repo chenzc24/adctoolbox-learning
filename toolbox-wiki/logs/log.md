@@ -1,5 +1,11 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] ingest | Add redundancy and SAR example evidence notes
+
+- Added example notes for redundancy comparison, SAR unit-cap mismatch Monte Carlo, and SAR redundant training-length sweep.
+- Updated `wiki/workflows/example_ingest_map.md` to mark the initial calibration evidence queue as ingested and add next example candidates.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `open_questions.md`, `progress.md`, and `audits/raw_distillation_2026-06-03.md`.
+
 ## [2026-06-03] ingest | Add first example evidence notes
 
 - Added example notes for `exp_a01_fit_sine_4param.py`, `exp_d01_cal_weight_sine_lite.py`, and `exp_d02_cal_weight_sine.py`.

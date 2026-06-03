@@ -79,7 +79,7 @@ modeling, calibration, validation, and rigor questions.
 
 ## Raw Distillation State
 
-Current source notes: 32.
+Current source notes: 35.
 
 The wiki now has raw-source notes for ADC metrics, ADC FOM, data-converter
 testing, FFT/sampling, rank/observability, least squares, RMS/noise/power,
@@ -94,6 +94,8 @@ The first PDF/DOCX pass has added source notes for `ADC测试分析与校准.pdf
 `ADC工作物理系统结构.docx`.
 The first example-evidence pass has added notes for sine fitting, lite
 sine-weight calibration, and full sine-weight calibration examples.
+The second example-evidence pass has added notes for redundancy comparison,
+SAR unit-cap mismatch Monte Carlo, and SAR redundant training-length sweep.
 
 ## Next Wiki Pages To Create
 
