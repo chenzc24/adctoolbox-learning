@@ -79,7 +79,7 @@ modeling, calibration, validation, and rigor questions.
 
 ## Raw Distillation State
 
-Current source notes: 25.
+Current source notes: 29.
 
 The wiki now has raw-source notes for ADC metrics, ADC FOM, data-converter
 testing, FFT/sampling, rank/observability, least squares, RMS/noise/power,
@@ -89,6 +89,9 @@ implementation, high-speed SAR, oversampling ADCs, convolution/filtering,
 dither, linear-algebra foundations, and MATLAB code reading.
 Flash ADC, folding/interpolating ADC, complex phase/systems view, and MATLAB
 fundamentals bridge are also now distilled.
+The first PDF/DOCX pass has added source notes for `ADC测试分析与校准.pdf`,
+`Data Conversion Handbook.pdf`, `ADC关键metric及concept.docx`, and
+`ADC工作物理系统结构.docx`.
 
 ## Next Wiki Pages To Create
 

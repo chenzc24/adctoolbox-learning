@@ -8,18 +8,21 @@ last_updated: 2026-06-03
 
 ## Verdict
 
-Raw source distillation is now strong for the high-priority Markdown layer, but
-not complete for the full resource library.
+Raw source distillation is now strong for the high-priority Markdown layer, and
+the first PDF/DOCX distillation pass has started. It is still not complete for
+the full resource library.
 
 The wiki has absorbed the main Markdown notes for ADC metrics, testing, FFT,
 rank, least squares, noise, quantization, SAR, sampling circuits, comparators,
 Flash ADCs, folding/interpolating ADCs, switched-capacitor settling, Pipeline
 ADCs, time interleaving, oversampling, dither, filtering, complex phase/systems,
-MATLAB fundamentals, and MATLAB code reading.
+MATLAB fundamentals, MATLAB code reading, ADC test/calibration PDF material,
+the Data Conversion Handbook, and learner DOCX notes on metrics and physical
+ADC structure.
 
 ## Current Source Note Count
 
-Current generated source notes: 25.
+Current generated source notes: 29.
 
 ## Distilled Raw Markdown Notes
 
@@ -63,17 +66,23 @@ Lower priority or index/meta notes:
   ADCToolbox calibration path.
 - Any future Markdown notes added under `raw/resources/`.
 
-## PDF And DOCX Gap
+## Distilled PDF And DOCX Sources
 
-PDF and DOCX sources are imported but not yet systematically distilled. Highest
-priority:
+- `ADC基础/ADC测试分析与校准.pdf`
+- `ADC基础/Data Conversion Handbook.pdf`
+- `ADC关键metric及concept.docx`
+- `ADC工作物理系统结构.docx`
 
-- `ADC测试分析与校准.pdf`
-- `Data Conversion Handbook.pdf`
+## Remaining PDF And DOCX Gap
+
+PDF and DOCX sources are imported but not yet fully distilled. Highest
+remaining priorities:
+
 - `ADC关键metric及concept.docx`
 - `ADC核心概念详细解析.pdf`
 - `ADC工作物理系统结构.docx`
 - `MATLAB.docx`
+- selected chapter-level pages for `Data Conversion Handbook.pdf`
 
 ## Current Content Meaning
 
@@ -85,19 +94,20 @@ sampling / comparator / CDAC / MDAC / Flash / interleaving nonidealities
   -> linear algebra, least squares, rank, and conditioning
   -> dither, observability, and validation split thinking
   -> FFT testing, noise metrics, FOM, and metric comparability
-  -> MATLAB reading bridge and ADCToolbox source-code pages
+  -> test bench discipline, MATLAB reading bridge, and ADCToolbox source-code pages
 ```
 
 ## Next Distillation Pass
 
 Recommended next pass:
 
-1. PDF/DOCX source notes for `ADC测试分析与校准.pdf` and
-   `Data Conversion Handbook.pdf`.
-2. Example evidence notes from `wiki/workflows/example_ingest_map.md`.
-3. MATLAB-to-Python translation comparison table for calibration and spectrum
+1. Chapter-specific handbook notes for sampled-data fundamentals and converter
+   testing if needed by future pages.
+2. Source note for `ADC核心概念详细解析.pdf`.
+3. Example evidence notes from `wiki/workflows/example_ingest_map.md`.
+4. MATLAB-to-Python translation comparison table for calibration and spectrum
    examples.
-4. Additional proof pages for identifiability, redundant SAR reachability, and
+5. Additional proof pages for identifiability, redundant SAR reachability, and
    spectrum metric uncertainty.
 
 ## Verification

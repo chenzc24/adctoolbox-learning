@@ -59,6 +59,10 @@ Planned:
 
 - [ADC metrics chapter](source_notes/adc_metrics_ch3.md): Source note for static and dynamic ADC performance metrics.
 - [ADC FOM chapter](source_notes/adc_fom_ch16.md): Source note for Walden FOM, Schreier FOM, and calibration-cost tradeoffs.
+- [ADC key metric and concept DOCX](source_notes/adc_metric_concept_docx.md): Learner note bridge for sampling, DNL, INL, SNDR, ENOB, and metric caveats.
+- [ADC physical system structure DOCX](source_notes/adc_physical_system_structure_docx.md): Learner note bridge from sampling, residue, code assembly, and physical weights to calibration.
+- [ADC test analysis and calibration PDF](source_notes/adc_test_analysis_calibration_pdf.md): Source note for test bench discipline, FFT interpretation, linear-equation calibration, and dither calibration.
+- [Data Conversion Handbook](source_notes/data_conversion_handbook_note.md): Broad reference anchor for sampled-data fundamentals, architectures, and converter testing.
 - [Data converter testing](source_notes/data_converter_testing_ch17.md): Source note for test benches, static testing, dynamic testing, and calibration validation.
 - [Sampling, DFT, and FFT](source_notes/fft_sampling_note.md): Source note for sampling, DFT bins, leakage, coherence, and windowing.
 - [Matrix rank and observability](source_notes/matrix_rank_observability_note.md): Source note for rank, independent information, observability, and conditioning.

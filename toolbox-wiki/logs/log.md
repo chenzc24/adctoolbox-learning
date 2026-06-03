@@ -1,5 +1,11 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] ingest | Start PDF and DOCX source distillation
+
+- Added source notes for `ADC测试分析与校准.pdf`, `Data Conversion Handbook.pdf`, `ADC关键metric及concept.docx`, and `ADC工作物理系统结构.docx`.
+- Connected the new notes to ADC metrics, physical structure, test bench discipline, FFT validation, linear-equation calibration, dither calibration, and ADCToolbox source pages.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `open_questions.md`, `progress.md`, and `audits/raw_distillation_2026-06-03.md`.
+
 ## [2026-06-03] ingest | Complete high-priority Markdown source distillation
 
 - Added source notes for Flash ADCs, folding/interpolating ADCs, complex phase/systems view, and MATLAB fundamentals.

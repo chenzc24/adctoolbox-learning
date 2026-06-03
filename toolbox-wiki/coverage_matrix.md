@@ -25,6 +25,7 @@ source-code, workflow, rigor, and source-note coverage.
 | Pipeline ADC calibration context | partial | planned | planned | partial | yes | seed |
 | Oversampling and filtering context | partial | yes | planned | partial | yes | seed |
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
+| PDF/DOCX source distillation | partial | n/a | planned | partial | yes | seed |
 | MATLAB learning bridge | partial | n/a | partial | n/a | yes | seed |
 | Retrieval and maintenance structure | yes | n/a | yes | yes | n/a | stable |
 
@@ -53,6 +54,10 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/concepts/least_squares_adc_calibration.md`
 - `wiki/concepts/rank_deficiency.md`
 - `wiki/source_notes/adc_metrics_ch3.md`
+- `wiki/source_notes/adc_metric_concept_docx.md`
+- `wiki/source_notes/adc_physical_system_structure_docx.md`
+- `wiki/source_notes/adc_test_analysis_calibration_pdf.md`
+- `wiki/source_notes/data_conversion_handbook_note.md`
 - `wiki/source_notes/adc_fom_ch16.md`
 - `wiki/source_notes/data_converter_testing_ch17.md`
 - `wiki/source_notes/sampling_circuit_ch5.md`
@@ -91,7 +96,9 @@ source-code, workflow, rigor, and source-note coverage.
 2. `wiki/workflows/training_validation_split.md`
 3. `wiki/source_code/metrics_py.md`
 4. `wiki/source_code/units_py.md`
-5. PDF/DOCX source notes for `ADC测试分析与校准.pdf` and `Data Conversion Handbook.pdf`
+5. Source notes for remaining PDF/DOCX sources: `ADC核心概念详细解析.pdf`,
+   `ADC工作物理系统结构.docx` follow-up details, `MATLAB.docx`, and selected
+   handbook chapter-level pages.
 6. Example evidence notes from `wiki/workflows/example_ingest_map.md`
 7. MATLAB-to-Python translation comparison table.
 

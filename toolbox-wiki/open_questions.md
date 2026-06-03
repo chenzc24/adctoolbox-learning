@@ -81,10 +81,14 @@ answered it.
     `wiki/source_notes/flash_adc_ch8.md`,
     `wiki/source_notes/folding_interpolating_adc_ch9.md`,
     `wiki/source_notes/complex_phase_systems_note.md`,
-    `wiki/source_notes/matlab_fundamentals_bridge.md`
+    `wiki/source_notes/matlab_fundamentals_bridge.md`,
+    `wiki/source_notes/adc_test_analysis_calibration_pdf.md`,
+    `wiki/source_notes/data_conversion_handbook_note.md`,
+    `wiki/source_notes/adc_metric_concept_docx.md`,
+    `wiki/source_notes/adc_physical_system_structure_docx.md`
   - Still missing high-priority raw notes:
-    key PDF/DOCX sources, example evidence notes, and a MATLAB-to-Python
-    translation comparison table.
+    remaining PDF/DOCX source details, example evidence notes, and a
+    MATLAB-to-Python translation comparison table.
 
 - What exact rule promotes a page from `draft` to `stable`?
   - Answered structurally by: `schema/PROMOTION_RULES.md`
