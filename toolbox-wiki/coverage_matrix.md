@@ -25,7 +25,7 @@ source-code, workflow, rigor, and source-note coverage.
 | Pipeline ADC calibration context | partial | planned | planned | partial | yes | seed |
 | Oversampling and filtering context | partial | yes | planned | partial | yes | seed |
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
-| Sun-course source fidelity | partial | n/a | n/a | partial | yes | seed |
+| Sun-course source fidelity | partial | n/a | n/a | partial | yes | usable |
 | PDF/DOCX source distillation | partial | n/a | planned | partial | yes | seed |
 | MATLAB learning bridge | partial | n/a | partial | n/a | yes | seed |
 | Example evidence notes | partial | yes | partial | partial | yes | usable |
@@ -84,6 +84,9 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/linear_algebra_vectors_matrices_note.md`
 - `wiki/source_notes/matlab_code_reading_note.md`
 - `wiki/source_notes/matlab_fundamentals_bridge.md`
+- `wiki/source_notes/sun_sar_primary_pdf_distillation.md`
+- `wiki/source_notes/sun_pipeline_primary_pdf_distillation.md`
+- `wiki/source_notes/sun_testing_primary_pdf_distillation.md`
 - `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`
 - `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`
 - `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`
@@ -110,8 +113,8 @@ source-code, workflow, rigor, and source-note coverage.
    handbook chapter-level pages.
 6. Next example candidates from `wiki/workflows/example_ingest_map.md`
 7. MATLAB-to-Python translation comparison table.
-8. Slide-level primary-source review for the most calibration-critical
-   Sun-course PDFs.
+8. Slide-level primary-source formula/figure review for the most
+   calibration-critical Sun-course PDFs.
 
 ## Promotion Rule
 

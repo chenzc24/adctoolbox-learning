@@ -92,3 +92,6 @@ Planned:
 - [Pipeline ADC implementation](source_notes/pipeline_adc_implementation_ch11.md): Source note for pipeline implementation errors and calibration hooks.
 - [Sampling circuit](source_notes/sampling_circuit_ch5.md): Source note for sample-and-hold, aperture, kT/C, and sampling nonidealities.
 - [MATLAB fundamentals bridge](source_notes/matlab_fundamentals_bridge.md): Source note for MATLAB arrays, indexing, operators, functions, structs, plotting, and debugging.
+- [Sun SAR primary PDF distillation](source_notes/sun_sar_primary_pdf_distillation.md): Direct distillation from original SAR PDFs on CDAC, comparator, redundancy, timing, and calibration tolerance.
+- [Sun Pipeline primary PDF distillation](source_notes/sun_pipeline_primary_pdf_distillation.md): Direct distillation from original Pipeline PDFs on residue, gain, sub-DAC error, and calibration.
+- [Sun Testing primary PDF distillation](source_notes/sun_testing_primary_pdf_distillation.md): Direct distillation from original testing PDF on test setup, histogram DNL/INL, FFT metrics, and validation caveats.

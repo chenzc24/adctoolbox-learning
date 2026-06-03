@@ -1,5 +1,13 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] ingest | Distill calibration-critical Sun-course PDFs
+
+- Added direct primary-PDF distillation notes for SAR, Pipeline, and testing chapters.
+- Connected SAR PDF material to CDAC/comparator noise, redundancy, timing, calibration tolerance, and SAR example evidence notes.
+- Connected Pipeline PDF material to residue, interstage gain, sub-DAC error, backend-observable calibration, and stage-level rigor questions.
+- Connected testing PDF material to histogram DNL/INL, clock/source limits, FFT metric comparability, and validation workflow requirements.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `progress.md`, `open_questions.md`, and `logs/log.md`.
+
 ## [2026-06-03] audit | Spot-check Sun-course notes against original PDFs
 
 - Added original Sun-course PDF links to 14 core ADC source notes that were previously derived mainly from pre-extracted Markdown.

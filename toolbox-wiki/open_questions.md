@@ -21,6 +21,9 @@ answered it.
   reported for `calibrate_weight_sine`?
   - Current link: `wiki/source_code/calibrate_weight_sine_py.md`
   - Related code-chain page: `wiki/source_code/calibration_helper_chain_py.md`
+  - Related primary source notes:
+    `wiki/source_notes/sun_sar_primary_pdf_distillation.md`,
+    `wiki/source_notes/sun_pipeline_primary_pdf_distillation.md`
   - Needed page: `wiki/rigor/least_squares_uncertainty.md`
 
 - How much frequency error can be tolerated before solved weights are biased?
@@ -32,6 +35,8 @@ answered it.
 - When does redundant bit design guarantee reachability rather than only a
   larger nominal code span?
   - Current link: `wiki/source_code/sar_py.md`
+  - Primary PDF source note:
+    `wiki/source_notes/sun_sar_primary_pdf_distillation.md`
   - Needed page: `wiki/rigor/redundant_sar_reachability.md`
 
 - How should missing-code, DNL, INL, and calibration success be separated in
@@ -45,6 +50,8 @@ answered it.
   - Partial answer: `wiki/concepts/fft_metrics.md`
   - Source page: `wiki/source_code/compute_spectrum_py.md`
   - Workflow answer: `wiki/workflows/spectrum_validation_before_after_calibration.md`
+  - Primary PDF source note:
+    `wiki/source_notes/sun_testing_primary_pdf_distillation.md`
   - Still needed: example evidence notes using real before/after scripts.
 
 - How should coherent sampling, window choice, side-bin removal, and noise
@@ -86,6 +93,9 @@ answered it.
     `wiki/source_notes/data_conversion_handbook_note.md`,
     `wiki/source_notes/adc_metric_concept_docx.md`,
     `wiki/source_notes/adc_physical_system_structure_docx.md`,
+    `wiki/source_notes/sun_sar_primary_pdf_distillation.md`,
+    `wiki/source_notes/sun_pipeline_primary_pdf_distillation.md`,
+    `wiki/source_notes/sun_testing_primary_pdf_distillation.md`,
     `wiki/source_notes/examples/exp_a01_fit_sine_4param.md`,
     `wiki/source_notes/examples/exp_d01_cal_weight_sine_lite.md`,
     `wiki/source_notes/examples/exp_d02_cal_weight_sine.md`,

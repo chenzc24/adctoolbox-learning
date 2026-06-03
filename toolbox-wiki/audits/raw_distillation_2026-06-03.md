@@ -9,8 +9,8 @@ last_updated: 2026-06-03
 ## Verdict
 
 Raw source distillation is now strong for the high-priority Markdown layer, and
-the first PDF/DOCX distillation pass has started. It is still not complete for
-the full resource library.
+direct primary-PDF distillation has started for calibration-critical Sun-course
+chapters. It is still not complete for the full resource library.
 
 The wiki has absorbed the main Markdown notes for ADC metrics, testing, FFT,
 rank, least squares, noise, quantization, SAR, sampling circuits, comparators,
@@ -18,11 +18,12 @@ Flash ADCs, folding/interpolating ADCs, switched-capacitor settling, Pipeline
 ADCs, time interleaving, oversampling, dither, filtering, complex phase/systems,
 MATLAB fundamentals, MATLAB code reading, ADC test/calibration PDF material,
 the Data Conversion Handbook, and learner DOCX notes on metrics and physical
-ADC structure, and the first six ADCToolbox example evidence notes.
+ADC structure, the first six ADCToolbox example evidence notes, and direct
+primary-PDF distillation notes for SAR, Pipeline, and testing.
 
 ## Current Source Note Count
 
-Current generated source notes: 35.
+Current generated source notes: 38.
 
 ## Distilled Raw Markdown Notes
 
@@ -72,6 +73,14 @@ Lower priority or index/meta notes:
 - `ADC基础/Data Conversion Handbook.pdf`
 - `ADC关键metric及concept.docx`
 - `ADC工作物理系统结构.docx`
+
+## Distilled Sun-Course Primary PDF Notes
+
+- `ADC基础/孙老师课件/ch12 - low power.pdf`
+- `ADC基础/孙老师课件/ch12 - high speed.pdf`
+- `ADC基础/孙老师课件/ch10.pdf`
+- `ADC基础/孙老师课件/ch11.pdf`
+- `ADC基础/孙老师课件/ch17 Data Converter Testing.pdf`
 
 ## Distilled Example Evidence Notes
 
