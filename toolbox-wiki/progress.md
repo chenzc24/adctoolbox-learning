@@ -105,6 +105,8 @@ Those primary PDF notes have now been converted into a redundant SAR
 reachability rigor page and a training/validation split workflow page.
 The first Sun-course slide evidence map now tracks page-level coverage for
 calibration-critical SAR, Pipeline, and testing PDF slides.
+Formula-level alignment pages now cover SAR kT/C-DAC-comparator noise,
+sine-histogram DNL/INL, and Pipeline residue/gain observability.
 
 ## Next Wiki Pages To Create
 

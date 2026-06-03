@@ -48,6 +48,9 @@ Planned:
 - [Identifiability conditions](rigor/identifiability_conditions.md): State rank, excitation, conditioning, and validation conditions for ADC weight calibration.
 - [Spectrum metric statistical risks](rigor/spectrum_metric_statistical_risks.md): Explain why FFT metric claims depend on window, side-bin, harmonic, noise, and validation settings.
 - [Redundant SAR reachability](rigor/redundant_sar_reachability.md): Formalize redundancy as interval reachability, static coverage, dynamic decision margin, and validation obligations.
+- [SAR noise formula alignment](rigor/sar_noise_formula_alignment.md): Align ch12 kT/C, DAC noise, and comparator noise formulas with ADCToolbox SAR modeling limits.
+- [Sine histogram DNL/INL](rigor/sine_histogram_dnl_inl.md): Align ch17 sine-input code-density DNL/INL extraction, assumptions, and failure modes.
+- [Pipeline residue box and gain observability](rigor/pipeline_residue_box_gain_observability.md): Align ch10/ch11 residue-box, gain calibration, DAC calibration, and backend observability claims.
 
 ## Source Notes
 

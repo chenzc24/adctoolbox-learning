@@ -21,8 +21,8 @@ source-code, workflow, rigor, and source-note coverage.
 | Validation split | planned | no | yes | partial | yes | seed |
 | Testing and FOM | partial | yes | planned | partial | yes | seed |
 | Noise and quantization model | partial | yes | planned | partial | yes | seed |
-| Sampling/comparator circuit nonidealities | partial | yes | planned | partial | yes | seed |
-| Pipeline ADC calibration context | partial | planned | planned | partial | yes | seed |
+| Sampling/comparator circuit nonidealities | partial | yes | planned | yes | yes | usable |
+| Pipeline ADC calibration context | partial | planned | planned | partial | yes | usable |
 | Oversampling and filtering context | partial | yes | planned | partial | yes | seed |
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
 | Sun-course source fidelity | partial | n/a | n/a | partial | yes | usable |
@@ -54,6 +54,9 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/rigor/identifiability_conditions.md`
 - `wiki/rigor/spectrum_metric_statistical_risks.md`
 - `wiki/rigor/redundant_sar_reachability.md`
+- `wiki/rigor/sar_noise_formula_alignment.md`
+- `wiki/rigor/sine_histogram_dnl_inl.md`
+- `wiki/rigor/pipeline_residue_box_gain_observability.md`
 - `wiki/concepts/fft_metrics.md`
 - `wiki/concepts/least_squares_adc_calibration.md`
 - `wiki/concepts/rank_deficiency.md`

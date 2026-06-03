@@ -67,6 +67,9 @@ maintenance.
 - [Mathematical rigor gaps](wiki/rigor/mathematical_rigor_gaps.md)
 - [Identifiability conditions](wiki/rigor/identifiability_conditions.md)
 - [Redundant SAR reachability](wiki/rigor/redundant_sar_reachability.md)
+- [SAR noise formula alignment](wiki/rigor/sar_noise_formula_alignment.md)
+- [Sine histogram DNL/INL](wiki/rigor/sine_histogram_dnl_inl.md)
+- [Pipeline residue box and gain observability](wiki/rigor/pipeline_residue_box_gain_observability.md)
 - [Spectrum metric statistical risks](wiki/rigor/spectrum_metric_statistical_risks.md)
 
 ## Current Policy

@@ -1,5 +1,12 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] rigor | Resolve high-value slide evidence gaps
+
+- Added `wiki/rigor/sar_noise_formula_alignment.md` for ch12 kT/C, DAC noise, and comparator noise formula alignment.
+- Added `wiki/rigor/sine_histogram_dnl_inl.md` for ch17 sine-histogram DNL/INL algorithm, assumptions, and limitations.
+- Added `wiki/rigor/pipeline_residue_box_gain_observability.md` for ch10/ch11 residue-box, digital gain calibration, DAC calibration, and backend observability.
+- Updated the slide evidence map and wiki indexes.
+
 ## [2026-06-03] audit | Map calibration-critical PDF slides to wiki pages
 
 - Added `audits/sun_course_slide_evidence_map_2026-06-03.md`.

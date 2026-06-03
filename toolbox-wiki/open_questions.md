@@ -15,6 +15,8 @@ answered it.
 - What rank and excitation conditions make ADC weight estimation identifiable?
   - Current link: `wiki/rigor/mathematical_rigor_gaps.md`
   - Partial answer: `wiki/rigor/identifiability_conditions.md`
+  - Related Pipeline observability page:
+    `wiki/rigor/pipeline_residue_box_gain_observability.md`
   - Still needed: numerical examples and condition-number reporting rules.
 
 - How should condition number, singular values, and weight covariance be
@@ -44,6 +46,7 @@ answered it.
 - How should missing-code, DNL, INL, and calibration success be separated in
   redundant SAR examples?
   - Current link: `wiki/workflows/sar_model_to_calibration.md`
+  - Static metric rigor page: `wiki/rigor/sine_histogram_dnl_inl.md`
   - Needed page: `wiki/workflows/redundant_sar_validation.md`
 
 ## Spectrum Validation
@@ -61,6 +64,8 @@ answered it.
 - How should coherent sampling, window choice, side-bin removal, and noise
   estimation be recorded in every metric claim?
   - Partial answer: `wiki/rigor/spectrum_metric_statistical_risks.md`
+  - Static-code-density companion:
+    `wiki/rigor/sine_histogram_dnl_inl.md`
   - Still needed: compare multiple examples and noise methods.
 
 ## Knowledge Base Maintenance
@@ -127,6 +132,10 @@ answered it.
     calibration-critical SAR, Pipeline, and testing PDFs.
   - Still needed: resolve highest-value `partial` and `missing` rows in the
     slide evidence map before using `primary-source-reviewed`.
+  - Newly resolved formula-level rows:
+    `wiki/rigor/sar_noise_formula_alignment.md`,
+    `wiki/rigor/sine_histogram_dnl_inl.md`,
+    `wiki/rigor/pipeline_residue_box_gain_observability.md`
 
 - How should future example notes be organized?
   - Answered structurally by: `schema/EXAMPLE_NOTE_TEMPLATE.md` and
