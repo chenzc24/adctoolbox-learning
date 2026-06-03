@@ -70,11 +70,15 @@ Planned:
 - [Time-interleaved ADCs](source_notes/time_interleaving_ch13.md): Source note for interleaving, offset/gain/timing mismatch, and spur behavior.
 - [Reading ADC MATLAB code](source_notes/matlab_code_reading_note.md): Source note for reading MATLAB ADC code by input/output, math type, and data flow.
 - [Comparator chapter](source_notes/comparator_ch7.md): Source note for comparator offset, noise, speed, metastability, and calibration limits.
+- [Flash ADCs](source_notes/flash_adc_ch8.md): Source note for parallel threshold comparison, thermometer codes, bubble errors, and Flash complexity.
+- [Folding and interpolating ADCs](source_notes/folding_interpolating_adc_ch9.md): Source note for reducing Flash complexity through analog preprocessing.
 - [Convolution and filtering](source_notes/convolution_filtering_note.md): Source note for convolution, filtering, and frequency-domain multiplication.
 - [Dither](source_notes/dither_note.md): Source note for why added noise can decorrelate quantization error.
+- [Complex phase and systems view](source_notes/complex_phase_systems_note.md): Source note for complex spectra, phase, transfer functions, STF, and NTF.
 - [High-speed SAR ADC](source_notes/high_speed_sar_ch12b.md): Source note for high-speed SAR timing, comparator, DAC, and reference constraints.
 - [Linear algebra vectors and matrices](source_notes/linear_algebra_vectors_matrices_note.md): Source note for vector/matrix language used in calibration.
 - [Oversampling ADC](source_notes/oversampling_adc_ch14.md): Source note for oversampling, noise shaping, and sigma-delta context.
 - [Pipeline ADC concept](source_notes/pipeline_adc_concept_ch10.md): Source note for pipeline ADC architecture and residue amplification.
 - [Pipeline ADC implementation](source_notes/pipeline_adc_implementation_ch11.md): Source note for pipeline implementation errors and calibration hooks.
 - [Sampling circuit](source_notes/sampling_circuit_ch5.md): Source note for sample-and-hold, aperture, kT/C, and sampling nonidealities.
+- [MATLAB fundamentals bridge](source_notes/matlab_fundamentals_bridge.md): Source note for MATLAB arrays, indexing, operators, functions, structs, plotting, and debugging.

@@ -1,5 +1,11 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] ingest | Complete high-priority Markdown source distillation
+
+- Added source notes for Flash ADCs, folding/interpolating ADCs, complex phase/systems view, and MATLAB fundamentals.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `open_questions.md`, `progress.md`, and `audits/raw_distillation_2026-06-03.md`.
+- This pass completes the current high-priority Markdown raw-source distillation queue; remaining high-value work shifts to PDF/DOCX source notes and example evidence notes.
+
 ## [2026-06-03] code | Extend core source-code chain
 
 - Added source-code pages for spectrum windows, noise estimation, spectrum helpers, calibration helpers, `analyze_spectrum`, `quick_sndr`, and `fundamentals/frequency`.

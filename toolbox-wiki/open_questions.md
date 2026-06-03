@@ -77,10 +77,14 @@ answered it.
     `wiki/source_notes/convolution_filtering_note.md`,
     `wiki/source_notes/dither_note.md`,
     `wiki/source_notes/linear_algebra_vectors_matrices_note.md`,
-    `wiki/source_notes/matlab_code_reading_note.md`
+    `wiki/source_notes/matlab_code_reading_note.md`,
+    `wiki/source_notes/flash_adc_ch8.md`,
+    `wiki/source_notes/folding_interpolating_adc_ch9.md`,
+    `wiki/source_notes/complex_phase_systems_note.md`,
+    `wiki/source_notes/matlab_fundamentals_bridge.md`
   - Still missing high-priority raw notes:
-    Flash ADC, folding/interpolating ADC, remaining MATLAB fundamentals,
-    complex/phase/system math, and key PDF/DOCX sources.
+    key PDF/DOCX sources, example evidence notes, and a MATLAB-to-Python
+    translation comparison table.
 
 - What exact rule promotes a page from `draft` to `stable`?
   - Answered structurally by: `schema/PROMOTION_RULES.md`

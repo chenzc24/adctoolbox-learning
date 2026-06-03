@@ -25,7 +25,7 @@ source-code, workflow, rigor, and source-note coverage.
 | Pipeline ADC calibration context | partial | planned | planned | partial | yes | seed |
 | Oversampling and filtering context | partial | yes | planned | partial | yes | seed |
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
-| MATLAB learning bridge | planned | n/a | planned | n/a | yes | seed |
+| MATLAB learning bridge | partial | n/a | partial | n/a | yes | seed |
 | Retrieval and maintenance structure | yes | n/a | yes | yes | n/a | stable |
 
 ## Existing Coverage
@@ -57,9 +57,12 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/data_converter_testing_ch17.md`
 - `wiki/source_notes/sampling_circuit_ch5.md`
 - `wiki/source_notes/comparator_ch7.md`
+- `wiki/source_notes/flash_adc_ch8.md`
+- `wiki/source_notes/folding_interpolating_adc_ch9.md`
 - `wiki/source_notes/pipeline_adc_concept_ch10.md`
 - `wiki/source_notes/pipeline_adc_implementation_ch11.md`
 - `wiki/source_notes/fft_sampling_note.md`
+- `wiki/source_notes/complex_phase_systems_note.md`
 - `wiki/source_notes/matrix_rank_observability_note.md`
 - `wiki/source_notes/least_squares_calibration_note.md`
 - `wiki/source_notes/noise_rms_power_variance_note.md`
@@ -73,6 +76,7 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/dither_note.md`
 - `wiki/source_notes/linear_algebra_vectors_matrices_note.md`
 - `wiki/source_notes/matlab_code_reading_note.md`
+- `wiki/source_notes/matlab_fundamentals_bridge.md`
 - `schema/PROMOTION_RULES.md`
 - `schema/SEMANTIC_LINT_CHECKLIST.md`
 - `schema/PROOF_PAGE_TEMPLATE.md`
@@ -87,11 +91,9 @@ source-code, workflow, rigor, and source-note coverage.
 2. `wiki/workflows/training_validation_split.md`
 3. `wiki/source_code/metrics_py.md`
 4. `wiki/source_code/units_py.md`
-5. `wiki/source_notes/flash_adc_ch8.md`
-6. `wiki/source_notes/folding_interpolating_adc_ch9.md`
-7. `wiki/source_notes/matlab_fundamentals_bridge.md`
-8. PDF/DOCX source notes for `ADC测试分析与校准.pdf` and `Data Conversion Handbook.pdf`
-9. Example evidence notes from `wiki/workflows/example_ingest_map.md`
+5. PDF/DOCX source notes for `ADC测试分析与校准.pdf` and `Data Conversion Handbook.pdf`
+6. Example evidence notes from `wiki/workflows/example_ingest_map.md`
+7. MATLAB-to-Python translation comparison table.
 
 ## Promotion Rule
 
