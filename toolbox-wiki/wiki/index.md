@@ -30,6 +30,7 @@ Planned:
 ## Workflows
 
 - [SAR model to calibration](workflows/sar_model_to_calibration.md): End-to-end path from SAR model, bit decisions, calibration, reconstruction, and spectrum validation.
+- [Example ingest map](workflows/example_ingest_map.md): Structural queue for turning ADCToolbox examples into reusable evidence notes.
 
 Planned:
 

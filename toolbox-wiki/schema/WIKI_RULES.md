@@ -69,7 +69,8 @@ in any relevant index or source note.
 When answering a learning question:
 
 1. Read `toolbox-wiki/index.md` and `wiki/index.md`.
-2. Search relevant wiki pages first.
+2. Search relevant wiki pages first with `python tools/search_wiki.py <query>`
+   or `rg`.
 3. Read raw sources or ADCToolbox source code only when the wiki is insufficient.
 4. If the answer creates reusable knowledge, offer to file it into the wiki.
 
@@ -103,6 +104,23 @@ python tools/lint_wiki.py
 The automated lint checks links, required metadata, index coverage, log heading
 format, and raw directory presence. Passing automated lint does not replace
 domain review; it only catches bookkeeping failures.
+
+For conceptual review, use `schema/SEMANTIC_LINT_CHECKLIST.md`. Semantic lint
+looks for contradictions, stale claims, semantic islands, weak evidence links,
+and pages ready for promotion or demotion.
+
+### Promotion
+
+Use `schema/PROMOTION_RULES.md` before changing a page status. Status values
+are:
+
+- `draft`
+- `usable`
+- `stable`
+- `deprecated`
+
+Do not promote a page to `stable` unless it passes automated lint, semantic
+lint, and has clear source/evidence support.
 
 ## Required Page Metadata
 
@@ -194,6 +212,11 @@ Maintain these files:
 - `coverage_matrix.md`: topic coverage map.
 - `open_questions.md`: unresolved math, engineering, and maintenance queue.
 - `tools/lint_wiki.py`: automated bookkeeping lint.
+- `tools/search_wiki.py`: local keyword search for the wiki.
+- `schema/PROMOTION_RULES.md`: page status and promotion rules.
+- `schema/SEMANTIC_LINT_CHECKLIST.md`: conceptual health-check workflow.
+- `schema/PROOF_PAGE_TEMPLATE.md`: template for mathematical rigor pages.
+- `schema/EXAMPLE_NOTE_TEMPLATE.md`: template for example evidence notes.
 
 ## Source-Code Page Requirements
 

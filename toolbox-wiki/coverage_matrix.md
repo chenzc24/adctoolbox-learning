@@ -21,6 +21,7 @@ source-code, workflow, rigor, and source-note coverage.
 | Validation split | planned | no | planned | planned | no | gap |
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | seed |
 | MATLAB learning bridge | planned | n/a | planned | n/a | planned | gap |
+| Retrieval and maintenance structure | yes | n/a | yes | yes | n/a | stable |
 
 ## Existing Coverage
 
@@ -39,6 +40,13 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/fft_sampling_note.md`
 - `wiki/source_notes/least_squares_calibration_note.md`
 - `wiki/source_notes/sar_low_power_ch12a.md`
+- `schema/PROMOTION_RULES.md`
+- `schema/SEMANTIC_LINT_CHECKLIST.md`
+- `schema/PROOF_PAGE_TEMPLATE.md`
+- `schema/EXAMPLE_NOTE_TEMPLATE.md`
+- `tools/lint_wiki.py`
+- `tools/search_wiki.py`
+- `wiki/workflows/example_ingest_map.md`
 
 ## Highest Priority Gaps
 

@@ -8,6 +8,7 @@ Use this checklist for periodic health checks of `toolbox-wiki/`.
 - [ ] Every ingest, query-to-page conversion, lint pass, or structural update has an entry in `logs/log.md`.
 - [ ] `progress.md` still reflects the user's current learning state.
 - [ ] `python tools/lint_wiki.py` passes.
+- [ ] `schema/SEMANTIC_LINT_CHECKLIST.md` has been used for major ingests and before `stable` promotion.
 
 ## Source Discipline
 
@@ -42,6 +43,8 @@ Use this checklist for periodic health checks of `toolbox-wiki/`.
 - [ ] Spectrum pages state window, side-bin, coherence, and noise-estimation assumptions.
 - [ ] Redundant SAR pages distinguish radix/effective span from reachability, DNL/INL, and missing-code proof.
 - [ ] Open questions have a suggested validation path.
+- [ ] Mathematical rigor pages follow `schema/PROOF_PAGE_TEMPLATE.md`.
+- [ ] Example notes follow `schema/EXAMPLE_NOTE_TEMPLATE.md`.
 
 ## Orphans And Duplication
 
@@ -58,4 +61,12 @@ python tools/lint_wiki.py
 ```
 
 The script checks Markdown links, required metadata on generated wiki pages,
-`wiki/index.md` coverage, log heading format, and raw directory presence.
+allowed status values, `wiki/index.md` coverage, log heading format, and raw
+directory presence.
+
+For keyword retrieval, run:
+
+```bash
+python tools/search_wiki.py calibration
+python tools/search_wiki.py "rank deficiency" --raw
+```

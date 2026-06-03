@@ -1,5 +1,16 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] structure | Cap maintenance rules and retrieval structure
+
+- Added `schema/PROMOTION_RULES.md` for `draft`, `usable`, `stable`, and `deprecated` page status.
+- Added `schema/SEMANTIC_LINT_CHECKLIST.md` for contradictions, stale claims, semantic islands, and promotion review.
+- Added `schema/PROOF_PAGE_TEMPLATE.md` and `schema/EXAMPLE_NOTE_TEMPLATE.md`.
+- Added `tools/search_wiki.py` for dependency-free keyword search over wiki and optional raw sources.
+- Extended `tools/lint_wiki.py` to validate page status values.
+- Added `wiki/workflows/example_ingest_map.md` as the structural queue for example evidence notes.
+- Updated indexes, rules, lint checklist, coverage matrix, open questions, and progress tracking.
+- Added `audits/structure_cap_2026-06-03.md` after lint and search smoke tests passed.
+
 ## [2026-06-03] ingest | Core spectrum, sine fit, rank, and source-note pass
 
 - Added source-code pages for `compute_spectrum.py`, `fit_sine_4param.py`, and `_patch_rank_deficiency.py`.

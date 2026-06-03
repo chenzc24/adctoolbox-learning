@@ -60,5 +60,17 @@ answered it.
     `wiki/source_notes/sar_low_power_ch12a.md`
 
 - What exact rule promotes a page from `draft` to `stable`?
-  - Current link: `schema/WIKI_RULES.md`
-  - Needed action: add page promotion checklist after first lint pass.
+  - Answered structurally by: `schema/PROMOTION_RULES.md`
+  - Related checks: `schema/SEMANTIC_LINT_CHECKLIST.md`,
+    `tools/lint_wiki.py`
+  - Remaining content-layer work: actually promote pages only after semantic
+    review and evidence checks.
+
+- How should future example notes be organized?
+  - Answered structurally by: `schema/EXAMPLE_NOTE_TEMPLATE.md` and
+    `wiki/workflows/example_ingest_map.md`
+  - Remaining content-layer work: ingest individual examples.
+
+- How should future proof pages be organized?
+  - Answered structurally by: `schema/PROOF_PAGE_TEMPLATE.md`
+  - Remaining content-layer work: write individual proof pages.

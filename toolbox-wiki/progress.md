@@ -55,6 +55,14 @@ modeling, calibration, validation, and rigor questions.
   structurally safe, code-linked at seed level, but not yet complete.
 - `tools/lint_wiki.py` runs automated checks for links, metadata, index
   coverage, log headings, and raw directory presence.
+- `tools/search_wiki.py` provides dependency-free keyword search over the
+  synthesized wiki, maintenance files, and optionally raw sources.
+- `schema/PROMOTION_RULES.md` defines `draft`, `usable`, `stable`, and
+  `deprecated`.
+- `schema/SEMANTIC_LINT_CHECKLIST.md` defines review for contradictions,
+  semantic islands, stale claims, and page promotion readiness.
+- `schema/PROOF_PAGE_TEMPLATE.md` and `schema/EXAMPLE_NOTE_TEMPLATE.md`
+  structure future mathematical proof pages and example evidence notes.
 
 ## Next Wiki Pages To Create
 

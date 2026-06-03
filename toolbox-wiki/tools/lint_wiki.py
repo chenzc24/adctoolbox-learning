@@ -33,6 +33,8 @@ REQUIRED_METADATA = (
     "confidence:",
 )
 
+ALLOWED_STATUS = {"draft", "usable", "stable", "deprecated"}
+
 
 def markdown_files() -> list[Path]:
     return sorted(ROOT.rglob("*.md"))
@@ -74,6 +76,9 @@ def lint_metadata(errors: list[str]) -> None:
         for key in REQUIRED_METADATA:
             if key not in text:
                 errors.append(f"missing metadata {key} in {rel}")
+        status_match = re.search(r"^status:\s*([a-zA-Z0-9_-]+)\s*$", text, flags=re.MULTILINE)
+        if status_match and status_match.group(1) not in ALLOWED_STATUS:
+            errors.append(f"invalid status {status_match.group(1)!r} in {rel}")
 
 
 def lint_index(errors: list[str]) -> None:
