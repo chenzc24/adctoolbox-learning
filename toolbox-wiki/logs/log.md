@@ -1,5 +1,12 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] tooling | Add SAR reachability audit and Pipeline OTA rigor
+
+- Added `tools/audit_sar_reachability.py` for explicit SAR weight-list interval-margin checks.
+- Added `wiki/rigor/pipeline_ota_settling_noise_budget.md` for ch11 OTA gain, settling, switch, and thermal-noise budget alignment.
+- Added `audits/sar_reachability_example_weight_audit_2026-06-03.md` with stored D03, D16, and D18 SAR example weight-list diagnostics.
+- Updated the slide evidence map, reachability page, example notes, indexes, coverage matrix, progress, and logs.
+
 ## [2026-06-03] rigor | Resolve high-value slide evidence gaps
 
 - Added `wiki/rigor/sar_noise_formula_alignment.md` for ch12 kT/C, DAC noise, and comparator noise formula alignment.

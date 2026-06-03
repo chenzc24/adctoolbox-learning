@@ -83,6 +83,7 @@ too few calibration samples
 - [Identifiability conditions](../../rigor/identifiability_conditions.md)
 - [Spectrum metric statistical risks](../../rigor/spectrum_metric_statistical_risks.md)
 - [SAR model to calibration](../../workflows/sar_model_to_calibration.md)
+- [SAR reachability example weight audit](../../../audits/sar_reachability_example_weight_audit_2026-06-03.md)
 
 ## Follow-Up
 

@@ -51,7 +51,7 @@ wiki still needs deeper formula/figure review.
 | 22-29 | Comparator noise | Static/dynamic comparator noise, gain, offset, speed tradeoff | `sar_noise_formula_alignment.md` | captured | add bit-cycle noise budget script |
 | 35 | Comparator in SAR | Only some comparison cycles are noise-critical | `sun_sar_primary_pdf_distillation.md`, `redundant_sar_reachability.md` | captured | connect to per-cycle error budget script |
 | 36 | No redundancy | Every comparison must be accurate | `redundant_sar_reachability.md` | captured | none |
-| 37 | Radix < 2 redundancy | Redundancy range tolerates comparator noise, DAC settling, offset mismatch | `redundant_sar_reachability.md` | captured | validate interval margin on example weights |
+| 37 | Radix < 2 redundancy | Redundancy range tolerates comparator noise, DAC settling, offset mismatch | `redundant_sar_reachability.md`, `sar_reachability_example_weight_audit_2026-06-03.md` | captured | automate regeneration of example-weight audit |
 | 38 | Redundant bit | Extra comparison/bit can provide local recovery range | `redundant_sar_reachability.md` | captured | compare duplicate-bit model to code |
 | 40-42 | Comparator switching / offset mismatch | Comparator offset reduction and mismatch handling | `sun_sar_primary_pdf_distillation.md` | partial | add offset calibration note if examples require it |
 | 45 | Background regulation | Background calibration based on target-cycle monitoring | `sun_sar_primary_pdf_distillation.md` | missing | future background calibration page |
@@ -120,22 +120,22 @@ wiki still needs deeper formula/figure review.
 | 22 | Residue plot | Residue transition accuracy requirement | `pipeline_residue_box_gain_observability.md` | captured | add model when Pipeline code exists |
 | 24 | Capacitor matching | Matching requirement, digital calibration or multi-bit first stage | `sun_pipeline_primary_pdf_distillation.md` | captured | none |
 | 26 | Comparator tolerance | Redundancy can tolerate large offset/noise | `sun_pipeline_primary_pdf_distillation.md` | captured | none |
-| 28-30 | OTA gain and settling | Static gain error, dynamic settling, loop-gain requirement | `sun_pipeline_primary_pdf_distillation.md` | partial | formula-level review needed |
-| 34-38 | Settling behavior | Linear settling regions and simulation behavior | `pipeline_adc_implementation_ch11.md` | partial | defer until circuit modeling |
-| 41-43 | Noise analysis/budgeting | Switch/OTA noise and budget partitioning | `pipeline_adc_implementation_ch11.md` | partial | defer unless Pipeline noise model is built |
+| 28-30 | OTA gain and settling | Static gain error, dynamic settling, loop-gain requirement | `pipeline_ota_settling_noise_budget.md` | captured | add Pipeline model only if code appears |
+| 34-38 | Settling behavior | Linear settling regions and simulation behavior | `pipeline_ota_settling_noise_budget.md` | captured | defer simulation until Pipeline model exists |
+| 41-43 | Noise analysis/budgeting | Switch/OTA noise and budget partitioning | `pipeline_ota_settling_noise_budget.md` | captured | defer implementation until Pipeline model exists |
 | 44-45 | SHA-less architecture | MDAC/sub-ADC acquisition timing mismatch; redundancy absorbs skew | `sun_pipeline_primary_pdf_distillation.md` | captured | none |
 | 46 | Amplifier sharing | Memory effects caveat | `pipeline_adc_implementation_ch11.md` | partial | lower priority |
 | 52 | Comparator-based switched-capacitor | Efficient charge transfer and cyclic reuse | none | defer | outside current calibration path |
 
 ## Highest-Value Missing Or Partial Items
 
-1. Executable redundant SAR reachability audit for ch12 redundancy pages 35-38
-   and ch12 high-speed page 15.
-2. OTA settling and noise budget formula review from ch11 pages 28-43.
-3. DAC settling/noise behavioral model only if ADCToolbox adds code for it.
-4. Python implementation mapping for sine-histogram DNL/INL if such code is
+1. Automate regeneration of
+   `audits/sar_reachability_example_weight_audit_2026-06-03.md` from example
+   weight lists.
+2. DAC settling/noise behavioral model only if ADCToolbox adds code for it.
+3. Python implementation mapping for sine-histogram DNL/INL if such code is
    added.
-5. Pipeline behavioral model and example before deeper Pipeline calibration
+4. Pipeline behavioral model and example before deeper Pipeline calibration
    proofs.
 
 ## Maintenance Rule

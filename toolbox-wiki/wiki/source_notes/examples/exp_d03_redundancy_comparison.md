@@ -76,6 +76,7 @@ for asking what "redundancy" mathematically guarantees.
 - [Identifiability conditions](../../rigor/identifiability_conditions.md)
 - [Mathematical rigor gaps](../../rigor/mathematical_rigor_gaps.md)
 - [SAR model to calibration](../../workflows/sar_model_to_calibration.md)
+- [SAR reachability example weight audit](../../../audits/sar_reachability_example_weight_audit_2026-06-03.md)
 
 ## Follow-Up
 

@@ -107,10 +107,14 @@ The first Sun-course slide evidence map now tracks page-level coverage for
 calibration-critical SAR, Pipeline, and testing PDF slides.
 Formula-level alignment pages now cover SAR kT/C-DAC-comparator noise,
 sine-histogram DNL/INL, and Pipeline residue/gain observability.
+The SAR reachability audit now has an executable script, and ch11 OTA
+settling/noise budget slides have a formula-alignment rigor page.
+The SAR example weight lists from D03, D16, and D18 now have a stored
+reachability audit under `audits/`.
 
 ## Next Wiki Pages To Create
 
-- `wiki/rigor/redundant_sar_reachability.md`
-- `wiki/workflows/training_validation_split.md`
 - `wiki/source_code/metrics_py.md`
 - `wiki/source_code/units_py.md`
+- train/validation diagnostic export notes for calibration examples
+- automated regeneration for the SAR example-weight reachability audit

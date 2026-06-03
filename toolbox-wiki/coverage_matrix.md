@@ -57,6 +57,7 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/rigor/sar_noise_formula_alignment.md`
 - `wiki/rigor/sine_histogram_dnl_inl.md`
 - `wiki/rigor/pipeline_residue_box_gain_observability.md`
+- `wiki/rigor/pipeline_ota_settling_noise_budget.md`
 - `wiki/concepts/fft_metrics.md`
 - `wiki/concepts/least_squares_adc_calibration.md`
 - `wiki/concepts/rank_deficiency.md`
@@ -100,20 +101,24 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md`
 - `audits/source_fidelity_sun_course_2026-06-03.md`
 - `audits/sun_course_slide_evidence_map_2026-06-03.md`
+- `audits/sar_reachability_example_weight_audit_2026-06-03.md`
 - `schema/PROMOTION_RULES.md`
 - `schema/SEMANTIC_LINT_CHECKLIST.md`
 - `schema/PROOF_PAGE_TEMPLATE.md`
 - `schema/EXAMPLE_NOTE_TEMPLATE.md`
 - `tools/lint_wiki.py`
 - `tools/search_wiki.py`
+- `tools/audit_sar_reachability.py`
 - `wiki/workflows/example_ingest_map.md`
 
 ## Highest Priority Gaps
 
 1. `wiki/source_code/metrics_py.md`
 2. `wiki/source_code/units_py.md`
-3. Add an executable reachability audit script for redundant SAR weight lists.
-4. Add train/validation diagnostic export support to calibration examples.
+3. Add train/validation diagnostic export support to calibration examples.
+4. Automate regeneration of
+   `audits/sar_reachability_example_weight_audit_2026-06-03.md` from example
+   weight lists.
 5. Source notes for remaining PDF/DOCX sources: `ADC核心概念详细解析.pdf`,
    `ADC工作物理系统结构.docx` follow-up details, `MATLAB.docx`, and selected
    handbook chapter-level pages.

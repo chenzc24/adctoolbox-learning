@@ -51,6 +51,7 @@ Planned:
 - [SAR noise formula alignment](rigor/sar_noise_formula_alignment.md): Align ch12 kT/C, DAC noise, and comparator noise formulas with ADCToolbox SAR modeling limits.
 - [Sine histogram DNL/INL](rigor/sine_histogram_dnl_inl.md): Align ch17 sine-input code-density DNL/INL extraction, assumptions, and failure modes.
 - [Pipeline residue box and gain observability](rigor/pipeline_residue_box_gain_observability.md): Align ch10/ch11 residue-box, gain calibration, DAC calibration, and backend observability claims.
+- [Pipeline OTA settling and noise budget](rigor/pipeline_ota_settling_noise_budget.md): Align ch11 OTA gain, settling, switch, and thermal-noise budget formulas with Pipeline calibration limits.
 
 ## Source Notes
 

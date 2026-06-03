@@ -17,6 +17,7 @@
 - [Raw Distillation Audit](audits/raw_distillation_2026-06-03.md): current raw-source distillation coverage and next content gaps.
 - [Sun Course Source Fidelity Audit](audits/source_fidelity_sun_course_2026-06-03.md): Markdown-to-original-PDF spot-check status for Sun-course source notes.
 - [Sun Course Slide Evidence Map](audits/sun_course_slide_evidence_map_2026-06-03.md): page-level map from calibration-critical PDF slides to wiki pages and remaining gaps.
+- [SAR Reachability Example Weight Audit](audits/sar_reachability_example_weight_audit_2026-06-03.md): stored interval-margin diagnostics for the SAR example weight lists.
 - [Operation Log](logs/log.md): chronological record of changes.
 - [Wiki Content Index](wiki/index.md): catalog of generated wiki pages.
 - [Stage Map](curriculum_bridge/stage_map.md): how current staged learning maps to wiki topics.
@@ -70,6 +71,7 @@ maintenance.
 - [SAR noise formula alignment](wiki/rigor/sar_noise_formula_alignment.md)
 - [Sine histogram DNL/INL](wiki/rigor/sine_histogram_dnl_inl.md)
 - [Pipeline residue box and gain observability](wiki/rigor/pipeline_residue_box_gain_observability.md)
+- [Pipeline OTA settling and noise budget](wiki/rigor/pipeline_ota_settling_noise_budget.md)
 - [Spectrum metric statistical risks](wiki/rigor/spectrum_metric_statistical_risks.md)
 
 ## Current Policy

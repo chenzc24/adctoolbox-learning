@@ -73,6 +73,7 @@ sigma, architecture choice, calibration, and ENOB distribution.
 - [ADC weight calibration](../../concepts/adc_weight_calibration.md)
 - [Rank deficiency](../../concepts/rank_deficiency.md)
 - [Identifiability conditions](../../rigor/identifiability_conditions.md)
+- [SAR reachability example weight audit](../../../audits/sar_reachability_example_weight_audit_2026-06-03.md)
 
 ## Follow-Up
 

@@ -9,6 +9,8 @@ source_links:
   - ../source_notes/examples/exp_d03_redundancy_comparison.md
   - ../source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md
   - ../source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md
+  - ../../audits/sar_reachability_example_weight_audit_2026-06-03.md
+  - ../../tools/audit_sar_reachability.py
   - ../../../../../python/src/adctoolbox/models/sar.py
 rigor:
   - source-confirmed
@@ -188,6 +190,14 @@ ADCToolbox currently provides:
 - `calibrate_weight_sine`: estimates effective digital weights from bit
   decisions.
 
+The wiki also provides:
+
+- `tools/audit_sar_reachability.py`: reports per-bit interval margins, static
+  code-step spread, duplicate code sums, and optional error-budget failures for
+  explicit SAR weight lists.
+- `audits/sar_reachability_example_weight_audit_2026-06-03.md`: stores the
+  current audit output for D03, D16, and D18 example weight lists.
+
 The examples provide evidence:
 
 - `exp_d03_redundancy_comparison.py`: redundancy can improve calibration under
@@ -245,3 +255,9 @@ For each redundant SAR experiment, record:
 
 Implement a small reachability audit script that reports per-node interval
 margins for each SAR weight list used in examples.
+
+Initial script exists as `tools/audit_sar_reachability.py`, and the current
+example-weight audit is stored in
+`audits/sar_reachability_example_weight_audit_2026-06-03.md`. Next work is to
+regenerate that audit automatically from example sources or a weight-list
+manifest.

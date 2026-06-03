@@ -17,6 +17,8 @@ answered it.
   - Partial answer: `wiki/rigor/identifiability_conditions.md`
   - Related Pipeline observability page:
     `wiki/rigor/pipeline_residue_box_gain_observability.md`
+  - Related Pipeline OTA/noise page:
+    `wiki/rigor/pipeline_ota_settling_noise_budget.md`
   - Still needed: numerical examples and condition-number reporting rules.
 
 - How should condition number, singular values, and weight covariance be
@@ -40,8 +42,11 @@ answered it.
   - Primary PDF source note:
     `wiki/source_notes/sun_sar_primary_pdf_distillation.md`
   - Partial answer: `wiki/rigor/redundant_sar_reachability.md`
-  - Still needed: executable per-node reachability audit and validation against
-    SAR example weight lists.
+  - Executable helper: `tools/audit_sar_reachability.py`
+  - Example-weight audit:
+    `audits/sar_reachability_example_weight_audit_2026-06-03.md`
+  - Still needed: automatic regeneration from example source files or a
+    machine-readable weight-list manifest.
 
 - How should missing-code, DNL, INL, and calibration success be separated in
   redundant SAR examples?
@@ -135,7 +140,8 @@ answered it.
   - Newly resolved formula-level rows:
     `wiki/rigor/sar_noise_formula_alignment.md`,
     `wiki/rigor/sine_histogram_dnl_inl.md`,
-    `wiki/rigor/pipeline_residue_box_gain_observability.md`
+    `wiki/rigor/pipeline_residue_box_gain_observability.md`,
+    `wiki/rigor/pipeline_ota_settling_noise_budget.md`
 
 - How should future example notes be organized?
   - Answered structurally by: `schema/EXAMPLE_NOTE_TEMPLATE.md` and
