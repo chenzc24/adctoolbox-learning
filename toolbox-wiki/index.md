@@ -16,6 +16,7 @@
 - [Structure Cap Audit](audits/structure_cap_2026-06-03.md): structural closure status for retrieval, maintenance, promotion, and lint workflows.
 - [Raw Distillation Audit](audits/raw_distillation_2026-06-03.md): current raw-source distillation coverage and next content gaps.
 - [Sun Course Source Fidelity Audit](audits/source_fidelity_sun_course_2026-06-03.md): Markdown-to-original-PDF spot-check status for Sun-course source notes.
+- [Sun Course Slide Evidence Map](audits/sun_course_slide_evidence_map_2026-06-03.md): page-level map from calibration-critical PDF slides to wiki pages and remaining gaps.
 - [Operation Log](logs/log.md): chronological record of changes.
 - [Wiki Content Index](wiki/index.md): catalog of generated wiki pages.
 - [Stage Map](curriculum_bridge/stage_map.md): how current staged learning maps to wiki topics.

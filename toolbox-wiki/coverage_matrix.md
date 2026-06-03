@@ -96,6 +96,7 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md`
 - `wiki/source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md`
 - `audits/source_fidelity_sun_course_2026-06-03.md`
+- `audits/sun_course_slide_evidence_map_2026-06-03.md`
 - `schema/PROMOTION_RULES.md`
 - `schema/SEMANTIC_LINT_CHECKLIST.md`
 - `schema/PROOF_PAGE_TEMPLATE.md`

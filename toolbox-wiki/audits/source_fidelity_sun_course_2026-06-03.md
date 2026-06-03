@@ -100,8 +100,12 @@ For any future Sun-course source note:
 
 ## Next Upgrade
 
-The next source-fidelity step is a chapter-by-chapter review page for the most
-calibration-critical PDFs:
+The first page-level evidence map now exists:
+
+- `audits/sun_course_slide_evidence_map_2026-06-03.md`
+
+The next source-fidelity step is to resolve the highest-value `partial` and
+`missing` rows from that map:
 
 1. `ch12 - low power.pdf` and `ch12 - high speed.pdf` for SAR assumptions.
 2. `ch17 Data Converter Testing.pdf` for metric definitions and test setup.

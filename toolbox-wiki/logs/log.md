@@ -1,5 +1,12 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] audit | Map calibration-critical PDF slides to wiki pages
+
+- Added `audits/sun_course_slide_evidence_map_2026-06-03.md`.
+- Mapped key pages from ch12 low-power SAR, ch12 high-speed SAR, ch17 testing, ch10 Pipeline concept, and ch11 Pipeline implementation to existing wiki pages.
+- Marked each row as `captured`, `partial`, `missing`, or `defer`, and listed the highest-value formula/figure gaps.
+- Updated `index.md`, `coverage_matrix.md`, `progress.md`, and `logs/log.md`.
+
 ## [2026-06-03] rigor | Add SAR reachability and train-validation workflow
 
 - Added `wiki/rigor/redundant_sar_reachability.md` to formalize redundancy as interval reachability, branch overlap, static coverage, dynamic decision margin, and validation obligations.

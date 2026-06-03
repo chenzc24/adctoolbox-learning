@@ -120,10 +120,13 @@ answered it.
 - What exact rule promotes a Sun-course source note from
   `primary-source-spot-checked` to `primary-source-reviewed`?
   - Current link: `audits/source_fidelity_sun_course_2026-06-03.md`
+  - Slide evidence map:
+    `audits/sun_course_slide_evidence_map_2026-06-03.md`
   - Current status: topic/keyword level PDF spot-check has been completed for
-    14 core ADC source notes.
-  - Still needed: slide-level formula, figure, assumption, and caveat review
-    for calibration-critical chapters.
+    14 core ADC source notes, and page-level mapping now exists for the
+    calibration-critical SAR, Pipeline, and testing PDFs.
+  - Still needed: resolve highest-value `partial` and `missing` rows in the
+    slide evidence map before using `primary-source-reviewed`.
 
 - How should future example notes be organized?
   - Answered structurally by: `schema/EXAMPLE_NOTE_TEMPLATE.md` and
