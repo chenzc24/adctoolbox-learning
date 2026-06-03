@@ -20,6 +20,7 @@ answered it.
 - How should condition number, singular values, and weight covariance be
   reported for `calibrate_weight_sine`?
   - Current link: `wiki/source_code/calibrate_weight_sine_py.md`
+  - Related code-chain page: `wiki/source_code/calibration_helper_chain_py.md`
   - Needed page: `wiki/rigor/least_squares_uncertainty.md`
 
 - How much frequency error can be tolerated before solved weights are biased?
@@ -43,11 +44,13 @@ answered it.
 - Which FFT settings are required before comparing pre/post calibration ENOB?
   - Partial answer: `wiki/concepts/fft_metrics.md`
   - Source page: `wiki/source_code/compute_spectrum_py.md`
-  - Still needed: workflow page for before/after spectrum validation.
+  - Workflow answer: `wiki/workflows/spectrum_validation_before_after_calibration.md`
+  - Still needed: example evidence notes using real before/after scripts.
 
 - How should coherent sampling, window choice, side-bin removal, and noise
   estimation be recorded in every metric claim?
-  - Needed page: `wiki/rigor/spectrum_metric_statistical_risks.md`
+  - Partial answer: `wiki/rigor/spectrum_metric_statistical_risks.md`
+  - Still needed: compare multiple examples and noise methods.
 
 ## Knowledge Base Maintenance
 
@@ -55,9 +58,29 @@ answered it.
   - Current link: `coverage_matrix.md`
   - Current source notes:
     `wiki/source_notes/adc_metrics_ch3.md`,
+    `wiki/source_notes/adc_fom_ch16.md`,
+    `wiki/source_notes/data_converter_testing_ch17.md`,
     `wiki/source_notes/fft_sampling_note.md`,
+    `wiki/source_notes/matrix_rank_observability_note.md`,
     `wiki/source_notes/least_squares_calibration_note.md`,
-    `wiki/source_notes/sar_low_power_ch12a.md`
+    `wiki/source_notes/noise_rms_power_variance_note.md`,
+    `wiki/source_notes/quantization_noise_model_note.md`,
+    `wiki/source_notes/sar_low_power_ch12a.md`,
+    `wiki/source_notes/sampling_circuit_ch5.md`,
+    `wiki/source_notes/comparator_ch7.md`,
+    `wiki/source_notes/pipeline_adc_concept_ch10.md`,
+    `wiki/source_notes/pipeline_adc_implementation_ch11.md`,
+    `wiki/source_notes/high_speed_sar_ch12b.md`,
+    `wiki/source_notes/switched_cap_settling_noise_ch6.md`,
+    `wiki/source_notes/time_interleaving_ch13.md`,
+    `wiki/source_notes/oversampling_adc_ch14.md`,
+    `wiki/source_notes/convolution_filtering_note.md`,
+    `wiki/source_notes/dither_note.md`,
+    `wiki/source_notes/linear_algebra_vectors_matrices_note.md`,
+    `wiki/source_notes/matlab_code_reading_note.md`
+  - Still missing high-priority raw notes:
+    Flash ADC, folding/interpolating ADC, remaining MATLAB fundamentals,
+    complex/phase/system math, and key PDF/DOCX sources.
 
 - What exact rule promotes a page from `draft` to `stable`?
   - Answered structurally by: `schema/PROMOTION_RULES.md`

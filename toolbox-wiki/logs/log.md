@@ -1,5 +1,26 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] code | Extend core source-code chain
+
+- Added source-code pages for spectrum windows, noise estimation, spectrum helpers, calibration helpers, `analyze_spectrum`, `quick_sndr`, and `fundamentals/frequency`.
+- Added concept pages for least-squares ADC calibration and rank deficiency.
+- Added workflow page for before/after spectrum validation after calibration.
+- Added rigor page for spectrum metric statistical risks.
+- Updated wiki index, coverage matrix, open questions, and progress tracking.
+
+## [2026-06-03] ingest | Expand circuit and math raw-source distillation
+
+- Added source notes for sampling circuits, voltage comparators, Pipeline ADC concept, Pipeline ADC implementation, high-speed SAR, oversampling ADCs, convolution/filtering, dither, and vectors/matrices/linear combinations.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `open_questions.md`, `progress.md`, and `audits/raw_distillation_2026-06-03.md`.
+- This pass strengthens the bridge from circuit nonidealities to calibration observability, spectrum interpretation, and ADCToolbox source-code learning.
+
+## [2026-06-03] ingest | Expand raw Markdown source-note distillation
+
+- Added source notes for ADC FOM, data-converter testing, matrix rank/observability, noise/RMS/power/variance, quantization noise, switched-capacitor settling/noise, time-interleaving, and MATLAB code reading.
+- Updated `wiki/index.md`, `coverage_matrix.md`, and `open_questions.md` to track the expanded raw distillation coverage.
+- Added `audits/raw_distillation_2026-06-03.md` to record distilled raw notes and remaining source gaps.
+- This pass focuses on raw Markdown notes that directly support calibration, spectrum metrics, noise modeling, and future MATLAB bridge work.
+
 ## [2026-06-03] structure | Cap maintenance rules and retrieval structure
 
 - Added `schema/PROMOTION_RULES.md` for `draft`, `usable`, `stable`, and `deprecated` page status.

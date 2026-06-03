@@ -33,10 +33,21 @@ The next learning bridge is from staged ADC/math/MATLAB foundations into:
 - `wiki/source_code/compute_spectrum_py.md`
 - `wiki/source_code/fit_sine_4param_py.md`
 - `wiki/source_code/patch_rank_deficiency_py.md`
+- `wiki/source_code/window_py.md`
+- `wiki/source_code/estimate_noise_power_py.md`
+- `wiki/source_code/spectrum_helper_chain_py.md`
+- `wiki/source_code/calibration_helper_chain_py.md`
+- `wiki/source_code/analyze_spectrum_py.md`
+- `wiki/source_code/quick_sndr_py.md`
+- `wiki/source_code/frequency_py.md`
 - `wiki/workflows/sar_model_to_calibration.md`
+- `wiki/workflows/spectrum_validation_before_after_calibration.md`
 - `wiki/rigor/mathematical_rigor_gaps.md`
 - `wiki/rigor/identifiability_conditions.md`
+- `wiki/rigor/spectrum_metric_statistical_risks.md`
 - `wiki/concepts/fft_metrics.md`
+- `wiki/concepts/least_squares_adc_calibration.md`
+- `wiki/concepts/rank_deficiency.md`
 - `wiki/source_notes/adc_metrics_ch3.md`
 - `wiki/source_notes/fft_sampling_note.md`
 - `wiki/source_notes/least_squares_calibration_note.md`
@@ -63,11 +74,23 @@ modeling, calibration, validation, and rigor questions.
   semantic islands, stale claims, and page promotion readiness.
 - `schema/PROOF_PAGE_TEMPLATE.md` and `schema/EXAMPLE_NOTE_TEMPLATE.md`
   structure future mathematical proof pages and example evidence notes.
+- `audits/raw_distillation_2026-06-03.md` tracks raw-source distillation
+  coverage and remaining high-priority source notes.
+
+## Raw Distillation State
+
+Current source notes: 21.
+
+The wiki now has raw-source notes for ADC metrics, ADC FOM, data-converter
+testing, FFT/sampling, rank/observability, least squares, RMS/noise/power,
+quantization noise, low-power SAR, switched-capacitor settling/noise,
+time-interleaving, sampling circuits, comparators, Pipeline ADC concepts and
+implementation, high-speed SAR, oversampling ADCs, convolution/filtering,
+dither, linear-algebra foundations, and MATLAB code reading.
 
 ## Next Wiki Pages To Create
 
-- `wiki/concepts/least_squares_adc_calibration.md`
-- `wiki/concepts/rank_deficiency.md`
-- `wiki/rigor/spectrum_metric_statistical_risks.md`
 - `wiki/rigor/redundant_sar_reachability.md`
-- `wiki/workflows/spectrum_validation_before_after_calibration.md`
+- `wiki/workflows/training_validation_split.md`
+- `wiki/source_code/metrics_py.md`
+- `wiki/source_code/units_py.md`

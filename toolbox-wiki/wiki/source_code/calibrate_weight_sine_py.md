@@ -113,6 +113,8 @@ mismatch, source distortion, or static nonlinearity.
 ## Related Pages
 
 - [ADC weight calibration](../concepts/adc_weight_calibration.md)
+- [Least-squares ADC calibration](../concepts/least_squares_adc_calibration.md)
+- [Calibration helper chain](calibration_helper_chain_py.md)
 - [Lite calibration source](calibrate_weight_sine_lite_py.md)
 - [SAR model source](sar_py.md)
 - [SAR model to calibration workflow](../workflows/sar_model_to_calibration.md)

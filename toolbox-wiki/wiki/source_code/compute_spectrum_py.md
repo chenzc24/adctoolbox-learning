@@ -92,8 +92,13 @@ also means metric comparability depends on the side-bin decision.
 ## Related Pages
 
 - [FFT metrics](../concepts/fft_metrics.md)
+- [Spectrum helper chain](spectrum_helper_chain_py.md)
+- [Window helper](window_py.md)
+- [Noise power helper](estimate_noise_power_py.md)
 - [SAR model to calibration workflow](../workflows/sar_model_to_calibration.md)
+- [Spectrum validation workflow](../workflows/spectrum_validation_before_after_calibration.md)
 - [Mathematical rigor gaps](../rigor/mathematical_rigor_gaps.md)
+- [Spectrum metric statistical risks](../rigor/spectrum_metric_statistical_risks.md)
 - [Spectrum source note](../source_notes/fft_sampling_note.md)
 - [ADC metrics source note](../source_notes/adc_metrics_ch3.md)
 

@@ -7,11 +7,12 @@ created or materially changed.
 
 - [ADC weight calibration](concepts/adc_weight_calibration.md): Connect bit-weight reconstruction, sine input, least squares, and the main assumptions behind calibration.
 - [FFT metrics](concepts/fft_metrics.md): Explain SNDR, SFDR, THD, ENOB, windows, side bins, and metric comparability.
+- [Least-squares ADC calibration](concepts/least_squares_adc_calibration.md): Explain the calibration design matrix, weight solving, identifiability, and misuse risks.
+- [Rank deficiency](concepts/rank_deficiency.md): Explain dependent bit columns, effective weights, and why rank controls calibration observability.
 
 Planned:
 
-- `concepts/least_squares_adc_calibration.md`: Explain the calibration design matrix and identifiability assumptions.
-- `concepts/rank_deficiency.md`: Explain redundant bits and column dependency.
+- `concepts/redundant_sar.md`: Explain redundancy, reachability, and effective span.
 
 ## Source Code
 
@@ -21,35 +22,59 @@ Planned:
 - [Spectrum source](source_code/compute_spectrum_py.md): Explain FFT preparation, windowing, side bins, harmonic bins, and ADC metrics.
 - [Sine fitting source](source_code/fit_sine_4param_py.md): Explain least-squares sine fitting and frequency refinement.
 - [Rank deficiency patch source](source_code/patch_rank_deficiency_py.md): Explain effective-column compression and physical-weight recovery.
+- [Window helper source](source_code/window_py.md): Explain window generation, coherent gain, ENBW, side-bin defaults, and power correction.
+- [Noise power helper source](source_code/estimate_noise_power_py.md): Explain SNR noise estimators and noise-floor policy choices.
+- [Spectrum helper chain](source_code/spectrum_helper_chain_py.md): Map the internal helper path behind `compute_spectrum`.
+- [Calibration helper chain](source_code/calibration_helper_chain_py.md): Map the internal helper path behind `calibrate_weight_sine`.
+- [Spectrum wrapper source](source_code/analyze_spectrum_py.md): Explain the public compute-and-plot wrapper around `compute_spectrum`.
+- [Quick SNDR source](source_code/quick_sndr_py.md): Explain the lightweight SNDR/ENOB path for fast gates and optimization loops.
+- [Frequency utilities source](source_code/frequency_py.md): Explain coherent frequency search, Nyquist folding, bin folding, and sine-fit frequency estimation.
 
 Planned:
 
-- `source_code/_window_py.md`
-- `source_code/_estimate_noise_power_py.md`
+- `source_code/metrics_py.md`
+- `source_code/units_py.md`
 
 ## Workflows
 
 - [SAR model to calibration](workflows/sar_model_to_calibration.md): End-to-end path from SAR model, bit decisions, calibration, reconstruction, and spectrum validation.
 - [Example ingest map](workflows/example_ingest_map.md): Structural queue for turning ADCToolbox examples into reusable evidence notes.
+- [Spectrum validation before and after calibration](workflows/spectrum_validation_before_after_calibration.md): Required FFT settings and diagnostics for calibration metric comparisons.
 
 Planned:
 
-- `workflows/spectrum_validation_before_after_calibration.md`
 - `workflows/training_validation_split.md`
 
 ## Rigor
 
 - [Mathematical rigor gaps](rigor/mathematical_rigor_gaps.md): Current assumptions, risks, missing proofs, and validation obligations for ADCToolbox learning.
 - [Identifiability conditions](rigor/identifiability_conditions.md): State rank, excitation, conditioning, and validation conditions for ADC weight calibration.
+- [Spectrum metric statistical risks](rigor/spectrum_metric_statistical_risks.md): Explain why FFT metric claims depend on window, side-bin, harmonic, noise, and validation settings.
 
 Planned:
 
-- `rigor/spectrum_metric_statistical_risks.md`
 - `rigor/redundant_sar_reachability.md`
 
 ## Source Notes
 
 - [ADC metrics chapter](source_notes/adc_metrics_ch3.md): Source note for static and dynamic ADC performance metrics.
+- [ADC FOM chapter](source_notes/adc_fom_ch16.md): Source note for Walden FOM, Schreier FOM, and calibration-cost tradeoffs.
+- [Data converter testing](source_notes/data_converter_testing_ch17.md): Source note for test benches, static testing, dynamic testing, and calibration validation.
 - [Sampling, DFT, and FFT](source_notes/fft_sampling_note.md): Source note for sampling, DFT bins, leakage, coherence, and windowing.
+- [Matrix rank and observability](source_notes/matrix_rank_observability_note.md): Source note for rank, independent information, observability, and conditioning.
 - [Least squares and calibration](source_notes/least_squares_calibration_note.md): Source note for overdetermined systems, residuals, rank, and ADC calibration.
+- [Noise, RMS, power, and variance](source_notes/noise_rms_power_variance_note.md): Source note for noise power bookkeeping and dB conventions.
+- [Quantization noise model](source_notes/quantization_noise_model_note.md): Source note for quantization error, white-noise assumptions, ideal SNR, and dither.
 - [Low-power SAR ADC](source_notes/sar_low_power_ch12a.md): Source note for SAR decision flow, CDAC weights, noise, power, and calibration-relevant mismatch.
+- [Switched-capacitor settling and noise](source_notes/switched_cap_settling_noise_ch6.md): Source note for charge redistribution, settling error, kT/C noise, and calibration limits.
+- [Time-interleaved ADCs](source_notes/time_interleaving_ch13.md): Source note for interleaving, offset/gain/timing mismatch, and spur behavior.
+- [Reading ADC MATLAB code](source_notes/matlab_code_reading_note.md): Source note for reading MATLAB ADC code by input/output, math type, and data flow.
+- [Comparator chapter](source_notes/comparator_ch7.md): Source note for comparator offset, noise, speed, metastability, and calibration limits.
+- [Convolution and filtering](source_notes/convolution_filtering_note.md): Source note for convolution, filtering, and frequency-domain multiplication.
+- [Dither](source_notes/dither_note.md): Source note for why added noise can decorrelate quantization error.
+- [High-speed SAR ADC](source_notes/high_speed_sar_ch12b.md): Source note for high-speed SAR timing, comparator, DAC, and reference constraints.
+- [Linear algebra vectors and matrices](source_notes/linear_algebra_vectors_matrices_note.md): Source note for vector/matrix language used in calibration.
+- [Oversampling ADC](source_notes/oversampling_adc_ch14.md): Source note for oversampling, noise shaping, and sigma-delta context.
+- [Pipeline ADC concept](source_notes/pipeline_adc_concept_ch10.md): Source note for pipeline ADC architecture and residue amplification.
+- [Pipeline ADC implementation](source_notes/pipeline_adc_implementation_ch11.md): Source note for pipeline implementation errors and calibration hooks.
+- [Sampling circuit](source_notes/sampling_circuit_ch5.md): Source note for sample-and-hold, aperture, kT/C, and sampling nonidealities.

@@ -14,6 +14,7 @@
 - [Lint Checklist](schema/LINT_CHECKLIST.md): review checklist for completeness, source linkage, rigor, and maintenance.
 - [Knowledge Base Health Audit](audits/knowledge_base_health_2026-06-03.md): current completeness, code relevance, rule maturity, and next gaps.
 - [Structure Cap Audit](audits/structure_cap_2026-06-03.md): structural closure status for retrieval, maintenance, promotion, and lint workflows.
+- [Raw Distillation Audit](audits/raw_distillation_2026-06-03.md): current raw-source distillation coverage and next content gaps.
 - [Operation Log](logs/log.md): chronological record of changes.
 - [Wiki Content Index](wiki/index.md): catalog of generated wiki pages.
 - [Stage Map](curriculum_bridge/stage_map.md): how current staged learning maps to wiki topics.
@@ -45,13 +46,24 @@ maintenance.
 - [Lite sine-weight calibration source](wiki/source_code/calibrate_weight_sine_lite_py.md)
 - [Full sine-weight calibration source](wiki/source_code/calibrate_weight_sine_py.md)
 - [Spectrum source](wiki/source_code/compute_spectrum_py.md)
+- [Spectrum helper chain](wiki/source_code/spectrum_helper_chain_py.md)
+- [Window helper source](wiki/source_code/window_py.md)
+- [Noise power helper source](wiki/source_code/estimate_noise_power_py.md)
+- [Spectrum wrapper source](wiki/source_code/analyze_spectrum_py.md)
+- [Quick SNDR source](wiki/source_code/quick_sndr_py.md)
+- [Frequency utilities source](wiki/source_code/frequency_py.md)
 - [Sine fitting source](wiki/source_code/fit_sine_4param_py.md)
 - [Rank deficiency patch source](wiki/source_code/patch_rank_deficiency_py.md)
+- [Calibration helper chain](wiki/source_code/calibration_helper_chain_py.md)
 - [FFT metrics](wiki/concepts/fft_metrics.md)
+- [Least-squares ADC calibration](wiki/concepts/least_squares_adc_calibration.md)
+- [Rank deficiency](wiki/concepts/rank_deficiency.md)
 - [SAR model to calibration workflow](wiki/workflows/sar_model_to_calibration.md)
+- [Spectrum validation before and after calibration](wiki/workflows/spectrum_validation_before_after_calibration.md)
 - [Example ingest map](wiki/workflows/example_ingest_map.md)
 - [Mathematical rigor gaps](wiki/rigor/mathematical_rigor_gaps.md)
 - [Identifiability conditions](wiki/rigor/identifiability_conditions.md)
+- [Spectrum metric statistical risks](wiki/rigor/spectrum_metric_statistical_risks.md)
 
 ## Current Policy
 

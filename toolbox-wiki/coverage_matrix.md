@@ -15,12 +15,17 @@ source-code, workflow, rigor, and source-note coverage.
 | ADC weight calibration | yes | yes | yes | partial | yes | usable |
 | Full sine-weight calibration | partial | yes | yes | partial | yes | seed |
 | Lite sine-weight calibration | partial | yes | partial | partial | yes | seed |
-| Rank deficiency / redundancy | planned | yes | partial | partial | yes | seed |
-| FFT spectrum metrics | yes | yes | planned | partial | yes | seed |
+| Rank deficiency / redundancy | yes | yes | partial | partial | yes | seed |
+| FFT spectrum metrics | yes | yes | yes | yes | yes | usable |
 | Sine fitting | partial | yes | planned | partial | yes | seed |
-| Validation split | planned | no | planned | planned | no | gap |
-| Raw ADC course notes | partial | n/a | n/a | partial | yes | seed |
-| MATLAB learning bridge | planned | n/a | planned | n/a | planned | gap |
+| Validation split | planned | no | partial | planned | no | gap |
+| Testing and FOM | partial | yes | planned | partial | yes | seed |
+| Noise and quantization model | partial | yes | planned | partial | yes | seed |
+| Sampling/comparator circuit nonidealities | partial | yes | planned | partial | yes | seed |
+| Pipeline ADC calibration context | partial | planned | planned | partial | yes | seed |
+| Oversampling and filtering context | partial | yes | planned | partial | yes | seed |
+| Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
+| MATLAB learning bridge | planned | n/a | planned | n/a | yes | seed |
 | Retrieval and maintenance structure | yes | n/a | yes | yes | n/a | stable |
 
 ## Existing Coverage
@@ -32,14 +37,42 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_code/compute_spectrum_py.md`
 - `wiki/source_code/fit_sine_4param_py.md`
 - `wiki/source_code/patch_rank_deficiency_py.md`
+- `wiki/source_code/window_py.md`
+- `wiki/source_code/estimate_noise_power_py.md`
+- `wiki/source_code/spectrum_helper_chain_py.md`
+- `wiki/source_code/calibration_helper_chain_py.md`
+- `wiki/source_code/analyze_spectrum_py.md`
+- `wiki/source_code/quick_sndr_py.md`
+- `wiki/source_code/frequency_py.md`
 - `wiki/workflows/sar_model_to_calibration.md`
+- `wiki/workflows/spectrum_validation_before_after_calibration.md`
 - `wiki/rigor/mathematical_rigor_gaps.md`
 - `wiki/rigor/identifiability_conditions.md`
+- `wiki/rigor/spectrum_metric_statistical_risks.md`
 - `wiki/concepts/fft_metrics.md`
+- `wiki/concepts/least_squares_adc_calibration.md`
+- `wiki/concepts/rank_deficiency.md`
 - `wiki/source_notes/adc_metrics_ch3.md`
+- `wiki/source_notes/adc_fom_ch16.md`
+- `wiki/source_notes/data_converter_testing_ch17.md`
+- `wiki/source_notes/sampling_circuit_ch5.md`
+- `wiki/source_notes/comparator_ch7.md`
+- `wiki/source_notes/pipeline_adc_concept_ch10.md`
+- `wiki/source_notes/pipeline_adc_implementation_ch11.md`
 - `wiki/source_notes/fft_sampling_note.md`
+- `wiki/source_notes/matrix_rank_observability_note.md`
 - `wiki/source_notes/least_squares_calibration_note.md`
+- `wiki/source_notes/noise_rms_power_variance_note.md`
+- `wiki/source_notes/quantization_noise_model_note.md`
 - `wiki/source_notes/sar_low_power_ch12a.md`
+- `wiki/source_notes/high_speed_sar_ch12b.md`
+- `wiki/source_notes/switched_cap_settling_noise_ch6.md`
+- `wiki/source_notes/time_interleaving_ch13.md`
+- `wiki/source_notes/oversampling_adc_ch14.md`
+- `wiki/source_notes/convolution_filtering_note.md`
+- `wiki/source_notes/dither_note.md`
+- `wiki/source_notes/linear_algebra_vectors_matrices_note.md`
+- `wiki/source_notes/matlab_code_reading_note.md`
 - `schema/PROMOTION_RULES.md`
 - `schema/SEMANTIC_LINT_CHECKLIST.md`
 - `schema/PROOF_PAGE_TEMPLATE.md`
@@ -50,12 +83,15 @@ source-code, workflow, rigor, and source-note coverage.
 
 ## Highest Priority Gaps
 
-1. `wiki/workflows/spectrum_validation_before_after_calibration.md`
-2. `wiki/rigor/spectrum_metric_statistical_risks.md`
-3. `wiki/rigor/redundant_sar_reachability.md`
-4. `wiki/concepts/rank_deficiency.md`
-5. `wiki/concepts/least_squares_adc_calibration.md`
-6. `wiki/source_notes/matlab_bridge_note.md`
+1. `wiki/rigor/redundant_sar_reachability.md`
+2. `wiki/workflows/training_validation_split.md`
+3. `wiki/source_code/metrics_py.md`
+4. `wiki/source_code/units_py.md`
+5. `wiki/source_notes/flash_adc_ch8.md`
+6. `wiki/source_notes/folding_interpolating_adc_ch9.md`
+7. `wiki/source_notes/matlab_fundamentals_bridge.md`
+8. PDF/DOCX source notes for `ADC测试分析与校准.pdf` and `Data Conversion Handbook.pdf`
+9. Example evidence notes from `wiki/workflows/example_ingest_map.md`
 
 ## Promotion Rule
 
