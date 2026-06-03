@@ -101,6 +101,8 @@ their original course PDFs and spot-checked PDF text against Markdown-derived
 distillations.
 The first direct Sun-course primary PDF distillation pass has added focused
 pages for SAR, Pipeline, and testing/calibration-critical measurement logic.
+Those primary PDF notes have now been converted into a redundant SAR
+reachability rigor page and a training/validation split workflow page.
 
 ## Next Wiki Pages To Create
 

@@ -15,10 +15,10 @@ source-code, workflow, rigor, and source-note coverage.
 | ADC weight calibration | yes | yes | yes | partial | yes | usable |
 | Full sine-weight calibration | partial | yes | yes | partial | yes | seed |
 | Lite sine-weight calibration | partial | yes | partial | partial | yes | seed |
-| Rank deficiency / redundancy | yes | yes | partial | partial | yes | seed |
+| Rank deficiency / redundancy | yes | yes | partial | yes | yes | usable |
 | FFT spectrum metrics | yes | yes | yes | yes | yes | usable |
 | Sine fitting | partial | yes | planned | partial | yes | seed |
-| Validation split | planned | no | partial | planned | no | gap |
+| Validation split | planned | no | yes | partial | yes | seed |
 | Testing and FOM | partial | yes | planned | partial | yes | seed |
 | Noise and quantization model | partial | yes | planned | partial | yes | seed |
 | Sampling/comparator circuit nonidealities | partial | yes | planned | partial | yes | seed |
@@ -49,9 +49,11 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_code/frequency_py.md`
 - `wiki/workflows/sar_model_to_calibration.md`
 - `wiki/workflows/spectrum_validation_before_after_calibration.md`
+- `wiki/workflows/training_validation_split.md`
 - `wiki/rigor/mathematical_rigor_gaps.md`
 - `wiki/rigor/identifiability_conditions.md`
 - `wiki/rigor/spectrum_metric_statistical_risks.md`
+- `wiki/rigor/redundant_sar_reachability.md`
 - `wiki/concepts/fft_metrics.md`
 - `wiki/concepts/least_squares_adc_calibration.md`
 - `wiki/concepts/rank_deficiency.md`
@@ -104,10 +106,10 @@ source-code, workflow, rigor, and source-note coverage.
 
 ## Highest Priority Gaps
 
-1. `wiki/rigor/redundant_sar_reachability.md`
-2. `wiki/workflows/training_validation_split.md`
-3. `wiki/source_code/metrics_py.md`
-4. `wiki/source_code/units_py.md`
+1. `wiki/source_code/metrics_py.md`
+2. `wiki/source_code/units_py.md`
+3. Add an executable reachability audit script for redundant SAR weight lists.
+4. Add train/validation diagnostic export support to calibration examples.
 5. Source notes for remaining PDF/DOCX sources: `ADC核心概念详细解析.pdf`,
    `ADC工作物理系统结构.docx` follow-up details, `MATLAB.docx`, and selected
    handbook chapter-level pages.

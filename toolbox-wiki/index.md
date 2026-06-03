@@ -61,9 +61,11 @@ maintenance.
 - [Rank deficiency](wiki/concepts/rank_deficiency.md)
 - [SAR model to calibration workflow](wiki/workflows/sar_model_to_calibration.md)
 - [Spectrum validation before and after calibration](wiki/workflows/spectrum_validation_before_after_calibration.md)
+- [Training and validation split](wiki/workflows/training_validation_split.md)
 - [Example ingest map](wiki/workflows/example_ingest_map.md)
 - [Mathematical rigor gaps](wiki/rigor/mathematical_rigor_gaps.md)
 - [Identifiability conditions](wiki/rigor/identifiability_conditions.md)
+- [Redundant SAR reachability](wiki/rigor/redundant_sar_reachability.md)
 - [Spectrum metric statistical risks](wiki/rigor/spectrum_metric_statistical_risks.md)
 
 ## Current Policy

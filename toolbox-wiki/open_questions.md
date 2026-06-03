@@ -37,7 +37,9 @@ answered it.
   - Current link: `wiki/source_code/sar_py.md`
   - Primary PDF source note:
     `wiki/source_notes/sun_sar_primary_pdf_distillation.md`
-  - Needed page: `wiki/rigor/redundant_sar_reachability.md`
+  - Partial answer: `wiki/rigor/redundant_sar_reachability.md`
+  - Still needed: executable per-node reachability audit and validation against
+    SAR example weight lists.
 
 - How should missing-code, DNL, INL, and calibration success be separated in
   redundant SAR examples?
@@ -50,9 +52,11 @@ answered it.
   - Partial answer: `wiki/concepts/fft_metrics.md`
   - Source page: `wiki/source_code/compute_spectrum_py.md`
   - Workflow answer: `wiki/workflows/spectrum_validation_before_after_calibration.md`
+  - Training/validation workflow:
+    `wiki/workflows/training_validation_split.md`
   - Primary PDF source note:
     `wiki/source_notes/sun_testing_primary_pdf_distillation.md`
-  - Still needed: example evidence notes using real before/after scripts.
+  - Still needed: script-level diagnostic export in examples.
 
 - How should coherent sampling, window choice, side-bin removal, and noise
   estimation be recorded in every metric claim?

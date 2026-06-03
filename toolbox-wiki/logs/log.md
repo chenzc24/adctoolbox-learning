@@ -1,5 +1,11 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] rigor | Add SAR reachability and train-validation workflow
+
+- Added `wiki/rigor/redundant_sar_reachability.md` to formalize redundancy as interval reachability, branch overlap, static coverage, dynamic decision margin, and validation obligations.
+- Added `wiki/workflows/training_validation_split.md` to require independent validation captures, solve diagnostics, identical FFT settings, and train/test metric reporting.
+- Updated `wiki/index.md`, `coverage_matrix.md`, `open_questions.md`, `progress.md`, and `logs/log.md`.
+
 ## [2026-06-03] ingest | Distill calibration-critical Sun-course PDFs
 
 - Added direct primary-PDF distillation notes for SAR, Pipeline, and testing chapters.

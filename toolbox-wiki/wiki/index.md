@@ -40,20 +40,14 @@ Planned:
 - [SAR model to calibration](workflows/sar_model_to_calibration.md): End-to-end path from SAR model, bit decisions, calibration, reconstruction, and spectrum validation.
 - [Example ingest map](workflows/example_ingest_map.md): Structural queue for turning ADCToolbox examples into reusable evidence notes.
 - [Spectrum validation before and after calibration](workflows/spectrum_validation_before_after_calibration.md): Required FFT settings and diagnostics for calibration metric comparisons.
-
-Planned:
-
-- `workflows/training_validation_split.md`
+- [Training and validation split](workflows/training_validation_split.md): Required split, diagnostics, and metric settings for credible calibration claims.
 
 ## Rigor
 
 - [Mathematical rigor gaps](rigor/mathematical_rigor_gaps.md): Current assumptions, risks, missing proofs, and validation obligations for ADCToolbox learning.
 - [Identifiability conditions](rigor/identifiability_conditions.md): State rank, excitation, conditioning, and validation conditions for ADC weight calibration.
 - [Spectrum metric statistical risks](rigor/spectrum_metric_statistical_risks.md): Explain why FFT metric claims depend on window, side-bin, harmonic, noise, and validation settings.
-
-Planned:
-
-- `rigor/redundant_sar_reachability.md`
+- [Redundant SAR reachability](rigor/redundant_sar_reachability.md): Formalize redundancy as interval reachability, static coverage, dynamic decision margin, and validation obligations.
 
 ## Source Notes
 
