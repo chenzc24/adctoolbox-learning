@@ -5,7 +5,10 @@ stage_link:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/11_ch11_Pipeline_ADC实现.md
 source_links:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/11_ch11_Pipeline_ADC实现.md
+  - ../../raw/resources/ADCtoolbox/ADC基础/孙老师课件/ch11.pdf
 rigor:
+  - source-confirmed
+  - primary-source-spot-checked
   - theory-supported
   - engineering-heuristic
   - open-question

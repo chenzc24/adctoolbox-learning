@@ -25,6 +25,7 @@ source-code, workflow, rigor, and source-note coverage.
 | Pipeline ADC calibration context | partial | planned | planned | partial | yes | seed |
 | Oversampling and filtering context | partial | yes | planned | partial | yes | seed |
 | Raw ADC course notes | partial | n/a | n/a | partial | yes | usable |
+| Sun-course source fidelity | partial | n/a | n/a | partial | yes | seed |
 | PDF/DOCX source distillation | partial | n/a | planned | partial | yes | seed |
 | MATLAB learning bridge | partial | n/a | partial | n/a | yes | seed |
 | Example evidence notes | partial | yes | partial | partial | yes | usable |
@@ -89,6 +90,7 @@ source-code, workflow, rigor, and source-note coverage.
 - `wiki/source_notes/examples/exp_d03_redundancy_comparison.md`
 - `wiki/source_notes/examples/exp_d16_sar_unit_cap_mismatch_mc.md`
 - `wiki/source_notes/examples/exp_d18_sar_redundant_mismatch_training_length_sweep.md`
+- `audits/source_fidelity_sun_course_2026-06-03.md`
 - `schema/PROMOTION_RULES.md`
 - `schema/SEMANTIC_LINT_CHECKLIST.md`
 - `schema/PROOF_PAGE_TEMPLATE.md`
@@ -108,6 +110,8 @@ source-code, workflow, rigor, and source-note coverage.
    handbook chapter-level pages.
 6. Next example candidates from `wiki/workflows/example_ingest_map.md`
 7. MATLAB-to-Python translation comparison table.
+8. Slide-level primary-source review for the most calibration-critical
+   Sun-course PDFs.
 
 ## Promotion Rule
 

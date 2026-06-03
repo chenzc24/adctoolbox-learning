@@ -103,6 +103,14 @@ answered it.
   - Remaining content-layer work: actually promote pages only after semantic
     review and evidence checks.
 
+- What exact rule promotes a Sun-course source note from
+  `primary-source-spot-checked` to `primary-source-reviewed`?
+  - Current link: `audits/source_fidelity_sun_course_2026-06-03.md`
+  - Current status: topic/keyword level PDF spot-check has been completed for
+    14 core ADC source notes.
+  - Still needed: slide-level formula, figure, assumption, and caveat review
+    for calibration-critical chapters.
+
 - How should future example notes be organized?
   - Answered structurally by: `schema/EXAMPLE_NOTE_TEMPLATE.md` and
     `wiki/workflows/example_ingest_map.md`

@@ -96,6 +96,9 @@ The first example-evidence pass has added notes for sine fitting, lite
 sine-weight calibration, and full sine-weight calibration examples.
 The second example-evidence pass has added notes for redundancy comparison,
 SAR unit-cap mismatch Monte Carlo, and SAR redundant training-length sweep.
+The Sun-course source-fidelity pass has linked 14 core ADC source notes back to
+their original course PDFs and spot-checked PDF text against Markdown-derived
+distillations.
 
 ## Next Wiki Pages To Create
 

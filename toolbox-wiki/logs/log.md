@@ -1,5 +1,11 @@
 # Toolbox Wiki Log
 
+## [2026-06-03] audit | Spot-check Sun-course notes against original PDFs
+
+- Added original Sun-course PDF links to 14 core ADC source notes that were previously derived mainly from pre-extracted Markdown.
+- Added `primary-source-spot-checked` rigor tags to those notes after `pdftotext` extraction and chapter-keyword checks.
+- Added `audits/source_fidelity_sun_course_2026-06-03.md` and updated `index.md`, `coverage_matrix.md`, and `progress.md`.
+
 ## [2026-06-03] ingest | Add redundancy and SAR example evidence notes
 
 - Added example notes for redundancy comparison, SAR unit-cap mismatch Monte Carlo, and SAR redundant training-length sweep.

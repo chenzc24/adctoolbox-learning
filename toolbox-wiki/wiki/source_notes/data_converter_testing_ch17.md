@@ -6,7 +6,9 @@ stage_link:
 source_links:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/17_ch17_数据转换器测试.md
   - ../../../../../python/src/adctoolbox/spectrum/compute_spectrum.py
+  - ../../raw/resources/ADCtoolbox/ADC基础/孙老师课件/ch17 Data Converter Testing.pdf
 rigor:
+  - primary-source-spot-checked
   - source-confirmed
   - theory-supported
   - engineering-heuristic

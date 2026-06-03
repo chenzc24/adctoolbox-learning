@@ -6,7 +6,10 @@ stage_link:
 source_links:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/12b_ch12_高速SAR_ADC.md
   - ../../../../../python/src/adctoolbox/models/sar.py
+  - ../../raw/resources/ADCtoolbox/ADC基础/孙老师课件/ch12 - high speed.pdf
 rigor:
+  - source-confirmed
+  - primary-source-spot-checked
   - theory-supported
   - engineering-heuristic
   - open-question

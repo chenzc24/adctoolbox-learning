@@ -6,7 +6,9 @@ stage_link:
 source_links:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/16_ch16_ADC_FOM.md
   - ../../../../../python/src/adctoolbox/spectrum/compute_spectrum.py
+  - ../../raw/resources/ADCtoolbox/ADC基础/孙老师课件/ch16 ADC Figures of Merit.pdf
 rigor:
+  - primary-source-spot-checked
   - source-confirmed
   - theory-supported
   - engineering-heuristic

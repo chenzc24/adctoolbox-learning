@@ -7,7 +7,9 @@ source_links:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/12a_ch12_低功耗SAR_ADC.md
   - ../../../../../python/src/adctoolbox/models/sar.py
   - ../../../../../python/src/adctoolbox/calibration/calibrate_weight_sine.py
+  - ../../raw/resources/ADCtoolbox/ADC基础/孙老师课件/ch12 - low power.pdf
 rigor:
+  - primary-source-spot-checked
   - source-confirmed
   - theory-supported
   - engineering-heuristic

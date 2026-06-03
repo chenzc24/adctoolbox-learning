@@ -5,7 +5,10 @@ stage_link:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/13_ch13_Time_Interleaving.md
 source_links:
   - ../../raw/resources/ADCtoolbox/学习整理_MD/01_ADC学习_孙老师课件主线/13_ch13_Time_Interleaving.md
+  - ../../raw/resources/ADCtoolbox/ADC基础/孙老师课件/ch13.pdf
 rigor:
+  - source-confirmed
+  - primary-source-spot-checked
   - theory-supported
   - engineering-heuristic
   - open-question
