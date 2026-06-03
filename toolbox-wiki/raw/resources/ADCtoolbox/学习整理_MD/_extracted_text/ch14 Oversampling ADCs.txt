@@ -1,0 +1,1047 @@
+Oversampling ADCs
+
+
+
+        Nan Sun
+   Tsinghua University
+ nansun@tsinghua.edu.cn
+
+
+
+                          1
+                      Quantization Noise
+
+
+
+
+• We define oversampling ratio (OSR) = fs/2fB
+• We can reduce quantization noise by oversampling
+• Total in-band quantization noise = (2fB/fs) (D2/12) = (D2/12) / OSR
+
+
+                                                                        2
+            Reducing Quantization Noise
+
+
+
+
+• How can we understand this from time domain?
+   – Assuming D[n] = Vin[n] + qe[n], pass through an FIR filter H(z) =
+     (1+z-1)/2
+   – We have DLPF[n] = (Vin[n]+Vin[n-1])/2 + (qe[n]+qe[n-1])/2
+   – Low-frequency signal adds in amplitude while noise adds in power
+
+                                                                     3
+                        Brief Summary
+• Increasing OSR by 2x  2x reduction in quantization noise power 
+  0.5 bit increase in resolution
+   – We can increase the ADC resolution simply by oversampling
+• How useful is this?
+   – For every 1 extra bit, we need to increase the sampling rate by 4x
+   – Too costly 
+• Can we get more bits without increasing the sampling rate very
+  much?
+
+
+
+
+                                                                          4
+                       Noise Shaping
+
+
+
+
+• It would be desirable if we can somehow shape the quantization
+  noise
+• If we can push the quantization noise to higher frequencies, the
+  low-pass filtering would be much more effective
+                                                                 5
+              Open-Loop Noise Shaping
+
+
+
+
+• If A(z) has high-gain at low frequency, the in-band quantization
+  noise will be reduced
+• However, a high-gain A(z) may overload the ADC
+                                                                     6
+          Noise Shaping Using Feedback (1)
+
+
+
+
+•   HX(z) is called the signal transfer function (STF)
+•   HE(z) is called the noise transfer function (NTF)
+                                                         7
+         Noise Shaping Using Feedback (2)
+
+
+
+
+• We want STF  1 and NTF <<1 in the signal band
+   – |A(z)| >>1 at low frequencies
+• An integrator satisfies this requirement
+   – A(z) = z-1/(1-z-1)
+
+
+
+
+                                                   8
+                 Discrete Time Integrator
+
+
+
+
+• An integrator provides infinite gain at DC
+
+
+                                               9
+                First Order DS Modulator
+
+
+
+
+• Output is equal to delayed input plus filtered quantization noise
+
+                                                                      10
+          NTF Frequency Domain Analysis
+
+
+                       /
+
+
+
+
+• Quantization noise is
+  attenuated at low frequencies,
+  but amplified at high
+  frequencies
+
+
+
+
+                                          11
+                 In-Band Quantization Noise
+
+• The total in-band quantization noise can be calculated by
+
+
+
+
+• What about the total amount of quantization noise between 0 and fs/2? Is it
+  smaller or larger?
+                                                                           12
+                               SQNR
+
+•   Assuming a full-scale sinusoidal signal, we have
+
+
+
+
+• Note that this SQNR expression works only for B>1 , so that 2B-1 can
+  be approximated by 2B
+• 2x increase in OSR results in 8x SQNR improvement
+   – 9dB (or 1.5bit) per octave oversampling
+
+                                                                         13
+       SQNR Improvement
+
+
+
+          Without Noise     With 1st-order
+OSR
+             Shaping        Noise Shaping
+ 16        12 dB (2 bits)    31dB (5 bits)
+
+ 64        18 dB (3 bits)    49 dB (8 bits)
+
+256        24 dB (4 bits)   67dB (11 bits)
+
+1024       30 dB (5 bits)   85dB (14 bits)
+
+
+
+
+                                              14
+       Modulator with Single-Bit Quantizer
+
+
+
+
+•   Expected SQNR
+
+
+
+
+•   E.g. OSR=128  SQNR=60dB
+
+                                             15
+Implementation Example
+
+
+
+
+                         16
+Simulated Response
+
+
+
+
+                     17
+                            Spectrum
+
+
+
+
+• SQNR=55dB < 60dB
+• There are lots of spurs in the spectrum, why?   18
+Time Domain Modulator Behavior
+
+
+
+
+                                 19
+                                   Tones
+
+• Key observations:
+   – The quantization error is deterministic, not random, if there is no
+     randomness (e.g., dither and thermal noise) added into the loop
+   – The quantization error is correlated with the input
+• In a first-order delta-sigma modulator, the quantization error is highly
+  correlated with the input, and thus, its spectrum is not white, but contains
+  spurious tones.
+• This is fundamentally due to the nonlinear behavior of the quantizer.
+• It is generally difficult to analyze the tonal behavior for an arbitrary input
+• Let us take a look at a simple DC input to get an intuitive understanding
+
+
+
+
+                                                                              20
+X[n] = 0
+
+
+
+
+           21
+X[n] = 0.5
+
+
+
+
+             22
+X[n] = 0.25
+
+
+
+
+              23
+X[n] = 0.125
+
+
+
+
+               24
+                Idle Tone Considerations
+
+• Idle tones are problematic in audio applications
+   – The human ear can detect tones ~20dB below the noise floor
+• There are several way to reduce idle tones:
+   – External dither
+       • Add a random signal at the quantizer input to “whiten”
+         quantization noise
+   – Thermal noise dither
+       • Electronic noise from integrators can dither the quantization
+         noise for free
+   – Multi-bit quantizer and DAC
+   – Higher order modulators
+       • Naturally produce “more random” quantization error
+         sequences
+
+                                                                         25
+With Dither Added
+
+
+
+
+                    26
+With 4-bit Quantizer (1)
+
+
+
+
+                           27
+   With 4-bit Quantizer (2)
+
+
+
+
+Tones lowered and SQNR increases to 81 dB 
+                                              28
+Gain for 1-bit Quantizer
+
+            • Quantizer has gain!
+            • The gain of a 1-bit quantizer is ill-
+              defined
+            • The actual closed-loop quantizer gain
+              can be found from simulations:
+               – The quantizer can be modeled as
+
+                     and     should be orthogonal
+                     • q should not depend on Vin
+                               ⋅
+
+
+            • Quantizer gain affects loop stability.
+              This is an important issue for high-
+              order DS modulators
+                                                29
+Quantizer Gain vs. Amplitude
+
+
+
+
+                               30
+                Higher Order Modulators
+• Motivations:
+   – Higher SQNR
+   – Reduced OSR
+   – Fewer and weaker idle tones
+• Commonly used architectures
+   – Single loop with a higher-order filter
+   – Cascaded, multi-stage modulators
+
+
+
+
+                                              31
+              Higher Order Noise Shaping
+
+• Lth-order noise transfer function
+
+
+
+
+                                           32
+              In-Band Quantization Noise
+
+
+
+
+• For an Lth-order modulator, 2x OSR leads to an SQNR increase of
+  6L+3dB (L+0.5bits)
+
+
+                                                                    33
+                              SQNR
+
+•   Assuming a full-scale sinusoidal signal, we have
+
+
+
+
+•   2x increase in OSR results in 6L+3dB (L+0.5bits) SQNR
+    improvement
+
+
+                                                            34
+SQNR with Single-Bit Quantizer
+
+
+
+
+                                 35
+       Building a Second-Order Modulator
+
+
+• Cascade two integrators before the quantizer
+
+
+
+
+                                                 36
+                 More General Structure
+
+
+
+
+•   Assuming quantizer gain of 1:
+
+
+
+
+•   Ideally, we want D(z) = 1  a2b = 2, a1a2 = 1
+     – a1 = a2 = 1, b = 2 or a1 = 0.5, a2 = 2, b = 1
+•   Note that even if D(z)  1, the quantization noise is still shaped
+                                                                         37
+             Boser-Wooley Modulator (1)
+
+
+
+
+• We set a1=0.5, b=1, but a2=0.5 (instead of 2)
+• This take advantages of the property of the 1-bit quantizer
+   – 1-bit quantizer only cares about sign, not amplitude
+• By reducing a2, we lower the signal swing at the 2nd integrator output
+
+
+
+                                                                       38
+Boser-Wooley Modulator (2)
+
+
+
+
+                             39
+Behavior of a 2nd-Order Modulator
+
+
+
+
+                                    40
+        Spectrum
+
+
+
+
+SQNR = 84 dB, Less spurious tones
+                                    41
+               Modulators with Order >2
+
+•   General filter decomposition
+
+
+
+
+                                          42
+                               Stability
+• The feedback loop can be unstable!
+• Note that the quantizer is nonlinear and its gain depends on the input
+  amplitude
+   – We need to guarantee loop stability under all possible quantizer
+     gains
+• In general, it is hard to analyze the stability for a nonlinear system
+• Designers usually rely on:
+   – Stability analyses using the linear model
+   – Heuristics
+   – Intensive time-domain simulations using the nonlinear model
+
+
+
+
+                                                                           43
+                        Stability Heuristics
+
+• Single-bit
+   – 1st-order modulator is stable with the standard integrator
+        • It can go unstable if additional gain is provided in the loop
+   – 2nd-order modulator is stable for inputs with magnitude < D/20. It is
+      “likely” to be stable for slow varying input with magnitude < 0.8·D/2,
+   – Lee's criterion: modulator is "likely" to be stable if max[He(w)]<1.5
+• Multi-bit
+   – The stability for a multibit modulator is in general much better than
+     that for a single-bit modulator
+   – A Nth-order modulator using an N+1 bit quantizer is stable for arbitrary
+     inputs with amplitude less than half the quantizer input range
+
+
+
+                                                                          44
+              1st-order Modulator Stability
+
+
+
+
+•   The loop is unstable for K>2!
+                                              45
+             Stability and SQNR Tradeoff
+
+                             [Norsworthy, pp.156]
+
+
+
+
+                                        Max. Input [D/2]
+                 M=40, L=6
+
+
+
+
+             max[He(w)]                                    max[He(w)]
+
+
+• larger max[He(w)]  more attenuation in the signal band  higher
+  SQNR
+• larger max[He(w)]  lower stability
+
+                                                                        46
+        Achievable SQNR for 1-b Modulator
+
+
+
+
+                                                            [Schreier, p. 112]
+
+
+
+
+• The gain in SQNR for increasing modulator order is limited at low
+  OSR.
+• Usually, the modulator order is limited to 5.
+                                                                        47
+        Advantages for Multibit Modulators
+
+
+
+
+•   Advantages for a multibit DS ADC:
+     – Reduced quantization error
+     – Well-defined quantizer gain and improved stability
+     – More aggressive noise transfer function
+     – Reduced requirement on slew rate and loop filter linearity, and
+       less sensitivity to clock jitter
+•   Disadvantage:
+     – Unlike a binary DAC, a multi-bit DAC is not guaranteed linear
+                                                                   48
+                             Single-Bit DAC
+
+
+
+
+1-bit DAC is always linear         Constant gain and offset errors do
+                                        not cause nonlinearity
+                                                                    49
+                             Multibit DAC
+
+
+
+
+                                • The mismatch induced error eDAC
+                                  directly adds to the input and is not
+Multibit DAC is not linear        shaped!
+due to mismatches               • It can seriously degrade the ADC
+                                  performance
+                                                                      50
+A 3rd-order DS ADC with 4-bit DAC
+
+
+
+                SNDR = 52 dB
+
+
+
+
+               SNDR = 99 dB
+
+
+
+
+                                    51
+Calibration
+
+
+
+
+               [Moon et al., 1999]
+
+
+
+
+              [Larson et al., 1988]
+                          52
+Selection Sequence Design
+
+
+
+
+                            53
+                          Random Selection
+
+
+
+
+[Van de Plassche, 1976]
+[Carley, 1989]
+
+                                             54
+Tones Disappear but Noise Floor Rises
+
+
+
+                      SNDR = 52 dB
+
+      SNDR = 56 dB
+
+
+
+
+                     SNDR = 99 dB
+
+
+
+
+                                        55
+       Deterministic Shifting (Clocked Averaging)
+
+
+
+
+[Leung et al., 1992]
+                                                    56
+    Noise Floor Lowers
+
+
+
+
+                   SNDR = 52 dB
+SNDR = 56 dB
+
+
+
+                         SNDR = 65 dB
+
+
+               SNDR = 99 dB
+
+
+
+
+                                        57
+                       Data Weighted Averaging
+
+
+
+
+[Jackson 1993]
+[Baird & Fiez, 1995]
+                                                 58
+1st-order Mismatch Shaping
+
+
+
+
+SNDR = 88 dB
+
+
+
+               SNDR = 99 dB
+
+
+
+
+                              59
+           Why 1st-order Mismatch Shaping?
+
+                                               [R. Schreier, MIT 6.775 Lecture note]
+DAC has infinite
+number of elements
+
+
+
+
+                              W = V + (1-z-1)eDAC
+
+
+
+
+                     Use element in a rotation fashion
+                                                                               60
+Necessary and Sufficient Conditions
+
+
+
+
+  1. Each svi[n] exhibits a shaped spectrum
+  2. Ssvi[n] = d[n]
+
+                                              61
+Conceptual Implementation
+
+
+
+
+                            62
+Vector-Quantizer-Based ESL (1)
+
+
+
+
+Ssvi[n]  d[n], leading to large quantization noise
+
+                                                      63
+       Vector-Quantizer-Based ESL (2)
+
+
+
+
+The vector quantizer (VQ) selects d[n] largest components to be 1
+
+                                                              64
+Simplified VQ-Based ESL
+
+
+
+
+                     [Schreier & Zhang, 1995]
+
+
+
+
+                                        65
+Canonical VQ-Based ESL
+
+  [Schreier & Zhang, 1995]
+
+
+
+
+                             66
+     2nd-order Mismatch Shaping
+
+
+
+
+H(z) = (1-z-1)2
+
+
+
+                                  67
+               Simulated Spectra
+
+
+
+
+                   SNDR = 99 dB
+SNDR = 96 dB
+
+
+
+                                   68
+                    Research Directions
+• Can we improve stability and achieve higher-order shaping?
+• Can we reduce the complexity of the vector quantizer?
+• Can we achieve shaping for segmented DAC?
+• Can we reduce the delay in the ESL block?
+• Can we apply simple and efficient dithering?
+• Can we shape the dynamic ISI error?
+
+
+
+
+                                                               69
+                          Our Recent Publications
+
+•   Nan Sun, “High-order mismatch-shaped segmented multibit delta-sigma DACs with arbitrary unit
+    weights,” IEEE Transactions on Circuits and Systems – I, vol. 59, no. 2, pp. 295-304, Feb. 2012.
+•   Nan Sun and Peiyan Cao, “Low-complexity high-order vector-based mismatch shaping in multi-bit
+    ΔΣ ADCs,” IEEE Transactions on Circuits and Systems – II, vol. 58, no. 12, pp 872-876, Dec. 2011.
+•   Nan Sun, “High-order mismatch-shaping in multibit DACs,” IEEE Transactions on Circuits and
+    Systems – II, vol. 58, no. 6, pp 346-350, Jun. 2011.
+•   Arindam Sanyal, Peijun Wang, and Nan Sun, “A thermometer-like mismatch shaping technique with
+    minimum element transition activity for multi-bit delta-sigma DACs,” IEEE Transactions on Circuits
+    and Systems – II, vol. 61, no. 7, pp. 461-465, Jul. 2014.
+•   Arindam Sanyal, Long Chen, and Nan Sun, “Dynamic element matching with signal-independent
+    element transition rates for multibit delta sigma modulators,” IEEE Transactions on Circuits and
+    Systems – I, accepted.
+•   Arindam Sanyal and Nan Sun, “A simple and efficient method for vector quantizer based mismatch-
+    shaped ΔΣ DACs,” IEEE Proceedings of International Symposium on Circuits and Systems, pp. 528 –
+    531, 2011.
+•   Peijun Wang and Nan Sun, “A random DEM technique with minimal element transition rate for
+    high-speed DACs,” IEEE International Symposium on Circuits and Systems (ISCAS), pp. 1155-
+    1158, 2014.
+
+
+                                                                                                   70
+                General CIFB Architecture
+
+
+
+
+                                                       [Schreier, p. 115]
+
+
+
+
+• CIFB - Cascade of Integrators with Feedback
+• All zeros of NTF are at DC for this structure
+   – HE(z) = (1-z-1)N/D(z)
+• May not lead to minimum in-band quantization noise
+
+
+                                                                   71
+              General CRFB Architecture
+
+
+
+
+                                                 [Schreier, p. 118]
+
+
+
+
+•   CRFB - Cascade of Resonators with Feedback
+•   CRFB provides complex zeros
+
+
+
+                                                              72
+        Single Feedback Loop Design Example
+
+
+
+
+• A(z) must have at least one delay inside for realizability  both the
+  constant terms in NTF numerator and denominator should be 1
+• Modulator design is essentially about the design of NTF and A(z)
+                                                                     73
+                     NTF Design Procedure
+
+• Standard design procedure:
+   – Choose order based on desired SQNR and OSR
+   – Design NTF using filter approximations (e.g. Chebyshev2)
+   – Make sure that NTF is realizable and satisfies Lee's stability criterion
+   – Derive A(s) based on NTF
+   – Evaluate performance and stability using time-domain simulations
+   – Scale coefficients to limit integrator output swing
+   – For details, see Delta-Sigma Data Converters, by Norsworthy, Schreier
+      & Temes, Sections 4.4 and 5.6
+• Can be automated
+   – Delta-Sigma Toolbox for MATLAB by Richard Schreier
+   – http://www.mathworks.com/matlabcentral/fileexchange/19-delta-
+     sigma-toolbox
+                                                                          74
+           NTF Design Example in Matlab (1)
+
+% Specify parameters
+L = 4, OSR = 50, StopBand = 70
+
+
+% NTF synthesize
+[b,a] = cheby2(L, StopBand, 1/OSR, 'high')
+
+
+% Scale b(1) to 1 to ensure realizability; a(1)=1 by default
+b = b/b(1);
+
+
+% Check stability using Lee’s criteria
+NTF = filt(b, a, 1)
+bode(NTF)
+
+
+% Solve for A(z)
+A = inv(NTF) - filt(1,1,1)
+
+                                                               75
+                  NTF Design Example in Matlab (2)
+
+
+Inband slightly                                      NTFmax = 1.43
+worse than
+-70dB due to
+scaling
+
+
+
+
+                                                           76
+Commercial Example
+
+
+
+
+                     77
+               Multi-Stage Shaping (MASH)
+
+
+
+
+• Cascade of multiple low-order modulators to achieve high-order shaping
+   – Better stability
+
+                                                                      78
+Second Order (1-1) Cascade
+
+
+
+
+                             79
+Third Order (1-1-1) Cascade
+
+
+
+
+                              80
+                       MASH Properties
+• Overall noise shaping order = sum of all modulator orders
+• Same benefits of higher-order noise shaping but without stability
+  issues 
+• However, cancellation of first stage quantization noise relies heavily
+  on the accurate matching between the two modulators 
+
+
+
+
+                                                                           81
+Mismatch Induced Noise Leakage
+
+
+
+
+                                 82
+              Circuit Level Considerations
+• Timing
+• Noise
+• Finite OTA gain
+• OTA settling error
+• OTA nonlinearity
+• Others
+   – Unwanted mixing effects
+       • If Vref contains fs/2, out-of-band noise will be mixed down into
+         the signal band!
+
+
+
+
+                                                                        83
+Example 2nd-order Modulator
+
+
+
+
+              𝑌 [𝑛] = 𝑌 [𝑛 − 1] + 𝑉 [𝑛 − 1] − 𝐷    [𝑛 − 1] /2
+              𝑌 [𝑛] = 𝑌 [𝑛 − 1] + 𝑌 [𝑛 − 1] − 𝐷   [𝑛 − 1] /2
+                            𝐷 [𝑛] = 𝑌 [𝑛] > 0
+
+
+
+
+                • OTAs and comparators all
+                  have entire half clock cycle to
+                  settle
+                • Not the only way            84
+                       Electronic Noise (1)
+
+
+
+
+• Integrator electronic noise can be modeled as an input referred noise source
+• Comparator electronic noise has the same effect as quantization noise
+   – It is much smaller than quantization noise, and thus, can be ignored.
+• DAC noise can be modeled as a noise source in the feedback path.
+                                                                         85
+Electronic Noise (2)
+
+
+
+
+                       86
+                    Electronic Noise (3)
+
+
+
+
+• Noise from the 1st integrator and DAC adds directly to the output
+   – Digital filter will reduce this noise by OSR
+• Noise from the 2nd integrator and DAC is 1st-order shaped
+   – Digital filter will remove most of it
+• The key is the design of the 1st integrator and DAC
+                                                                      87
+Integrator Analysis
+
+
+
+
+                      88
+                      Finite OTA Gain (1)
+
+
+
+
+                                                           1                 2
+                                      𝑉 [𝑛] ≈ 𝑉 [𝑛 − 1](1 − ) + 𝑉 [𝑛 − 1](1 − )
+                                                           𝐺                 𝐺
+
+
+
+
+•   Does a finite gain cause nonlinearity?
+                                                                       89
+                      Finite OTA Gain (2)
+
+• Let us take a 1st-order modulator as an example
+
+
+
+
+•   No distortion, but the effect of noise shaping is undermined
+                                                                   90
+                      Finite OTA Gain (3)
+
+
+
+
+• In general, we want G  OSR to ensure good noise shaping
+• E.g., for SQNR = 60 dB at OSR = 128, G = 40 dB is almost sufficient
+• The requirement is not as strict as that for a pipelined ADC (G  SQNR)
+                                                                            91
+                       Nonlinear OTA Gain
+
+• A signal-dependent OTA gain is more problematic
+• It causes A(z) to be nonlinear, which causes the mixing of the quantization
+  noise and the signal and the self mixing of the quantization noise, which
+  leads to large in-band distortion and SQNR loss
+• We usually over design the OTA gain so that its nonlinearity has negligible
+  effect
+
+
+
+
+                                                                          92
+               Continuous-Time DS ADC
+• Advantages for discrete-time (DT) DS ADCs
+   – The SC filters are very accurate and linear
+   – The difference equations are independent of the clock rate.
+     Transfer function naturally scales with the clock frequency
+
+
+• Advantages for continuous-time (CT) DS ADCs
+   – CT modulators have intrinsic anti-aliasing property
+   – CT modulators can run at higher clock rate
+      • It does not need to settle!
+
+
+
+
+                                                                   93
+                      1st-order CT DS ADC
+
+•   Assuming sampling rate is 1 Hz
+
+
+
+
+•   The key is that the quantizer and the DAC operates in the DT fashion.
+
+                                                                       94
+Equivalent DT Model
+
+
+
+
+                      95
+CT DS ADC Example
+
+                  [Mitteregger, ISSCC 2006]
+
+
+
+
+          •   Intrinsic anti-aliasing filter
+          •   No need for settling
+               – But OTA cannot slew
+          •   Feedback DAC harder to design
+          •   Clock jitter needs to be
+              minimized
+                                               96
+

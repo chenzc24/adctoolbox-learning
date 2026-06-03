@@ -1,0 +1,287 @@
+Folding and Interpolating ADC
+
+
+
+              Nan Sun
+         Tsinghua University
+      nansun@Tsinghua.edu.cn
+
+
+
+                                1
+                   Reducing Complexity
+
+• How much power would a 8-bit flash ADC consume?
+   – A 6-bit 1GS/s flash ADC consumes about 500mW (in 0.35um)
+   – To increase the resolution to 8-bit, we need to
+      • Increase the number of comparators by 4
+      • Increase size & power of each comparator by 42 (matching)
+   – ADC Power: 500mW·43 = 32W (!)
+• How to increase resolution w/o significantly increasing power?
+   – Interpolation
+   – Folding
+   – Folding & interpolation
+   – Multi-step conversion, pipelining
+
+
+
+                                                                    2
+                        Interpolation
+• Reduce # preamps by interpolating preamp outputs
+   – Lower power dissipation
+   – Lower input capacitance
+   – Lower area
+• Same number of latches
+• Important “side-benefit”
+   – Lower offset through offset averaging
+
+
+
+
+                                                     3
+Concept
+
+
+
+
+          [van de Plassche, p.118]
+
+
+
+
+                                     4
+        Differential Implementation
+
+
+
+
+Vref2
+
+
+
+
+Vref1
+
+
+
+
+                                      5
+Higher Order Interpolation
+
+                • Resistors produce
+                  additional levels
+                • Factor = # latch / #
+                  preamp
+                • Factor = 8 for this
+                  example
+
+
+
+
+                H. Kimura et al, “A 10-b 300-MHz
+                Interpolated-Parallel A/D Converter,”
+                IEEE J. of Solid-State Circuits, pp. 438-
+                446, April 1993.
+
+
+
+                                                   6
+                  Issues with Interpolation
+
+• Speed penalty
+   – Resistor ladder resistance
+   – Latch capacitance and parasitic capacitance
+• Preamp nonlinearity
+   – For interpolation factors >2, amplifier nonlinearity can limit the
+     precision of zero crossings
+   – Must ensure that "linear range" of adjacent preamplifiers overlaps
+• Upper bound on interpolation factor, typically around 4
+• Interpolation factor of 2 is widely used
+   – No need for resistor string, low design complexity
+• Details see [van de Plassche, p.121]
+
+
+                                                                          7
+                Folding ADC
+
+
+
+
+                         MSB
+VIN
+                         ADC
+                               Digital
+                               Output
+                         LSB
+                         ADC
+
+      Folding Circuit
+
+
+
+
+                                         8
+              Example: 6-bit Folding ADC
+
+
+
+
+• Coarse ADC determines segment, fine ADC determines level within
+  segment
+• Folding factor (FF) quantifies number of segments
+                                                                    9
+Folder
+
+
+
+
+         10
+                        Folder Realization
+
+
+
+
+• For any Vin, only one differential pair is "active", all others are
+  saturated
+• Vout, cm = Vdd – FF  IBRL/2
+                                                                        11
+                     Improved Realization
+
+
+
+
+• Extra differential pair controls Vout, cm
+• Vout, cm = Vdd – (FF +1) IBRL/2 + K  IBRL
+                                                12
+Input-Output Characteristic
+
+
+
+
+                              13
+         Rounding Problem
+
+
+
+
+Useful
+Region
+
+
+
+
+                            14
+                  Multiple Folds (1)
+
+
+Hard to line up
+ with folder
+   output
+
+   Residual
+distortion from
+folder causes
+   DNL/INL
+
+
+
+
+                                       15
+                       Multiple Folds (2)
+
+
+
+
+• Use several folders so that any input value falls into useable "linear"
+  region
+                                                                            16
+Multiple Folds Using Single Threshold (1)
+
+
+
+
+                                       17
+Multiple Folds Using Single Threshold (2)
+
+                         • Initial plan
+                            – Use one folder and 7
+                                comparators in LSB
+                                section
+                         • Now have
+                            – 8 folders and 8
+                              comparators
+                         • Reduce complexity
+                            – Use interpolation to
+                              eliminate some of the
+                              folders
+
+
+                                                18
+                         Interpolation
+
+
+
+
+• Same idea as discussed in the context of flash ADCs
+
+
+
+                                                        19
+Complete Folding & Interpolating ADC
+
+
+                          • 6-bit Example
+                             – 2 folders
+                             – 4x interpolation
+                             – FF = 8
+
+
+
+
+                                            20
+       State-of-the-art Implementation (1)
+
+                      [Taft et al., JSSC 12/2004]
+
+
+
+
+• Use calibration
+• Use track and hold (let it settle)
+                                                    21
+State-of-the-art Implementation (2)
+
+
+
+
+                                      22
+State-of-the-art Implementation (3)
+
+
+
+
+                                      23
+State-of-the-art Implementation (4)
+
+
+
+
+                                      24
+           Folding ADC Problems & Solutions
+
+• Dynamic problems
+   – Frequency at the folder output is approximately input frequency times
+     folding factor!
+   – Hard to match the delay through coarse/fine signal paths
+   – Solution: add track-and-hold
+• Static problems
+   – Offsets in folder transistors can cause DNL and INL
+   – Interpolation with a factor greater than 2 can introduce DNL and INL
+      due to amplifier nonlinearity
+   – Solutions: averaging or calibration
+
+
+
+
+                                                                       25
+

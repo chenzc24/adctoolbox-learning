@@ -1,0 +1,854 @@
+Data Converter Performance Metrics
+
+
+
+                Nan Sun
+           Tsinghua University
+         nansun@tsinghua.edu.cn
+
+
+
+                                     1
+               Static Performance Metrics
+
+• Offset
+• Gain error
+• Differential nonlinearity (DNL)
+• Integral nonlinearity (INL)
+
+
+
+
+                                            2
+Basic Concept
+
+
+
+
+    Gain error   Offset error
+
+
+                                3
+                 ADC Offset and Gain Error
+
+• Start point: ½ LSB before first transition
+• End point: ½ LSB after last transition
+• Offset: the deviation of start point from its ideal location
+• Gain error: the deviation of end point with offset removed
+• Both quantities are measured in LSBs (analog quantities)
+
+
+
+
+                                                                 4
+                DAC Offset and Gain Error
+
+• Start and end points are defined by analog output values corresponding
+  to the smallest and largest digital inputs.
+• Offset and gain errors are also measured in LSBs (analog quantities)
+
+
+
+
+                                                                         5
+                            Comments
+• Definitions in the previous slides are widely used in industry
+   – Note that different companies may use different definitions
+        • Read datasheet carefully
+   – IEEE standard defines them based on least square curve fitting
+
+
+• Gain and offset errors matters when we care about absolute magnitude
+   – E.g., in scientific measurements
+
+•   However, we may not care about offsets and gain errors in many
+    applications
+     – These errors are easy to correct in the digital domain
+     – Offsets and gain errors do not affect linearity
+     – E.g., audio application, communication, etc
+
+• We are more interested in nonlinearities.
+
+
+                                                                         6
+              Differential Nonlinearity (DNL)
+
+• For an ideal ADC, all codes have the same width.
+• For an ideal DAC, all steps have the same size.
+• However, in practice, the code widths and step sizes may not be identical.
+• DNL[k] is defined as the deviation of the width from the "average" width
+  for code k.
+   – It is a measure of uniformity.
+   – Gain and offset errors do not affect uniformity.
+
+
+
+
+                                                                         7
+                           ADC DNL Example
+
+
+Code [k]     T[k]       W [V]
+   0       undefined   undefined
+
+   1         1.0         1.5
+   2         2.5         0.5
+   3          3           1
+   4          4          2.4
+   5         6.4          0
+   6         6.4          3
+   7         9.4       undefined
+
+
+
+
+                                             8
+                      ADC DNL Example
+
+• What is the average code width?
+   – There are in total 6 codes (not counting the first and last codes)
+   – The total code width is 8.4V
+
+
+
+
+•   DNL[k] is defined as
+
+
+
+
+                                                                          9
+                                Result
+
+      Code [k]   DNL [LSB]
+          1        +0.07
+          2        -0.64
+          3        -0.29
+          4        +0.71
+          5        -1.00
+          6        +1.14
+
+
+•   Positive/negative DNL implies wide/narrow code
+•   DNL = -1 LSB implies missing code
+•   Possible to have DNL > +1 LSB
+•   Impossible to have DNL < -1 LSB for an ADC (why?)
+•   The sum of all DNL[k] is equal to zero (why?)
+                                                        10
+                   Typical ADC DNL Plot
+
+
+
+
+                        [Ahmed, JSSC 12/2005]
+
+
+• Usually, we only specify the min/max DNL numbers across all codes
+   – E.g. DNL = +0.63/-0.91 LSB
+• A well designed ADC usually has DNL bounded by 1 LSB
+• DNL of an ADC is usually obtained by using a linear ramp input and
+  measuring the duration of all codes.
+                                                                       11
+                                DAC DNL
+    • Same idea as that for an ADC.
+       – Note that static metrics are
+         all defined as analog
+         values.
+
+
+
+
+•    DAC DNL can be less than -1
+     LSB. Why?
+
+
+
+
+                                          12
+                  Non-Monotonic DAC
+• DNL < -1 LSB implies non-
+  monotonicity
+
+
+
+
+• How about a non-monotonic
+  ADC?
+
+
+
+
+                                      13
+                      Non-Monotonic ADC
+
+
+
+• Code 3 has 2 transition levels
+• W[3] is ill-defined, and thus,
+  DNL[3] is ill-defined.
+• Not a major issue, because such a
+  non-monotonic ADC will not be
+  sold anyway.
+
+
+
+
+                                          14
+                  Integral Nonlinearity (INL)
+
+• DNL, by itself, is insufficient for
+  characterizing the nonlinearities.
+• Compare the following two ADC,
+  which one is more nonlinear?
+   – ADC #1 DNL = [-0.6, -0.6, -0.6,
+     -0.6, +0.6, +0.6, +0.6, +0.6]
+   – ADC #2 DNL = [-0.6, +0.6, -0.6,
+     +0.6, -0.6, +0.6, -0.6, +0.6]
+• INL quantifies the overall
+  deviation of the transfer curve
+  from an ideal straight line.
+
+
+
+
+                                                15
+General Idea for INL
+
+
+
+
+                       16
+                         ADC INL Example
+
+
+
+
+• T0[k] is the ideal evenly spaced
+  transition level
+• INL(0) is undefined
+• INL(1) = INL(9) = 0
+• Similar as DNL, INL is also
+  independent from gain and offset
+  errors
+
+
+                                           17
+         Relationship between INL and DNL
+
+• It is easy to derive that:
+                                               ⇒
+•   Once we know DNL, we can easily find INL.
+                               ADC #1                     ADC #2
+           Code [k]   DNL [LSB]    INL [LSB]   DNL [LSB]      INL [LSB]
+              1         -0.6             0         -0.6             0
+              2         -0.6            -0.6       +0.6            -0.6
+              3         -0.6            -1.2       -0.6             0
+              4         -0.6            -1.8       +0.6            -0.6
+              5         +0.6            -2.4       -0.6             0
+              6         +0.6            -1.8       +0.6            -0.6
+              7         +0.6            -1.2       -0.6             0
+              8         +0.6            -0.6       +0.6            -0.6
+              9       Undefined          0     Undefined            0
+
+•   ADC #1 is more nonlinear.
+                                                                          18
+                  Typical ADC DNL/INL Plot
+
+
+
+
+                               [Ishii, CICC, 2005]
+
+• DNL/INL plots reveals architectural details.
+• A well-designed ADC has both INL and DNL bounded by 1 LSB
+                                                               19
+                               DAC INL
+• Same idea applies
+   – Find ideal output values that lie on a straight line between
+     endpoints
+   – Calculate INL for each code k using
+
+
+
+
+    – Vout,0[k] is the ideal output voltage for code k
+
+
+
+
+                                                                    20
+                          Spectral Metrics
+
+• Static metrics cannot capture dynamic errors.
+• ADC/DAC performance is a function of frequency.
+• Effective performance evaluation in the frequency domain
+   – Apply sine waves at the input and look at the output spectrum
+   – Expect same sine tones at the output, all other frequency components
+      represent nonidealities
+• List of spectral metrics:
+   – SNR: Signal-to-noise ratio
+   – SNDR (SINAD): Signal-to-(noise + distortion) ratio
+   – ENOB: Effective number of bits
+   – DR: Dynamic range
+   – SFDR: Spurious free dynamic range
+   – THD: Total harmonic distortion
+   – ERBW: Effective Resolution Bandwidth
+   – IMD: Intermodulation distortion
+   – MTPR: Multi-tone power ratio
+                                                                            21
+         ADC Spectral Metrics Test Setup
+
+
+
+
+•   What are the differences between DFT, CTFT, and DTFT?
+
+
+                                                            22
+                  Fourier Transforms (1)
+• Continuous-time FT:
+
+
+
+
+• Discrete-time FT (Z transform):
+
+
+
+
+• Discrete FT:
+
+                                    /
+
+
+
+
+                                           23
+                    Fourier Transforms (2)
+
+
+
+
+•   h[n] is a rectangular window. Is there any distortion in the spectrum?
+                                                                             24
+              Discrete Fourier Transform
+
+•   DFT takes a block of N time-domain samples (spaced Ts=1/fs)
+    and produces a set of N frequency bins
+
+                                        /
+
+
+
+• Bin k represents frequency content at k·fs/N
+• DFT frequency resolution
+   – Proportional to fs/N = 1/(N·Ts)
+   – N·Ts is total time spent on gathering samples
+• Parseval’s theorem:
+
+
+
+
+                                                                  25
+                          Direct DFT Plot
+
+• N = 2048; fs = 1024; fin = 101;
+• Dout = Vin;
+• Dout_fft = abs(fft(Dout));
+
+
+• Drawbacks
+   – Amplitude depends on N
+   – Do not know the frequency
+   – Cannot clearly see the
+     spectrum other than the
+     fundamental tones
+   – Have two identical half
+
+
+                                            26
+                          Normalized Plot
+
+
+
+Improvements:
+• Normalize the amplitude [dBFS]
+• Normalize the frequency [f/fs]
+• Plot the amplitude in log scale
+• Remove the redundant half
+
+
+Question: why there is a noise floor?
+
+
+
+                                            27
+                      Change Frequency
+
+
+
+• All things remain the same except
+  fin = 101101.2
+• What’s wrong?
+
+
+
+
+                                         28
+Spectral Leakage
+
+
+
+
+                   29
+                              Summary
+• DFT is the sampled spectrum of x[n]h[n]
+   – h[n] is a rectangular window.
+• If x[n] is not periodic of N, there is spectral leakage.
+• 2 ways to solve this problem
+   – Ensure integer number of cycles
+   – Use other window functions with smaller side lobes
+
+
+
+
+                                                             30
+          Ensure Integer Number of Cycles
+• N = 2048; fs = 1024;
+• fin = fs/N*cycle;
+
+
+• cycle must be an integer
+   – E.g., cycle = 203;
+   – fin = fs/N*cycle = 101.5
+
+
+• How many usable frequencies
+  are there in (0, fs/2)?
+   – 0 < cycle < N/2
+
+
+
+
+                                            31
+                           Windowing
+• Use a different window function with smaller side lobes than that of
+  the rectangular window
+• Many window functions to choose from:
+   – Hann, Hamming, Blackman, Kaiser, Cosine, Hodie, …
+   – Tradeoff: main-lobe width vs. side-lobe attenuation
+• The width of the main-lobe is now larger
+   – The signal spans more-than-1 frequency bins
+
+
+
+
+                                                                         32
+http://en.wikipedia.org/wiki/Window_function
+                                               33
+http://en.wikipedia.org/wiki/Window_function
+                                               34
+Spectrum with Windowing
+
+
+
+
+    Dout = Dout.*window_func
+                               35
+               Integer Cycles vs. Windowing
+• Integer number of cycles
+   – Input falls into a single DFT bin 
+       • No smearing
+       • Highest spectral resolution
+   – Requires careful choice of the input frequency 
+       • Ideal for simulations
+       • In real measurements, we can set the input signal to be a fraction
+          of the clock signal
+            – “Coherent sampling"
+• Windowing
+   – No restrictions on signal frequency 
+   – Signal and harmonics distributed over several DFT bins 
+       • Be careful about the smeared out nonidealities
+       • Requires more samples for a given accuracy
+
+                                                                        36
+           Spectrum with Quantization Noise
+•   N = 2048; fs = 1024; fin = 101;
+•   B     = 10;
+•   LSB   = 2/2^B;
+•   Dout = round(Vin/LSB)*LSB;
+
+
+•   Noise spectrum looks flat
+
+
+•   How to calculate SQNR from FFT?
+     – Use Parseval’s theorem
+     – Time-domain power =
+       frequency-domain power
+     – SQNR = 6B+2 = 62 dB
+
+•   Why noise floor is not at -62 dBFS?
+
+
+                                              37
+                           Noise Floor
+• Total quantization noise is
+  distributed in all fft bins
+• The total noise is -62 dBFS, and
+  thus, the noise floor (which is
+  the noise in each bin) is -62
+  dBFS/(N/2) = -92 dBFS
+• The noise floor depends on N,          10log 10 (N/2) = 30 dB
+  and thus, the total noise
+  cannot be inferred if N is not
+  specified.
+
+
+
+
+                                                              38
+                    DFT Plot Annotation
+• Most common annotation
+   – Specify N: how many DFT points were used
+• Less common options
+   – Shift DFT noise floor by 10log10(N/2) dB
+   – Normalize the bin width to 1 Hz and express noise as power
+      spectral density (similar to continuous-time FT)
+        • "Noise power in 1 Hz bandwidth"
+
+
+
+
+                                                                  39
+                 Periodic Quantization Noise
+• fin = 101  128
+• fin = fs / 8
+• Quantization noise is repetitive
+  and highly correlated with the
+  input.
+• To make noise spectrum flat
+  and span all bins, it is
+  important to make N and cycle
+  mutually prime
+   – GCD(N,cycle) = 1
+
+
+
+
+                                               40
+             Typical ADC Output Spectrum
+• Harmonics due to nonlinearities
+• Signal-to-distortion ratio (SDR)
+
+
+
+
+• Total harmonic distortion
+
+
+
+
+• By convention, total distortion
+  power consists of 2nd through 7th
+  harmonics
+   – Other distortion induced
+      harmonics are ignored, why?
+• Are there 6th and 7th harmonics?
+
+
+                                           41
+                  Lowering the Noise Floor
+
+
+
+• We can lower the noise floor by
+  increasing the FFT size.
+
+
+• N = 211  218
+
+
+• We clearly see all harmonics.
+
+
+
+
+                                             42
+                                SFDR
+• Spurious free dynamic range
+  (SFDR)
+
+
+
+
+                                       SFDR
+
+
+• Largest spur is often, but not
+  necessarily, an input harmonic
+• Need to specify the input signal
+  power, why?
+
+
+
+
+                                              43
+                                   SNR
+• Signal-to-noise ratio (SNR):
+
+
+
+
+• Total noise power includes all
+  bins except DC, input, and 2nd
+  through 7th harmonic.
+• It consists of:
+    – Quantization noise
+    – Electronic noise
+    – “DNL noise”
+    – Other distortion terms
+        • Sampling errors
+
+                                         44
+                       SNDR and ENOB
+• Signal-to-(noise + distortion)
+  ratio (SNDR):
+
+
+
+
+• Total noise and distortion
+  includes all bins except DC and
+  the input.
+• Effective number of bit (ENOB):
+
+
+
+
+                                       45
+                 Effective Number of Bits
+• What is the ENOB for a 10-bit converter with 50 dB SNDR?
+
+
+
+
+• Assuming the stated resolution of an ADC is B, ENOB = B only for “0”
+  electronic noise and “0” distortion
+• Distortion can be lowered through better design.
+   – For a well designed ADC, SNDR should not be limited by
+      distortion.
+• Electronic noise is more fundamental. It directly trades with power.
+• Usually electronic noise is made comparable with the quantization
+  noise.
+   – Diminishing return for further reducing electronic noise
+• For good power efficiency: ENOB < B-1
+                                                                         46
+                         Survey Data
+
+
+
+
+     B − ENOB
+
+
+
+
+R. H. Walden, "Analog-to-digital converter survey and analysis," IEEE J. on
+Selected Areas in Communications, pp. 539-50, April 1999
+                                                                              47
+                       Dynamic Range
+• Dynamic range:
+
+
+
+
+• Minimum detectable signal
+  (MDS) is defined as the power
+  of the input that produces 0 dB
+  SNR.
+
+
+• DR  peak SNR
+   – As signal amplitude
+     increases, the noise floor
+     may rise.
+                                       48
+                                      Aliasing
+
+• Due to aliasing, harmonics can
+  appear at frequencies that do
+  not look like harmonics.
+
+
+• For example:                                   3rd
+                                                             2nd
+   f1 = fin = 0.3125 fs                                4th
+                                                                   5th
+   f2 = 2f1 = 0.6250 fs  0.3750 fs
+   f3 = 3f1 = 0.9375 fs  0.0625 fs
+   f4 = 4f1 = 1.2500 fs  0.2500 fs
+   f5 = 5f1 = 1.5625 fs  0.4375 fs
+
+
+
+
+                                                                         49
+              Intermodulation Distortion
+
+
+
+
+• IMD is important in multi-channel communication
+   – 3rd-order products are difficult to filter out
+
+                                                      50
+           Multi Tone Power Ratio (MTPR)
+
+
+
+
+• MTPR is a useful metric in multi-tone transmission systems
+   – E.g. OFDM
+
+                                                               51
+               Frequency Dependence (1)
+
+• Data converter performance depends on both the sampling and the input
+  frequency
+
+
+
+
+                      [Analog Devices, AD9203 Datasheet ]
+
+
+                                                                    52
+               Frequency Dependence (2)
+
+
+
+
+                     [Texas Instruments, ADS5541 Datasheet ]
+
+•   An island surrounded by ocean
+                                                               53
+   Effective Resolution Bandwidth (ERBW)
+
+
+
+• ERBW is the input frequency at
+  which the SNDR drops by 3dB
+  compared to low frequency
+   – 0.5-bit loss in ENOB
+• ERBW  fs/2 for a well designed
+  Nyquist rate ADC
+• ERBW > fs/2 is not uncommon,
+  especially for subsampling ADCs
+
+
+
+
+                                       54
+             INL/DNL and SFDR/THD/SNR
+• Static nonlinearities (INL/DNL)
+  and spectral nonlinearities
+  (SFDR /THD/SNR) are closely
+  related especially at low
+  frequencies
+   – At high frequencies,
+      spectral nonlinearities tend
+      to be limited by dynamic
+      errors
+• Can link systematic INL
+  patterns with harmonics
+
+
+
+
+                                        55
+             SNR Degradation due to DNL (1)
+
+• If INL and DNL show irregular patterns, the nonlinearities may show up as
+  “noise” like, which causes SNR degradation.
+• Changes in the transition levels cause quantization noise to increase.
+• For simplicity, let us consider a 1-bit quantizer with range of [-1,+1]. The
+  transition level is changed from 0 to d. As a result, the quantization noise
+  is increased to:
+
+
+
+
+• Thus, if d = 0.5, the quantization noise is more than doubled.
+
+
+
+                                                                            56
+              SNR Degradation due to DNL (2)
+• For multibit quantization,
+  assuming transition-level deviation
+  d is independent and uniformly
+                                               Dout
+  distributed in [-0.5,+0.5] LSB
+• This also translates to a DNL with                          Δ
+  triangular pdf distribution in [-1,
+                                              0.5Δ
+  +1]
+• Assuming the input signal is                -0.5Δ
+  uniformly distributed, the                                  δ
+  quantization error in [-0.5,+0.5]Δ is
+
+                                                      -0.5Δ       0.5Δ   Vin
+                                          .
+
+                 .
+
+                                                                          57
+             SNR Degradation due to DNL (3)
+• The amount of quantization noise increase introduced by one transition
+  level deviation δ is δ2/2N ,and there are (2N-1) transition levels in total.
+                           Dout   (2N-1) transition levels
+
+
+
+
+                                                             Vin
+• Assuming that transition-level deviation δ is independent, the amount of
+  quantization noise is
+
+
+
+                                                                             58
+             Transition-level, INL, and DNL noise
+
+
+• Transition levels and INL are directly linked
+• If we assume certain distribution of transition levels,
+  it directly determines the distribution of INL.
+    – For example, if we assume that transition level
+       deviation d follow independent and uniform
+       distribution of [-0.5,+0.5] LSB, it directly means
+       that INL follows the same distribution, because
+       INL is by definition the transition level
+       deviations.
+    – DNL[i] = T[i+1]-T[i]-1 = d[i+1] – d[i]
+         • Thus, DNL follows triangular distribution
+           from -1 to 1 LSB.
+
+
+                                                            59
+DAC Test Setup
+
+
+
+
+                 60
+        Typical DAC Output Spectrum
+
+
+
+
+[Hendriks, "Specifying Communications DACs, IEEE Spectrum, July 1997]
+
+                                                                        61
+

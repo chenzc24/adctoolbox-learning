@@ -1,0 +1,941 @@
+Low-Power SAR ADC Design
+
+
+
+
+            Nan Sun
+       Tsinghua University
+     nansun@tsinghua.edu.cn
+
+
+
+                              1
+                            Content
+• Basic operation of SAR
+• SAR ADC noise analysis
+• Comparator noise reduction techniques
+• Low power DAC switching techniques
+
+
+
+
+                                          2
+                            SAR ADC
+
+                                  VDAC / VREF
+                    VIN             1
+                                        1/2     3/4   5/8   11/16   21/32   41/64
+VREF       DAC
+                                  3/4   VIN
+                                  5/8
+                                  1/2
+          Control
+           Logic
+
+       Clock
+                                                                             Time
+
+• Binary search over DAC output
+• High accuracy achievable
+   – Rely on highly accurate comparator
+• Moderate speed
+                                                                                3
+          SAR ADC Direct Implementation
+
+                          VDAC
+
+                                                 𝑉𝑖𝑛 > 𝑉𝐷𝐴𝐶
+
+
+
+
+• Comparator common-mode variation → Signal dependent offset
+• Nonlinear capacitor Cp → Cause gain error and INL           4
+                           Classic Implementation
+
+
+                                                𝑉𝑖𝑛 > 𝑉𝐷𝐴𝐶
+
+                                                    ≡
+                                               𝑉𝑖𝑛 − 𝑉𝐷𝐴𝐶 > 0
+
+
+
+
+ • Reuse the SAR DAC for input sampling; inherent subtraction
+ • Comparator common-mode voltage at Gnd
+ • Nonlinear parasitic capacitance CP has no effect      5
+
+[McCreary, JSSC 12/1975]
+              Sampling Phase (5-bit Example)
+
+
+                                           Sx
+                                                 Vx            Cp
+
+                        16C   8C      4C        2C    C    C
+
+                                       Vin
+
+
+
+      • Total charge at node Vx after opening Sx
+
+                          Q = −Vin  32C = −Vin  Ctotal
+
+
+
+
+                                                                    6
+
+[B. Murmann, EE 315]
+                                 Bit5 Test (MSB)
+
+
+                                                   Vx                Cp
+
+                          16C       8C     4C     2C     C       C
+
+                       Vref
+
+
+                                                             (
+                 Q = −Vin  Ctotal = (Vx − Vref )  16C + Vx  16C + Cp   )
+                                    1              Ctotal
+                              Vx =  Vref − Vin  
+                                    2            Ctotal + Cp
+
+      • Vx<0  Vin>0.5Vref  Bit5=1
+      • Vx>0  Vin<0.5Vref  Bit5=0
+
+                                                                              7
+
+[B. Murmann, EE 315]
+                 Bit4 Test (Assuming Bit5=0)
+
+
+                                                 Vx                Cp
+
+                        16C      8C     4C     2C      C       C
+
+                              Vref
+
+
+                                                           (
+                 Q = −Vin  Ctotal = (Vx − Vref )  8C + Vx  24C + Cp   )
+                               1              Ctotal
+                         Vx =  Vref − Vin  
+                               4            Ctotal + Cp
+
+
+      • Vx<0  Vin>0.25Vref  Bit4=1
+      • Vx>0  Vin<0.25Vref  Bit4=0
+
+                                                                             8
+
+[B. Murmann, EE 315]
+                           Advantages
+• SAR ADC is simple
+   – A DAC, a comparator, a SAR logic
+   – Short design cycle, fast time to market
+
+
+• SAR ADC is scaling friendly
+   – Mostly digital
+   – No static power
+   – Low area and low cost
+
+
+
+
+                                               9
+SAR ADCs are highly energy efficient
+
+
+
+
+                                       10
+           ADC Architectures: Power Efficiency
+
+
+
+
+    • SAR ADCs are highly power efficient
+                                                 11
+
+[B. Murmann, ADC Performance Survey]
+         ADC Architectures: Speed vs Accuracy
+
+
+
+
+    • SAR ADCs are becoming fast
+                                                12
+
+[B. Murmann, ADC Performance Survey]
+                           Limitations
+• Not well suited for high resolution (10-bit)
+   – Require large capacitor
+       • Problematic for input and reference driving
+       • Large DAC switching power
+   – Require low-noise comparator
+       • Require large power consumption
+• Conversion rate is limited
+   – Require N conversion cycles for N-bit
+   – DAC RC settling, comparator delay, SAR logic delay
+
+
+
+
+                                                          13
+                               Content
+• Basic operation
+• Low-noise and low-power design techniques
+• High-speed design techniques
+• Low-area design techniques
+• DAC mismatch calibration
+
+
+
+
+                                              14
+                 SAR ADC noise analysis
+• Noise in the sampling process
+   – kT/C noise (part of the discrete-time input after sampling)
+• Noise in the conversion process
+   – DAC noise
+   – Comparator noise
+
+
+
+
+                                                                   15
+kT/C noise
+
+
+
+             2                    2
+            vout            1
+                 = 4kTR
+            f          1 + sRC
+
+
+
+                          1           kT
+     v [n] = 4kTR 
+      2
+                                  df =
+                     1 + (2fRC)
+      out                       2
+                   0                   C
+
+
+
+
+                                      16
+                                                         Impact of R
+                                              -14
+                                      10
+
+
+
+
+               Spectrum [V2/Hz]
+                                              -16
+                                      10
+                                              -18
+                                      10
+                                                        R=1k
+                                              -20
+                                      10                R=100k
+                                              -22
+                                      10
+                                                    2        4      6           8        10
+                                               10       10       10        10       10
+                                                                  f [Hz]
+                       Sqrt(Integral) [V]
+
+
+
+
+                                             60         R=1k
+                                                        R=100k
+                                             40
+
+                                             20
+
+                                              0 2            4     6            8        10
+                                              10        10       10        10       10
+                                                                  f [Hz]
+
+                                                                                              17
+Increasing R increases the noise PSD, but also decreases the BW
+                     Equipartition Theorem
+• Equipartition theorem in statistical physics states:
+   – In thermal equilibrium each degree of freedom holds on average thermal
+     energy of kT/2
+• In an electronic circuit, each independent capacitor holds an electric energy of
+  kT/2 and each independent inductor holds a magnetic energy of kT/2.
+• This theorem can help reduce the complexity of noise analysis
+   – But it does not apply to active circuits that are not in equilibrium
+
+
+
+
+                                 1 2        1
+                                   C vout = kT
+                                 2          2
+                                           kT
+                                  vout =
+                                     2
+
+                                           C
+                                                                             18
+                                 kT/C Noise
+
+• Assuming the kT/C noise equal to the quantization noise of a B-bit ADC
+
+                                                              2
+                       kT   2
+                                                  2  B
+                         =            C = 12kT       
+                       C 12                         VFS 
+• Assuming VFS = 1V:
+
+
+                             B               C [pF]
+                             8               0.003
+                             10              0.052
+                             12              0.834
+                             14               13.3
+                             16               213
+                             18              3416                          19
+                        DAC noise
+                            • DAC noise PSD is set by Rsw
+                            • DAC settling BW is set by CDAC
+                            • DAC noise BW is set by CP
+                               – 𝐶𝐷𝐴𝐶 ≫ 𝐶𝑃
+                            • Total integrated DAC noise is 𝑘𝑇/𝐶𝑃,
+                              which is large, but not all of it affects
+                              the comparator decision
+                            • For DAC BW >> comparator BW, the
+                              majority of the DAC noise is filtered out
+                               – Comparator BW ~ DAC settling BW
+                            • Best way to suppress DAC noise is to
+                              make Rsw small
+                               – Consume low power
+                               – Also speed up DAC settling
+                               – Benefit from CMOS scaling 20
+[T. Miki, JSSC, 2015]
+                      Comparator noise
+• Comparator noise analysis
+• Circuit-level low-noise techniques
+• Architectural-level low-noise techniques
+
+
+
+
+                                             21
+                             Comparator
+• Standard comparator configuration
+   – 1st-stage dominates noise and offset
+   – The noise analysis for a static pre-amp is straightforward
+
+
+
+
+                                           2
+                              2
+                                         𝜎𝑛,𝑙𝑎𝑡𝑐ℎ
+                      𝜎𝑛 =   𝜎𝑛,𝑝𝑟𝑒𝑎𝑚𝑝 +
+                                            𝐺2                    22
+Noise analysis for a dynamic integrator
+
+                          Vout(t)
+
+
+
+
+                Vout(t)             vn,out(t)
+
+
+
+
+                                                23
+     Noise analysis for a dynamic integrator
+
+
+
+
+         𝑣        𝑔𝑚 𝑇𝑖𝑛𝑡
+ • 𝐺 = 𝑜𝑢𝑡 =
+          𝑣𝑖𝑛       𝐶
+
+ • 𝐸 = 𝑃 ⋅ 𝑇𝑖𝑛𝑡 = 𝑉𝑑𝑑 ⋅ 𝐼𝐷 ⋅ 𝑇𝑖𝑛𝑡
+    2           𝑘𝑇   2𝑘𝑇𝛾𝑔𝑚 𝑇   𝑘𝑇                2𝑘𝑇
+ • 𝑣𝑛,𝑜𝑢𝑡 =        +          =      1 + 2𝛾𝐺 ≈        ⋅ 𝛾𝐺
+                𝐶       𝐶2      𝐶                  𝐶
+
+             2
+            𝑣𝑜𝑢𝑡 2𝑘𝑇 𝛾   2𝑘𝑇𝛾              4𝑘𝑇𝛾   1
+      2
+ •   𝑣𝑛,𝑖𝑛 = 2 ≈    ⋅ =                =        ⋅
+             𝐺    𝐶  𝐺  𝑔 𝑇    𝑚 𝑖𝑛𝑡        𝑔𝑚 2𝑇𝑖𝑛𝑡
+                      𝑉𝑑𝑑                         Noise BW
+       2
+  • 𝑣𝑛,𝑖𝑛 ⋅ 𝐸 = 2𝑘𝑇𝛾                                         24
+                     𝑔𝑚 /𝐼𝐷
+Noise energy product
+                      Strong-Arm Latch
+
+
+
+
+                                         25
+
+[Chen, ISCAS, 2016]
+  Pre-amplification phase
+
+
+
+
+• 𝑇𝑖𝑛𝑡 = 𝑄𝑖𝑛𝑡 /𝐼𝐷 = 𝐶𝑥 𝑉𝑡𝑛 + 𝑉𝑡𝑝 + 𝐶𝑜 𝑉𝑡𝑝 /𝐼𝐷
+
+       𝑔𝑚 𝑇𝑖𝑛𝑡  𝑔   𝐶𝑥 𝑉𝑡𝑛 +𝑉𝑡𝑝 +𝐶𝑜 𝑉𝑡𝑝
+• 𝐺=           = 𝑚⋅
+         𝐶𝑜      𝐼𝐷         𝐶𝑜
+
+   2                 2𝑘𝑇𝛾           1
+• 𝜎𝑛,𝑝𝑟𝑒𝑎𝑚𝑝 =2⋅           ⋅
+                    𝑔𝑚 /𝐼𝐷 𝐶𝑥 𝑉𝑡𝑛 +𝑉𝑡𝑝 +𝐶𝑜 𝑉𝑡𝑝   26
+
+           Differential
+Latch phase
+
+
+      • Both signal and noise grows
+        exponentially
+         – Input referred noise does
+           not decrease with time
+
+         2           2 1+𝛾 𝑘𝑇
+      • 𝜎𝑛,𝑙𝑎𝑡𝑐ℎ =
+                        𝐶𝑜
+
+
+
+      • More comprehensive analysis
+        can be found from [P. Nuzzo,
+        TCAS-I, 2008]
+                                27
+                 Comparator noise analysis
+• For a well-optimized comparator, we prefer:
+   – Large G: attenuate the noise from the latch stage
+        • In practice, G is around 5
+        • A too-large G slows down the comparator
+             – Regeneration is faster than integration
+   – Large gm/ID: it improves energy efficiency
+        • In practice, gm/ID is around 15 V-1
+        • A too-large gm/ID slows down the comparator; it also increases the
+          comparator input capacitance, which causes signal attenuation and
+          leads to increase ADC input referred noise
+• Offset analysis is very similar to noise
+
+
+
+                                               2
+                                 2
+                                             𝜎𝑜𝑠,𝑙𝑎𝑡𝑐ℎ
+                       𝜎𝑜𝑠 =    𝜎𝑜𝑠,𝑝𝑟𝑒𝑎𝑚𝑝 +
+                                                 𝐺2                      28
+           Design trade-off regarding VGS (Vcmi)
+
+ • A smaller VGS increases
+   gm/Id and G, but it slows
+   down the comparator
+ • Comparator offset and
+   noise increases as G
+   decreases
+ • Comparator power
+   increases gradually as VGS
+   increases
+ • VGS ~ Vdd/2 is a good
+   tradeoff
+                                                   29
+
+[Chen, ISCAS, 2016]
+                      Two-stage comparator v1
+        • High-speed operation
+        • M10/11 starts from linear region → low gain
+        • Require clk and clk_bar
+
+
+
+
+                                                        30
+
+[Schinkel, ISSCC, 2007]
+                     Two-stage comparator v2
+      •   M8/9 starts from the saturation region → high gain
+      •   M14 and M15 also serve as input transistors, which provide extra gain.
+      •   Require only clk
+
+
+
+
+                                                                                   31
+
+[Miyahara, ASSCC, 2008]
+                         Two-stage comparator v3
+
+
+
+
+        • M6/7 starts from the saturation region → high gain
+        • Require both clk and clk_bar
+                                                               32
+
+[Elzakker, JSSC, 2010]
+                           Dynamic biasing
+
+
+
+
+           • gm/ID increases as time goes by
+           • Output is only partially discharged   33
+
+[Bindra, JSSC, 2018]
+                        Bidirectional integration
+
+
+
+
+           • Power reduced by 2X due to current reuse
+           • 30% energy saving considering other overhead   34
+
+[M. Liu, ISSCC, 2015]
+                 Comparator in a SAR ADC
+• Architectural level properties that we can make use of
+   – During entire SAR operation, there is only 1 time with
+     comparator input less than /2
+       • Opportunity: no need for low noise all the time
+       • Challenge: we do not know when V / V
+                                              DAC     REF
+
+                                              1
+                                                    1/2     3/4   5/8   11/16   21/32   41/64
+                                            3/4     VIN
+                                            5/8
+                                            1/2
+
+
+• Strategies:
+   – Add redundancy at the LSB                                                           Time
+
+       • Even if MSB comparison results are wrong due to high noise, we will
+         be able to recover
+       • We only need to make sure that the last 2 LSB comparisons need to
+         be low-noise
+   – Identify the noise critical comparison cycle                                               35
+       Concept of redundancy – no redundancy
+
+
+
+
+              • N comparison for N bit
+              • Every comparison to be fully accurate
+                                                        36
+
+[B. Murmann, CICC, 2013]
+                  With redundancy (radix < 2)
+
+
+
+
+ • > N comparison for N bit
+ • Error can be tolerated by the redundancy range
+ • Work for comparator noise, DAC incomplete settling, & offset
+   mismatch
+ • Green line → 1,0,0,1 → Dout = b-1 + b-4
+ • Black line → 0,1,1,1 → Dout = b-2 + b-3+ b-4                 37
+
+[B. Murmann, CICC, 2013]
+              With redundancy (redundant bit)
+
+
+
+
+              •   > N comparison for N bit
+              •   Error can be tolerated before the redundant bit
+              •   Green line: 1,0,0,1 → Dout = 2-1 + 2-3
+              •   Black line: 0,1,1,1 → Dout = 2-2 + 2-2 + 2-3
+                                                                    38
+
+[B. Murmann, CICC, 2013]
+                  An example for redundant bit
+
+
+
+
+                                                 39
+[P. Harpe, SSCS DL talk,
+2017]
+                             Comparator switching
+                 1b redundancy + noise reconfigurable comparator
+
+
+
+
+                                                                   40
+
+[V. Giannini, ISSCC, 2008]
+        Comparator offset mismatch calibration
+
+
+
+
+                                             41
+
+[V. Giannini, ISSCC, 2008]
+                    Comparator load switching
+            Share the same diff pair, and thus, offset mismatch is low
+
+
+
+
+                                                                    42
+
+[P. Harpe, ISSCC, 2012]
+                         Majority Voting
+
+
+
+
+  • Require additional circuits for critical moment detection
+  • Does not use all the available information
+                                                                43
+
+[P. Harpe, JSSC, 2013]
+                         Majority Voting
+
+
+
+
+  • For a 10-bit SAR ADC
+     • 4x analog scaling → 4x total comparator power (10*4)
+     • 5x majority voting → 1.4x total comparator power (9 + 5)
+                                                                  44
+
+[P. Harpe, JSSC, 2013]
+                          Background Regulation
+
+
+
+
+   • Background calibration for reference delay based on Nc
+     monitoring
+   • Nc: number of target voting cycles                       45
+
+[P. Harpe, ISSCC, 2014]
+         Basic idea for statistical estimation
+
+
+
+
+                          𝐷𝑜𝑢𝑡 = 𝑉𝑖𝑛 + 𝑉𝑟𝑒𝑠
+
+If we can estimate 𝑉𝑟𝑒𝑠 using 𝑉෠𝑟𝑒𝑠 , we can increase ADC resolution
+                                  by:
+               ∗
+              𝐷𝑜𝑢𝑡 = 𝐷𝑜𝑢𝑡 − 𝑉෠𝑟𝑒𝑠 = 𝑉𝑖𝑛 + 𝑉𝑟𝑒𝑠 − 𝑉෠𝑟𝑒𝑠
+                                                             46
+Statistical estimation
+
+
+
+
+We can estimate Vres from k.
+This is enabled by the noise!
+                                47
+     Simple averaging
+
+                   2𝑘 − 𝑁
+         𝑉෠𝑟𝑒𝑠 =
+                     𝑁
+
+• Definition
+   – 𝑉෠𝑟𝑒𝑠 = +1 LSB for k = N
+   – 𝑉෠𝑟𝑒𝑠 = −1 LSB for k = 0
+   – Linear interpolation in between
+• Estimation error is large
+   – Range limited to 1 LSB
+   – With bias
+
+
+
+                                       48
+         Statistical estimation
+
+
+
+
+  What information can we use to improve the
+                 estimation?
+1. We can estimate the comparator noise power
+                                                49
+     Maximum likelihood estimator (MLE)
+Choose 𝑉෠𝑟𝑒𝑠 that maximizes the probability of observing k ‘1’
+out of N trials:
+                  𝑃 𝑘|𝑉𝑟𝑒𝑠
+                                 𝑘                𝑁−𝑘
+                      𝑁   𝑉𝑟𝑒𝑠             𝑉𝑟𝑒𝑠
+                  =     𝐹            1−𝐹
+                      𝑘    𝜎                𝜎
+
+
+
+
+      • Ill-defined for k = 0 and k = N, need modification
+      • Sub-optimum                                        50
+            Statistical estimation
+
+
+
+
+What information can we use to improve the estimation?
+   1. We can estimate the comparator noise power
+  2. We know the distribution of Vres             V
+                                                         51
+An additional piece of information
+
+  Large sine input   Small sine input   Random input
+
+
+
+
+ We know the distribution of Vres: norm(0,s)
+
+
+                                                       52
+                   Bayes estimator
+                                            +∞
+Choose posterior     𝑉𝑟𝑒𝑠 = 𝐸 𝑉𝑟𝑒𝑠 |𝑘 = න    𝑉𝑟𝑒𝑠 ⋅ 𝑔 𝑉𝑟𝑒𝑠 𝑘 𝑑𝑉𝑟𝑒𝑠
+                                        −∞
+mean
+
+
+
+
+                                                                53
+                 Bayes estimator
+
+
+
+
+       It achieves the lowest estimation error
+                        2                        2
+𝑀𝑆𝐸 𝑘 = 𝐸   𝑉𝑟𝑒𝑠 − 𝑉෠𝑟𝑒𝑠 𝑘 = 𝑉෠𝑟𝑒𝑠 − 𝐸 𝑉𝑟𝑒𝑠 |𝑘               2
+                                                     + 𝑉𝑎𝑟 𝑉𝑟𝑒𝑠 |𝑘   54
+Estimator comparisons
+
+   Estimation error versus N
+
+
+
+
+                               55
+                        Prototype ADC Design
+
+
+
+
+            s: 0.73 LSB → 0.33 LSB
+                                               56
+
+[L. Chen and N. Sun, JSSC 2017]
+                         Measurement results
+
+
+
+
+                                               57
+
+[L. Chen and N. Sun, JSSC 2017]
+                   Adaptive Tracking Average
+
+
+
+
+  • Repeat the last LSB comparisons and also update DAC
+  • Perform averaging for the last few bits
+                                                          58
+
+[T. Miki, JSSC, 2015]
+                   Adaptive Tracking Average
+
+
+
+
+  • Simple averaging works well; can tolerate incomplete settling ☺
+  • Require additional LSB DAC cells                            59
+
+[T. Miki, JSSC, 2015]
+  Low-noise low-power comparator design
+• Transistor level (generally applicable):
+   – Enlarge gm/ID
+   – Enlarge preamplifier gain
+   – Incomplete discharge of the integration capacitor
+   – Reuse current (CMOS input)
+
+
+• Architectural level (enabled by SAR’s property & redundancy):
+   – Comparator noise switching
+   – Majority voting
+   – Statistical estimation
+   – Adaptive tracking average
+
+
+
+                                                                  60
+     Low-power DAC switching techniques
+• Conventional switching technique
+• Monotonic switching
+• Vcm-based switching
+• Bidirectional single-side switching
+• Sub-ranging architecture
+
+
+
+
+                                          61
+       Conventional switching technique
+
+
+
+
+• Need 16C for 3-b
+• Maximum 4 switching events per bit
+• Large DAC reference power
+                                          62
+                Monotonic switching technique
+
+
+
+
+    Advantages:
+    1) 81% reduction in DAC reference power
+    2) Only 1 switching every cycle
+
+                                                63
+
+[C. Liu, JSSC, 2010]
+                       Common-mode variation
+
+
+
+
+                                    Disadvantages:
+                                    1) Vcm decreases to 0
+                                    2) PMOS input pair (smaller
+                                       fT)
+                                    3) Dissipate static power 64
+[C. Liu, JSSC, 2010]
+Monotonic switching up (1)
+
+
+
+
+                             65
+Monotonic switching up (2)
+
+
+
+
+                Disadvantages:
+                1) Vcm goes to Vdd
+                2) Large comparator offset
+                3) Large comparator noise
+                                             66
+             Bidirectional single-side switching
+
+
+
+
+                   • First down switching and then up switching
+                   • Reduced common-mode variation                67
+
+[L. Chen and N. Sun, ESSCIRC, 2014]
+                       Common-mode variation
+
+
+
+
+    • Comparator input common-mode voltage settles to Vdd/2
+    • Standard comparator can be used; offset and noise are reduced
+                                                                      68
+
+[A. Sanyal and N. Sun, TCAS-II, 2014]
+                 Vcm-based switching technique
+
+
+
+
+    • Constant Vcm; 88% energy saving
+    • Need low-impedance Vcm reference; increased switch driving power
+                                                                   69
+
+[Y. Zhu, JSSC, 2010]
+                          Split MSB capacitor
+
+
+
+
+      • No need for Vcm at the cost of increased switching power
+      • Additional capacitor mismatch
+                                                                   70
+
+[C.-C. Liu, VLSI, 2010]
+ Saving Switching Energy Using Sub-ranging (1)
+
+
+
+
+• Determine MSB bits in a coarse DAC
+• Switch MSBs of fine DAC at the same time
+                                             71
+Saving Switching Energy Using Sub-ranging (2)
+
+
+     Coarse SAR                 Fine SAR
+ Low power comparator      Low noise comparator
+
+
+
+
+                                              72
+              SAR logic power reduction
+• Reduce the number of DFFs
+• Replace DFF by latch
+• Use dynamic logic
+• Use asynchronous logic
+   – Remove the need for high-frequency clock
+
+
+
+
+                                                73
+                             Re-cap
+• SAR ADC noise analysis
+   – kT/C noise
+   – DAC noise
+   – Comparator noise
+• Comparator noise reduction techniques
+   – Circuit level
+   – Architectural level
+• Low power DAC switching techniques
+
+
+
+
+                                          74
+

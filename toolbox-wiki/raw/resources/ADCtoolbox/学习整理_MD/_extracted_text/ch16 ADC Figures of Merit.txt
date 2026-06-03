@@ -1,0 +1,819 @@
+ADC Figures of Merit
+
+
+
+          Nan Sun
+     Tsinghua University
+  nansun@Tsinghua.edu.cn
+
+
+
+                           1
+                  ADC Figures of Merit
+
+• Why do we want to establish a figure of merit (FOM)?
+   – We want to compare ADCs with different performance metrics
+   – We use the FOM to combine several metrics
+      • Just like a final course letter grade
+• Questions to answer:
+   – What are reasonable FOMs?
+   – Is there any limit?
+
+
+
+
+                                                                  2
+                                 FOM1
+
+                                          [R. H. Walden, "Analog-to-digital
+        FOM 1 = f s  2 ENOB              converter survey and analysis," IEEE
+                                          Journal on Selected Areas in
+                                          Communications, April 1999]
+
+
+• FOM1 assumes that 1 extra ENOB = 2x speed
+   – True for Nyquist ADCs whose SNR is jitter limited (see Ch. 5):
+
+                                            1          
+                  SNR jitter = 20 log                  
+                                       2  f in   t 
+    – Untrue for other ADCs
+• Power is not considered in FOM1
+
+
+
+                                                                                 3
+                       Survey Data by Walden
+
+
+
+
+                                                                                        1bit/2x speed
+
+
+
+
+[Walden, "Analog-to-digital converter survey and analysis," IEEE J. Selected Areas Comm., April 1999]
+
+
+                                                                                                   4
+                               FOM2
+
+
+                                          [R. H. Walden, "Analog-to-digital
+                 Power
+        FOM 2 =                           converter survey and analysis," IEEE
+                f s  2 ENOB              Journal on Selected Areas in
+                                          Communications, April 1999]
+
+
+
+• What it means:
+   – How much power does it take for an ADC to convert 1 bit?
+• FOM2 is the most widely used ADC FOM
+• Typically, circuits power and speed are proportional to each other
+   – fs  gm/C  Power
+   – FOM2 captures this tradeoff correctly
+• What about power vs. ENOB?
+   – 1 extra bit = 2x power?
+                                                                          5
+                      ENOB vs. Power
+• For thermal noise limited ADCs:
+   – 1 extra bit → 4x less noise power → 4x C
+   – Power  gm  C → 1 extra bit = 4x Power
+• For mismatch limited ADCs:
+   – 1 extra bit → 2x comparator #
+   – 1 extra bit → ½ offset = 4x size = 4x power
+   – In total, 1 extra bit = 8x power
+• There is no fixed relationship between ENOB and power
+• An alternative solution is that
+   – We drop ENOB from FOM2 and only compare ADCs with similar
+      ENOB
+
+
+
+                                                                 6
+                                FOM3
+
+
+                                        BW 
+               FOM 3 = DR(dB ) + 10 log    
+                                        P 
+• FOM3 is a numerical number
+   – Sometimes referred as Schreier FOM (Richard Schreier @ ADI)
+• Power increases 4x per bit (DR)
+   – Correct for thermal noise limited ADCs
+• FOM3 ignores distortion
+
+
+
+
+                                                                   7
+                                         Recent ADC Survey
+
+                       From B. Murmann, “Energy limits in A/D converters,” IEEE DL talk
+              -6
+             10
+
+
+              -8
+             10
+Energy [J]
+
+
+
+
+              -10
+             10
+
+
+              -12
+             10                                                  ISSCC & VLSI 1997-2004
+                                                                 ISSCC & VLSI 2005-2012
+                                                                 Emin
+              -14
+             10                                                  Walden FOM = 10fJ/conv-step
+                                                                 Schreier FOM = 170dB
+                  20       30       40      50      60     70         80      90      100   110
+                                                    SNDR [dB]
+                                                                                               8
+                                              Walden FOM vs. Speed
+
+                                1.E+05
+
+
+                                1.E+04
+          FOMW [fJ/conv-step]
+
+
+
+
+                                1.E+03
+
+
+                                1.E+02
+                                                                                                 Corner@100MHz
+                                1.E+01                                                         ISSCC 2012
+                                                                                               VLSI 2012
+                                                                                               ISSCC 1997-2011
+                                                                                               VLSI 1997-2011
+                                1.E+00
+                                     1.E+04   1.E+05   1.E+06    1.E+07      1.E+08   1.E+09   1.E+10       1.E+11
+
+                                                                fsnyq [Hz]
+
+B. Murmann, "ADC Performance Survey 1997-2012," [Online]. Available: http://www.stanford.edu/~murmann/adcsurvey.html
+                                                                                                                     9
+                                 Schreier FOM vs. Speed
+
+                      180
+                                                                                    ISSCC 2012
+                                                                                    VLSI 2012
+                      170                                                           ISSCC 1997-2011
+                                                                                    VLSI 1997-2011
+
+                      160
+
+                      150
+          FOMS [dB]
+
+
+
+
+                      140
+
+                      130
+
+                      120
+
+                      110
+                        1.E+04   1.E+05   1.E+06   1.E+07     1.E+08     1.E+09     1.E+10       1.E+11
+
+                                                   fsnyq [Hz]
+
+B. Murmann, "ADC Performance Survey 1997-2012," [Online]. Available: http://www.stanford.edu/~murmann/adcsurvey.html
+                                                                                                              10
+                                           SNDR vs. BW
+
+          1.E+11
+                                                                                              ISSCC 2012
+          1.E+10
+                                                                                              VLSI 2012
+          1.E+09
+                                                                                              ISSCC 1997-
+                                                                                              2011
+          1.E+08
+BW [Hz]
+
+
+
+
+          1.E+07
+          1.E+06
+          1.E+05
+          1.E+04
+          1.E+03
+                   10      20      30       40      50       60       70      80       90     100 110 120
+                                                          SNDR [dB]
+  B. Murmann, "ADC Performance Survey 1997-2012," [Online]. Available: http://www.stanford.edu/~murmann/adcsurvey.html
+                                                                                                                11
+                             Energy by Architecture
+
+              -6
+             10
+
+
+
+
+              -8
+             10
+ P/f s [J]
+
+
+
+
+              -10
+             10
+                                                                                      Flash
+                                                                                      Pipeline
+                                                                                      SAR
+                                                                                      
+              -12
+             10                                                                       Other
+                                                                                      FOM=100fJ/conv-step
+                                                                                      FOM=10fJ/conv-step
+                  20   30       40         50         60     70             80         90        100        110
+                                                      SNDR [dB]
+B. Murmann, "ADC Performance Survey 1997-2012," [Online]. Available: http://www.stanford.edu/~murmann/adcsurvey.html
+                                                                                                              12
+                      ADC Power Limit
+
+
+
+
+• Let us assume that an ADC can be considered as an ideal buffer with
+  100% efficiency and a zero-power zero-noise quantizer, then:
+                                                       2
+                                               1  VDD 
+                                                          2         2
+      1
+   P = CVDD           Vn2 =
+                              kT               2 2       VDD / 8 CVDD /8
+                                         SNR =           =        =
+         2
+            fs
+      2                       C                    Vn2     kT / C    kT
+
+                              P = 4kT  SNR  f s
+
+                                                                        13
+    Switched Capacitor Circuits
+
+
+      2                                Vsig
+                     Slewing
+1            3
+                     Linear            Vsig
+                     Settling
+                                Ts/2
+
+1            2                  3
+       S/H       Class-A
+
+                                C
+
+
+
+
+                                              14
+      Case 1: 100% Slewing
+
+
+            dV      Vsig
+Ibias = C     =C        = 4  C Vsig  fsig
+            dt     Ts / 2
+
+                                   0.5  Vsig
+                                           2
+  P = 2  Vsig  Ibias       SNR =
+                                    kBT
+                                         C
+
+           P = 16kBT  SNR  fsig
+
+
+
+
+                                                 15
+              Case 2: 100% Linear Settling
+
+
+                                           (           )
+               dV         d                               Vsig
+   Ibias = C         =C        Vsig 1 − e −t /  
+                                                      =C
+               dt max     dt max                         
+
+                                                       Ts / 2
+   Number of settling time constants:             N=
+                                                         
+
+                     P = 16  N  kBT  SNR  fsig
+
+
+• Much worse
+   – E.g. N=6.9 for settling to 0.1% precision
+
+
+
+                                                                 16
+                                                Limit Lines
+
+                1.E+07        ISSCC 1997-2006
+                              ISSCC 2007
+                1.E+06
+                              Class B
+                              Class A
+                1.E+05
+P/(2*BW) [pJ]
+
+
+
+
+                              Slewing
+
+                1.E+04        Linear Settling
+
+
+                1.E+03
+                1.E+02
+                1.E+01
+                1.E+00
+                1.E-01
+                         10   20     30         40   50   60   70   80   90 100 110 120
+                                                      SNDR [dB]
+                                                                                     17
+                            Discussion
+• Still orders of magnitude away from limits
+   – What contributes to these large gaps?
+   – Must keep in mind that ADCs are not just a single capacitor circuit
+• Slope of limit lines is much steeper than fit to experimental data
+• The following analysis factors in practical considerations
+   – Not fundamental, but somewhat unavoidable in today's
+     implementations
+
+
+
+
+                                                                       18
+                Design Space Partitioning
+
+• High SNR
+   – Complexity ~1 (e.g. first integrator in sigma-delta ADC)
+   – Limited by thermal noise
+• Moderate SNR
+   – Complexity ~Bits (e.g. pipelined ADC)
+   – Partly limited by thermal noise
+• Low SNR
+   – Complexity ~2Bits (e.g. flash ADC)
+   – Limited by matching, quantization noise
+
+
+
+
+                                                                19
+                     High SNR SC-Stage (1)
+
+                                                 VDD
+
+                                     Vbias
+                                                   gm2    Ibias
+
+
+                                 C
+                                                         Vout
+                                             1
+                           C
+               Vin   1
+                                                   gm1
+                                     Cg                      C
+                      2   1'
+
+
+
+
+• Considerations
+   – Noise is multiple of kBT/C (nf)
+   – Swing is only a fraction of VDD (a)
+   – Feedback factor (b)
+   – gm/ID is upper bounded if slewing must be avoided
+
+                                                                  20
+               High SNR SC-Stage (2)
+
+
+                                        g m1     1
+      To avoid slewing:                      
+                                        Ibias b Vsig
+
+
+                                                                  
+                       1                                1         
+     P = 16  N  nf   kBT  SNR  fsig  max  1,              
+                       a                          g m1  b  V 
+                                                  I           sig 
+                                                  bias            
+
+
+• Graph on following slide shows result assuming
+   – nf=5, a=2/3, b=0.5, onset of slewing
+
+
+
+                                                                       21
+                                   High SNR SC-Stage (3)
+
+                1.E+07        ISSCC 1997-2006
+                              ISSCC 2007
+                1.E+06        SC Integrator
+                              Class B
+                1.E+05
+P/(2*BW) [pJ]
+
+
+
+
+                              Class A
+                              Slewing
+                1.E+04        Linear Settling
+
+
+                1.E+03
+                1.E+02
+                1.E+01
+                1.E+00
+                1.E-01
+                         10   20    30    40    50   60   70   80   90 100 110 120
+                                                 SNDR [dB]
+  • Close to experimental data at high SNDR!
+                                                                                     22
+                         Medium SNR
+• Pipeline ADC using SC stages
+   – Partially limited by thermal noise
+
+
+
+
+                                          23
+                         Pipeline ADC
+                C          C/2        C/4           C/2m
+
+                2          2          2             2
+
+
+
+
+              MSB                                       LSB
+
+
+
+
+• Theoretical near optimum power scaling
+   – Scale capacitance by gain of preceding stage
+   – Stage 1 consumes half of total power
+   – Adding one bit means power goes up 4x
+• Caveat
+   – Usually impractical to scale capacitors down to C/2m
+
+
+                                                              24
+                  Stage Scaling Example
+
+          Number of Amplifiers        13     12      11        10
+                                      1      1/4    1/16      1/64
+                                     1/2     1/8    1/32     1/128
+                                     1/4    1/16    1/64     1/128
+                                     1/8    1/32    1/128    1/128
+                                     1/16   1/64    1/128    1/128
+           Stage Capacitances
+                                     1/32   1/128   1/128    1/128
+                                     1/64   1/128   1/128    1/128
+                                    1/128   1/128   1/128
+                                    1/128   1/128
+                                    1/128
+                   C                2.03   0.54    0.17     0.086
+                  Csingle            1/2     1/8    1/32     1/128
+             Relative Power
+         Pipeline/Single SC Stage   4.06    4.32    5.44     11.01
+                (C/Csingle)
+
+• Example is simplistic, but in line with state-of-the art
+    – 10bits ~0.5mW/MSample/s, 12bits ~2mW/MSample/s
+                                                                     25
+                               Pipeline ADC Limit Line
+
+                1.E+07
+                1.E+06
+                1.E+05
+P/(2*BW) [pJ]
+
+
+
+
+                1.E+04
+                1.E+03
+                1.E+02                                            ISSCC 1997-2006
+
+                1.E+01                                            ISSCC 2007
+
+                                                                  Pipeline
+                1.E+00
+                                                                  SC Integrator
+                1.E-01
+                         10   20   30   40   50   60   70   80   90 100 110 120
+                                              SNDR [dB]
+                                                                                    26
+                                 Low SNR
+
+• Power of matching limited class-B circuit [Kinget, CICC 1996]
+
+                                                               2
+                                                Vsig ,rms 
+                   P = 24  Cox  AVT  fsig  
+                                   2
+                                                           
+                                                3   Vos 
+
+•   Refined result for flash ADC, assuming
+     – Class-A, 1/2 LSB matching with 3-confidence, 2B components, additional
+       Edyn per clock cycle, partial supply usage (a)
+
+
+                         1                                  
+               P =  12   Cox  AVT
+                                    2
+                                        23B + 2  Edyn  2B   fsig
+                         a                                  
+
+
+•   Example: a=2/3, Cox=15fF/mm2, AVt=3mV·mm, Edyn=60fJ (~10 gates in
+    0.13mm CMOS)
+
+
+                                                                                 27
+                                        End Result
+
+                1.E+07
+                1.E+06
+                1.E+05
+P/(2*BW) [pJ]
+
+
+
+
+                1.E+04
+                1.E+03
+                1.E+02                                            ISSCC 1997-2006
+                                                                  ISSCC 2007
+                1.E+01                                            Flash
+                                                                  Pipeline
+                1.E+00                                            Gm-C Integrator
+                                                                  SC Integrator
+                1.E-01
+                         10   20   30   40   50   60   70   80   90 100 110 120
+                                              SNDR [dB]
+                                                                                    28
+                       CMOS Scaling
+• CMOS scaling brings mixed news
+   – Good news: Lower dynamic power, faster speed, higher gm/ID
+     given the same speed, …
+   – Bad news: Lower VDD, lower transistor intrinsic gain, …
+• New technologies brings new opportunities
+   – Vacuum tubes → Bipolar → CMOS → FINFET, nanowire,
+     graphene
+• What should we do?
+   – Invent new topologies that take advantage of CMOS scaling and
+     obviate its drawbacks
+   – Digitally assisted analog circuit design
+       • Minimalistic analog circuits
+       • Digital compensation of resulting non-idealities
+   – Time/phase domain analog signal processing
+
+                                                                     29
+                              Digital Logic Energy Trend
+
+Mainstream ADC technologies, standard logic library data
+          10000
+
+                           0.5
+ ENAND2 [fJ/gate]
+
+
+
+
+                    1000
+                                     0.35
+                    100                      0.25
+                                                      0.18
+                     10                                       0.13
+                                 106kT                                 0.09
+
+                      1
+                       1997       1999      2001    2003     2005    2007
+                                               Year
+                                                                            30
+                    ADC/Digital Logic Energy Ratio
+
+              10,000,000
+
+                              SNDR=90dB
+               1,000,000
+EADC/ENAND2
+
+
+
+
+                                   70dB
+                100,000
+                                   50dB
+                 10,000
+                                   30dB
+                  1,000
+
+                    100
+                       1997    1999   2001   2003   2005   2007
+                                          Year
+                                                                  31
+                   Energy Ratio in 2007
+
+• Interpretation for digitally enhanced ADCs (energy centric)
+
+
+
+SNDR         EADC/ENAND2
+                                       Additional digital
+  30            4,679
+                                       processing is costly!
+  50           37,432
+                                       Several tens of thousand
+  70           299,479                 gates are "free"
+
+  90          2,396,045                Use as many gates as you
+                                       can fit…
+
+                                                                32
+                    Time-Domain ADC
+• Using ring voltage-controlled oscillator (VCO)
+   – VCO can be use as both quantizer and integrator
+
+
+
+
+                                                       33
+               Technology scaling trend (1)
+
+
+            Intrinsic gain                 Power supply
+
+
+
+
+Conventional analog signal processing (ASP) schemes are not scaling
+                              friendly!                      34
+                Technology scaling trend (2)
+
+
+                  fT                        Inverter FO4 delay
+
+
+
+
+It is desirable to develop scaling-friendly time-domain ASP techniques.
+                                                                 35
+        Conventional integrator and
+                quantizer
+
+
+
+
+• Need high-gain OTA        • Need precision comparators 
+• Scaling unfriendly        • Large area/power 
+• Require large power supply
+                                                      36
+            VCO integrator and quantizer
+
+
+
+
+•   Intrinsic integration ☺ • Intrinsic multi-bit quantizer ☺
+•   Scaling friendly ☺      • No need for precise comparator ☺
+•   Work under low supply ☺ • Small area/power ☺
+•   Easy to design ☺
+                                                        37
+VCO-based  ADC
+
+
+
+
+                   38
+Geographical view
+
+
+
+
+                    39
+                 VCO-based  ADC
+
+
+
+
+• Intrinsic noise shaping ☺
+• Nonlinear VCO gain 
+                                    40
+                       VCO-based ADC review (1)
+
+
+
+
+       • Need complicated calibration algorithm, require extra
+         dithering DAC, and rely on replica matching
+
+[G. Taylor and I. Galton, IEEE JSSC, vol 45, pp.2634-2646, Dec.
+2010]                                                             41
+                         VCO-based ADC review (2)
+
+
+
+
+         • Need conventional integrators (power and area)
+         • Have intrinsic 1st-order mismatch noise shaping
+         • VCO frequency is used as the output variable → large
+           swing at the VCO input → large nonlinearity
+
+[M. Z. Straayer and M. H. Perrott, IEEE JSSC, vol 43, no 4, pp. 805-814, April
+2008]                                                                            42
+Intrinsic Data Weighted Averaging (DWA)
+
+
+
+
+                                          43
+                         VCO-based ADC review (2)
+
+
+
+
+         • Need conventional integrators (power and area)
+         • Have intrinsic 1st-order mismatch noise shaping
+         • VCO frequency is used as the output variable → large
+           swing at the VCO input → large nonlinearity
+
+[M. Z. Straayer and M. H. Perrott, IEEE JSSC, vol 43, no 4, pp. 805-814, April
+2008]                                                                            44
+                        VCO-based ADC review (3)
+
+
+
+
+        • VCO phase is used as the output variable → small
+          swing at the VCO input → low nonlinearity
+        • Explicit DEM technique has to be used (delay)
+        • VCO frequency locked to sampling frequency
+
+[M. Park and M. H. Perrott, IEEE JSSC, vol 45, no 12, pp. 3344-3358, December
+2010]                                                                           45
+VCO behavior for M=2 (fs=2fVCO)
+
+
+
+
+                                  46
+                        VCO-based ADC review (3)
+
+
+
+
+        • VCO phase is used as the output variable → small swing at
+          the VCO input → low nonlinearity
+        • Explicit DEM technique has to be used (delay)
+        • VCO frequency locked to sampling frequency (like a PLL)
+
+[M. Park and M. H. Perrott, IEEE JSSC, vol 45, no 12, pp. 3344-3358, December
+2010]                                                                           47
+        Proposed VCO-based  ADC
+
+
+
+
+• Decouple fVCO from fs (low fVCO reduces VCO power)
+• Even-order distortions are cancelled
+• Intrinsic clocked averaging (CLA)
+
+                                                       48
+Intrinsic CLA behavior
+
+
+
+
+                         49
+

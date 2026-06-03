@@ -1,0 +1,577 @@
+ Switch Capacitor Circuit
+Settling and Noise Analysis
+
+
+            Nan Sun
+       Tsinghua University
+     nansun@tsinghua.edu.cn
+
+
+
+                              1
+     Settling Analysis
+
+
+
+
+f1                       f2
+
+
+
+
+                              2
+                           Ideal Case
+• Let us assume the following ideal conditions
+   – Ideal switch with no charge injection and clock feedthrough, and
+      zero turn-on resistance
+   – Ideal OTA with no input capacitance and infinite DC gain
+
+
+
+
+                                                                        3
+When f2 is on (t=0)
+
+
+
+
+                      4
+              Solve for Vx and Vo at t=0+
+• Charge conserves at Vo
+
+
+
+
+• Charge conserves at VX
+
+
+
+
+                                            5
+                           Time Constant
+
+• First order settling during f2
+
+
+
+
+                                           6
+               Complete Expression for t>0
+
+                       /                  /              /
+
+
+                           /                   /
+
+
+
+
+• Dynamic settling error decreases with time
+                      /
+
+
+
+                                ed                 N
+                                1%                 4.6
+                               0.1%                6.9
+                               0.01%               9.2
+
+                                                             7
+                              Example
+• CS = CF = CL = 1pF, Gm = 10mS, Ron = 1 , and fs = 100MS/s (ts = 10ns)
+
+
+
+
+• We assume settling time = ts/2  0.8 = 4 ns  N = 13
+• Does the dynamic error cause nonlinearity?
+   – It does not cause nonlinearity for pure 1st-order linear settling
+   – However, it is hard to ensure pure 1st-order settling
+       • Initial slew
+       • Switch has resistance, multiple poles and zeros
+       • Signal-dependent charge injection
+       • Clock jitter
+                                                                           8
+Complete Settling with Gm = 10mS
+
+
+
+
+                                   9
+                Zoom in around Vin = 1V
+
+
+
+
+                            t = 0.3 ns
+
+
+
+• Vx(0-) = Vout(0-) = 0
+• Vx(0+) = -(1pF/1.5pF)Vin = -0.66V, Vout(0+) = (1pF/2pF)Vx(0+) = -0.33V
+• Be careful about the droop at Vx  it may cause the OTA to turn off
+                                                                           10
+Incomplete Settling with Gm = 2mS
+
+
+
+
+                                    11
+              Zoom in around Vin = 1
+
+
+
+
+• t = 1.5 ns
+• Settling is incomplete
+                                       12
+                           Nonidealities
+• Parasitic capacitances
+• Finite OTA gain
+• Finite OTA output current (slew-rate limited)
+
+
+
+
+                                                  13
+               Parasitic Capacitance at Vx
+• Parasitic capacitance at Vx node (the OTA input)
+   – Bottom-plate capacitance
+   – Switch capacitance
+   – OTA input capacitance
+• Effects
+   – Reduced feedback factor b = CF/(CS+CF+CX)
+   – Increased loading CLtot = CL + CF//(CS+CX)
+   – Slower settling
+
+
+
+
+                                                     14
+                           Finite OTA Gain
+
+• OTA has finite gain AV = GmRout
+• VX = - VO/AV  not virtual ground  static settling error
+• QX = - CSVin = CSVX + CF (VX-VO) = -VO[CF+(CS+CF)/AV]
+•  VO/Vin= CS/[CF+(CS+CF)/AV] = Cs/CF [T/(1+T)]      where T = bAV
+
+
+
+
+                                                                      15
+                   Static Settling Error (1)
+
+• Ideal output voltage for t
+
+                            ,
+
+
+•   Actual output voltage
+
+                                      ,
+
+
+
+•   Define static settling error es
+
+                                  ,
+
+
+
+
+•   E.g., AV = 1000, T = 500,  0.2% static settling error
+
+
+                                                             16
+                 Static Settling Error (2)
+•   es = - 1/T
+
+
+                         es                 T
+                        <1%              > 40dB
+                       <0.1%             > 60dB
+                      <0.01%             > 80dB
+
+• Does the static error cause nonlinearity?
+   – It does not cause nonlinearity assuming a constant Av
+   – However, Av is not a constant, but signal dependent
+       • Input-dependent Av causes nonlinearity
+       • The common design practice is to make Av so large that the
+         static error is small and the nonlinearity is negligible
+
+                                                                      17
+                         Insufficient Loop Gain
+
+• E.g., AV = 10, T = 5
+
+
+
+
+                                                  18
+                       Zoom in around Vin = 1
+
+
+
+
+•   Vout and Vx settle to 0.082 and 0.82 respectively  20% static settling error
+                                                                                    19
+               Finite OTA Output Current
+
+
+
+                                                    /
+
+
+
+
+• The current delivered by the OTA is
+
+                                           /
+
+
+
+•   Peak current occurs at t=0
+
+                    ,
+
+                                               20
+                            Slewing
+
+• Assuming an OTA can at most deliver ID
+   – No slewing means if Io,max < ID
+
+                 ,
+
+
+
+
+• Example: b=0.5, |Vo(0+)-Vo()|= 1V  gm/ID < 2 S/A
+• Low gm/ID means low power efficiency
+• To increase allowed gm/ID
+   − Small output swing  hurt dynamic range
+   − Small b  large closed-loop gain  smaller input signal swing
+
+                                                                     21
+      Output Waveform with Initial Slewing
+
+
+
+
+• Settling will be slower with slewing
+• The dynamic static error causes nonlinearity
+                                                 22
+                   Noise Analysis
+
+
+
+
+ f1                                               f2
+
+
+
+
+Noise due to switches        Noise due to OTA and switches
+                                                       23
+    Sampling Phase (f1)
+
+
+           • Variable of interest is total "noise charge"
+             at node X, qn2
+           • Cumbersome to compute using standard
+             analysis
+              – Find transfer function from each
+X
+                noise source (3 resistors) to qx
+              – Integrate magnitude squared
+                expressions from zero to infinity and
+                add
+           • Use equipartition theorem
+              – Much easier 
+
+
+
+                                                  24
+                Sampling Phase Noise Charge
+
+• Noise charge at right plate of Cs
+   – qns2 = kT  Cs
+• Noise charge at the left plate of Cf
+   – qnf2 = kT  Cf
+• Total noise charge at node X:           X
+   – qn2 = kT (Cs + Cf)
+
+
+• Note that any additional parasitic
+  capacitance at node X will increase
+  the sampled noise charge!
+
+
+
+                                              25
+               Charge Transfer Phase (f2)
+
+
+
+                                                 a>1 excess noise factor
+ 4𝑘𝑇𝑅
+
+
+                                  𝛼𝛾
+                    𝑉 /Δ𝑓 = 4𝑘𝑇
+                                  𝐺
+
+
+• In a proper design, Ron is much smaller than ag/Gm
+   – The noise should be dominated by OTA
+        • It is much easier to design switches with low on-resistance
+          than an amplifier with very large Gm
+        • Switch power is much smaller than OTA
+
+                                                                        26
+Total Integrated Amplifier Noise
+
+
+
+                                                                 1
+                                                        R
+                                                                bGm
+
+
+
+
+                                     2
+  v o2             1      1
+        a  4kTg    R
+  f              bR    jCLtot
+
+                                              2
+                       1              R                      1 kT
+  v o2   a  4kTg       f                     df  ag
+        0
+                      bR        1  jRCLtot                 b CLtot
+
+                                                                       27
+                Adding up Noise Contributions
+
+
+  f1                                                                                  f2
+
+                               X
+
+
+ q2x  kT  Cs  Cf 
+
+
+
+       q2x      Cs  Cf  kT  Cs                              2          1 kT
+  2
+v o,1  2  kT                1                         v o,2  ag
+       Cf         C 2        C        C                                    b CLtot
+                    f         f       f 
+
+
+
+
+                             2         kT  Cs           1 kT
+                           v o,tot        1       ag
+                                       Cf      Cf       b CLtot
+
+                                                                                           28
+               Noise in Differential Circuits
+
+• In differential circuits, the noise power is doubled (because there are
+  two half circuits contributing to the noise)
+• But, the signal power increases by 4x
+   – Looks like a 3dB win?
+   – SNRsingle  Psig/PN
+   – SNRdiff  4Psig/2PN = 2Psig/PN
+• There is a 3dB win in DR, but it comes with the price of twice the
+  power dissipation (due to two half circuits)
+• Can get the same DR/power in a single ended circuit by doubling all
+  cap sizes and gm
+• So what is the benefit of using fully-differential circuit?
+
+
+                                                                        29
+                Noise Simulation Example
+
+• Three ways to simulate noise in switched capacitor circuits
+• Basic .ac/.noise Spice simulations
+   – Must simulate noise in each clock phase separately
+        • Activate f1 switches, run .noise and integrate noise charge at
+          relevant node over all frequencies and refer to output
+        • Activate f2 switches, run .noise and integrate noise at output
+• Periodic Steady State Simulation
+   – E.g. SpectreRF or BDA, “periodic noise analysis” (PNOISE)
+   – Allows to simulate noise while switched capacitor circuit is
+      clocked between f1 and f2
+        • Noise from all phases is automatically added, all correlation
+          taken care of
+• Transient Noise
+                                                                          30
+          Example Track-and-Hold
+
+
+
+
+Parameters: fs = 100MHz, Ron = 100Ω, CS = CF = 1pF, CL = 1pF
+
+
+
+                                                               31
+       OTA Simulation Model
+
+
+
+
+Parameters: gm=5mS, AV=1e3, gm/ID = 10S/A, fT=20GHz
+
+
+
+                                                      32
+                       Sampling Phase (.noise)
+
+ HSPICE: en vno 0 vcvs vol=(cs*v(x,s) + cf*v(x,f))/cf
+ .ac dec 100 10k 1T
+ .noise v(vno) vdummy
+
+
+
+
+In Cadence, use vcvs in analogLib to add
+multiple noise components
+                                           Hand calculation: 91uVrms (64uV1.414)
+                                                                             33
+Charge Transfer Phase (.noise)
+
+
+
+
+       vo
+
+
+
+
+            Hand calculation : 104uVrms (ag/b=4, CLeff=1.5pF)
+                                                       34
+PSS Setup
+
+
+
+
+    Use “tstab” if the circuit needs time
+    to get into steady state (e.g. clock
+    bootstrap circuits and oscillators)
+
+
+
+      Set “maxacfreq” to the highest frequency
+      at which you expect noise to be
+      significant (10GHz in this example; see
+      plot on previous slide!)
+
+
+
+
+                                            35
+PSS Waveforms (Clocks)
+
+
+
+
+    3.8ns
+
+
+
+
+                         36
+PNOISE Setup
+
+
+  “Number of sidebands”: typically 20~200 to handle noise
+  folding properly. Fast switches  more sidebands
+  needed.
+
+
+
+
+   “timedomain” means simulator computes
+   spectrum of discrete time noise samples
+
+
+    Sampling instant (3.8ns in this example)
+
+
+
+
+                                                 37
+ How Many Sidebands are Needed? (1)
+
+Sampling phase noise (.noise, Ron = 100)
+
+
+
+
+                                            Noise up to 10GHz must
+                                            be considered
+                                             numsidebands = 100
+                                             macacfreq = 10GHz
+
+
+
+
+                                                                 38
+ How Many Sidebands are Needed? (2)
+
+Charge transfer noise (.noise)
+
+
+
+
+                                 Noise up to 10GHz must
+                                 be considered
+                                  numsidebands = 100
+                                  macacfreq = 10GHz
+
+
+
+
+                                                      39
+                   PNOISE Result
+
+Sampled Time-Domain Noise          Noise PSD
+
+
+
+
+                                               40
+                       Transient Noise
+
+
+
+
+• Simulated 1000 samples
+• Easy setup: only one critical parameter: noisefmax
+• Larger noisefmax  more accurate result, but longer simulation time
+                                                                    41
+                               Comparison
+
+
+Method            f1 noise   f2 noise   Total    Comments
+                  [uV rms]   [uV rms]   [uV rms]
+
+Hand calculation 91          104        138     Smaller because we have
+                                                ignored the switch noise in f2
+.noise            91         121        151
+
+
+PSS/PNOISE                              149     Smaller due to finite maxacfreq
+                                                and numsidebands
+
+Transient noise                         146     Smaller due to max noise
+                                                frequency
+
+
+
+                                                                             42
+

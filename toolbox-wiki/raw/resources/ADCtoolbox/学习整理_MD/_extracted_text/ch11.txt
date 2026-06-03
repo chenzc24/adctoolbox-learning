@@ -1,0 +1,852 @@
+Pipelined ADC Implementation
+
+
+
+              Nan Sun
+         Tsinghua University
+      nansun@Tsinghua.edu.cn
+
+
+
+                               1
+       Stage Implementation
+
+
+Vin                                          Vres
+                                       G1
+                                        G
+                                 -
+        ADC           DAC        Vdac
+
+                  D
+
+
+
+
+      Flash ADC         “Multiplying DAC"
+                       Switched-Capacitor
+                              Circuit
+
+
+
+
+                                                    2
+                   1-Bit Example (1)
+
+• Switched capacitor implementation
+
+
+
+
+                                       3
+                  1-Bit Example (2)
+
+• Sampling phase: f1
+
+
+
+
+                       Q1 = −2C sVin
+
+                                       4
+                   1-Bit Example (3)
+
+• Charge transfer phase: f2
+
+
+
+
+                    Q2 = −Cs d1 − C f Vres
+                                             5
+                   1-Bit Example (4)
+
+• Due to charge conservation:
+
+
+
+              − 2CsVin = Q1 = Q2 = −Cs d1 − C f Vres
+
+                         2Cs      d1 
+                  Vres =     Vin − 
+                         Cf       2
+                       = 2(Vin − VDAC )
+
+
+
+
+                                                       6
+                                              Generic Circuit
+
+                                                                          Cf
+
+
+                                             Cs[k:1]
+Vin         f1
+                               k                                Q
+                                                                                    Vres
+
+                                                        f1e
+                                                                                     f2
+
+                               k
+      Flash ADC                                     SDAC[k:1]
+
+                                          Vrefp,n
+      f1' f1 f2                                          f1:        Q = Vin  kCs
+  (sample, amplify, output )
+                               thermometer
+
+                                                                    Q = Vres  Cf + Vrefp  mCs + Vrefn  (k − m ) Cs
+                                 to binary
+                                                         f2 :
+                                      D
+
+
+                                                          − Vres =
+                                                                       kCs
+                                                                           Vin −
+                                                                                 mCs
+                                                                                     Vrefp +
+                                                                                             ( k − m ) Cs V
+                                                                                                           refn
+                                                                        Cf        Cf              Cf
+
+                                                                     = G  ( Vin − Vdac )
+
+                                                                                                                7
+                List of Design Parameters
+• Stage resolution, stage scaling factor
+• Stage redundancy
+• Thermal noise to quantization noise ratio
+• OTA architecture
+   – OTA sharing
+• Switch topologies
+• Comparator architecture
+• Front-end SHA vs. SHA-less design
+• Calibration approach (if needed)
+• Time interleaving
+• Technology and technology options (e.g. capacitors)
+
+
+                                                        8
+            Thermal Noise Considerations
+
+• Total input referred noise
+   – Thermal noise + quantization noise
+   – Costly to make thermal noise smaller than quantization noise
+• Example: VFS=1V, 10-bit ADC
+   – Nquant=LSB2/12=(1V/210)2/12=(280mVrms)2
+   – Design for total input referred thermal noise ~280mVrms or larger,
+     if SNR target allows
+• Total input referred thermal noise
+   – The sum of thermal noise from all stages
+   – How should we distribute the total thermal noise among stages?
+
+
+
+
+                                                                      9
+                        Stage Scaling (1)
+
+• Example: Pipeline using 1-bit (effective) stages (G=2)
+
+
+
+
+  Noise                                       Power
+           𝑘𝑇
+   𝑉𝑛2                                       PC
+           𝐶
+                1   1   1
+    𝑁𝑡𝑜𝑡  𝑘𝑇     +   +     +⋯                 𝑃𝑡𝑜𝑡  𝐶1 + 𝐶2 + 𝐶3 + ⋯
+                𝐶1 4𝐶2 16𝐶3
+
+
+
+                                                                         10
+                      Stage Scaling (2)
+
+
+
+
+                                                   [Cline 1996]
+
+
+
+
+• Optimal capacitior scaling lies in between these two extremes
+
+
+
+                                                                  11
+                            Stage Scaling (3)
+
+
+• We want to minimize:
+
+                        1   1   1
+         𝑁𝑡𝑜𝑡 𝑃𝑡𝑜𝑡      +   +     + ⋯ × 𝐶1 + 𝐶2 + 𝐶3 + ⋯
+                        𝐶1 4𝐶2 16𝐶3
+                                   2
+                      1 1
+                  ≥ 1+ + +⋯
+                      2 4
+
+• Minimum is achieved when:
+   – C1 = 2C2 = 4C3 = ... = 2iC(i+1)
+• The scaling factor is identical to the inter-stage gain
+
+
+
+
+                                                             12
+                          Shallow Optimum
+
+
+[Chiu 2004]
+
+
+
+
+  Capacitor scaling factor = 2Rx   Taper factor x=1  scaling exactly by stage gain
+
+                                                                         13
+        Practical Approach to Stage Scaling
+
+• Start by assuming caps are scaled precisely by stage gain
+   – E.g. for 1-bit effective stages:
+
+
+
+
+• Refine using circuit information
+   – Use estimates of OTA power, parasitics, minimum feasible
+     sampling capacitance etc.
+
+
+
+
+                                                                14
+Stage Scaling Examples (1)
+
+
+
+
+         [Cline 1996]
+
+                             15
+Stage Scaling Examples (2)
+
+
+                        [Ishii 2005]
+
+
+
+
+                                       16
+               How Many Bits Per Stage?
+
+• Small # bits per stage (e.g. R = log2G = 1)
+   – OTAs have small closed loop gain and large feedback factor
+       • Suitable for high speed ☺
+   – Need many stages 
+• Large # bits per stage (e.g. R = log2G = 3)
+   – Fewer number of stages ☺
+   – OTAs have small feedback factors and smaller bandwidths
+        • Not suitable for high speed 
+   – Need many comparators
+        • Large loading from comparators 
+• Qualitative conclusion
+   – Use low per-stage resolution for very high speed designs
+   – Try higher resolution stages when power efficiency is the most
+     important constraint
+
+                                                                      17
+               Power Tradeoff is Fairly Flat!
+
+
+                    [Chiu 2004]
+
+
+                                                  = parasitic cap at output/total
+                                                 sampling cap in each stage
+                                                 (junctions, wires, switches, …)
+
+
+
+
+• ADC power varies by only ~2x across different stage resolutions!
+
+                                                                             18
+                                 Examples
+
+ Reference     [Yoshioka, 2007] [Jeon, 2007]      [Loloee 2002]        [Bogner 2006]
+
+Technology          90nm           90nm              0.18um               0.13um
+
+    Bits             10              10                 12                  14
+
+ Bits/Stage    1-1-1-1-1-1-1-3    2-2-2-4      1-1-1-1-1-1-1-1-1-1-2     3-3-2-2-4
+
+ SNDR [dB]          ~56             ~54                ~65                 ~64
+
+Speed [MS/s]         80              30                 80                 100
+
+Power [mW]          13.3            4.7                260                 224
+
+ mW/MS/s            0.17            0.16               3.25                2.24
+
+
+ • Low power is possible for a wide range of architectures!
+
+                                                                                  19
+                         Brief Summary
+• Choosing the "optimum" per-stage resolution and stage scaling
+  scheme is a non-trivial task
+   – But optima are shallow!
+• Transistor level design and optimization is at least as important as
+  architectural level optimization
+• Next, look at circuit design details
+   – Assume we're trying to build a 10-bit pipeline
+       • 180nm process
+       • Moderate to high-speed ~100MS/s
+       • 1-bit effective/stage, using "1.5-bit" stage topology
+       • Dedicated front-end SHA
+
+
+
+
+                                                                         20
+              1.5-Bit Stage Implementation
+
+[Abo 1999] ([Lewis 1992])
+
+
+
+
+• Cf is used as sampling cap during acquisition phase and feedback cap
+  during charge redistribution phase
+   – Enlarged feedback factor (1/3 → 1/2)
+                                                                         21
+Residue Plot
+
+
+
+
+               [Abo 1999]
+
+
+
+
+                            22
+           Stage 1 Matching Requirements
+
+         Vin
+                  Stage 1                   9-bit Backend ADC
+
+
+
+
+                                                    Cs      C
+                                                       1+
+                                                    Cf      C
+
+
+
+
+• Error in residue transition must be accurate to within a fraction of 9-
+  bit backend LSB
+   – Typically want C/C ~0.1% or better
+                                                                            23
+                     Capacitor Matching
+
+• 0.1% "easily" achievable in current technologies
+   – For MIM cap matching data see e.g. [Diaz 2003]
+   – For MOM cap matching data see e.g. [Verma 2006]
+   – Depend on capacitor size
+• What if we needed much higher resolution than 10 bits?
+   – Digital calibration
+   – Multi-bit first stage
+       • Each extra bit resolved in the first stage alleviates precision
+          requirements on residue transition by 2x
+            – Note that more capacitors are needed and thus capacitor
+               area increases
+            – For fixed first-stage total capacitance, does INL/DNL improve
+               for going to multi-bit first stage?
+            – For fixed-size unit capacitor, how does INL/DNL improve
+               with increased number of bits in the first stage?
+       • Multi-bit examples: [Singer 1996] [Kelly 2001] [Lee 2007]
+
+
+                                                                         24
+  Typical Reference Generator
+
+[Todd Brooks 1994]
+
+
+
+
+   External decoupling caps provide dynamic currents
+    Low power reference buffer
+
+
+                                                       25
+                         Comparators
+• Can tolerate large offsets and large noise with appropriate
+  redundancy
+• Consume negligible power in a good design
+   – 50~100mW or less per comparator
+• Lots of implementation options
+   – Resistive/capacitive reference generation
+   – Different pre-amp/latch topologies
+   – …
+
+
+
+
+                                                                26
+              Comparator Examples
+
+                            Vin
+
+
+
+
+[Chiu 2004]
+
+
+
+
+                                    [Mehr 2000]
+
+                                                  27
+               OTA Design Considerations
+• Static amplifier error = 1/(Loop Gain)
+   – For the first stage of 10-bit ADC, need loop gain > 60dB
+• Dynamic settling error
+   – Want outputs to settle to ~1/8 LSB accuracy within 1/2 clock cycle
+• Thermal noise
+   – Size capacitor sizes to satisfy noise requirement
+• Start by picking an OTA topology that will deliver sufficient gain
+   – Or think about ways to compensate finite gain error
+
+
+
+
+                                                                       28
+               Two-Stage Folded Cascode OTA
+
+                                                        1V
+
+
+
+[Ishii 2005]
+                                                              ~0.5V
+                                                             (1Vpp,diff)
+
+
+
+
+   • Work down to VDD=1V with reasonable output swing
+   • Gain ~ (gmro)3 ~ 103 = 60dB
+   • Use gain boosting to achieve larger gain
+                                                                       29
+                How Fast Can We Go? (1)
+
+• Non-dominant pole in two-stage amplifier hard to move past fT/5
+• For 73 phase margin (optimum for fast settling), loop crossover
+  frequency is 1/3 of non-dominant pole frequency
+• Settling linearly to 0.1% precision takes 7 loop time constants;
+  typically budget ~10 time constants
+• Ideally, we'd have 1/2 clock cycle to settle linearly, but there is some
+  time needed for slewing and non-overlap clock timing
+   – Assume 60% of half cycle is available for linear settling
+• In summary (here we have assume that the feedback factor is 1)
+
+                           f 1      1           f
+               fCLK ,max = T  2  0.5  0.6 = T
+                            5 3    10          80
+
+
+                                                                             30
+                How Fast Can We Go? (2)
+
+                             NMOS fT
+     Technology                                    fCLK,max = fT/80
+                   (at moderate VGS-Vt ~150mV)
+
+       0.35um                 10GHz                  125 MHz
+
+
+       0.18um                 30GHz                  375 MHz
+
+
+       90nm                   90GHz                  1.125GHz
+
+
+• Sampling speeds of 200-300MHz are "easily" achievable in today's
+  technologies
+   – fT is no longer a showstopper
+   – Speed ultimately constrained by power and clock jitter
+
+                                                                      31
+  Switches
+
+               • Make switch RC ~ 10 times faster
+[Ishii 2005]
+                 than OTA
+                  – Avoid speed degradation
+                  – Minimize switch noise
+                    contribution
+                      • See e.g. [Schreier 2005]
+                  – Avoid stability issues due to
+                    poles in feedback network
+               • Three choices for switches
+                  – Single N or P device
+                  – Transmission gate
+                  – Bootstrapped NMOS
+                      • For high swing nodes that
+                        require constant Ron
+                                              32
+                          Front-End SHA
+
+Need constant RON here to
+minimize signal dependent
+charge injection from S1N, S1P
+
+
+
+
+                            S1P
+ Minimize
+  Jitter!
+                            S1N
+
+                                          [Ishii 2005]
+
+
+
+
+                                                         33
+     Settling
+
+
+
+
+f1              f2
+
+
+
+
+                     34
+                   Example
+
+
+
+
+                         X
+
+
+
+
+Parameters: fs = 100MHz, Ron = 100Ω, CS = CF = 1pF, CL =
+1pF
+
+                                                           35
+        OTA Simulation Model
+
+
+
+
+        g           I n2                 AV
+   CX = m                = 8kTg m   ro =
+       2fT         f                   gm
+
+
+
+Parameters: gm=5mS, AV=1e3, gm/ID = 10S/A,
+fT=20GHz
+
+                                              36
+1-bit Pipeline Stage Behavior
+
+
+
+
+     Jump in Vres when Vin crosses
+                   0                 37
+Zoom in around Vin = 1V
+
+
+
+
+      Linear settling in f2
+                              38
+         Pipelined Stage Output
+
+
+
+
+Question: how to test linearity for a pipelined stage?
+                                                         39
+Sampled (Vres + d1)/2
+
+
+
+
+                        40
+                    Noise Analysis
+
+
+
+f1                                                            f2
+
+
+
+
+Noise due to switches             Noise due to OTA and switches
+
+
+        Identical to that of the closed-loop track-and-hold
+
+                                                               41
+                               Noise Analysis
+
+
+  f1                                                                               f2
+                                       X
+
+
+
+ q2x = kT ( Cs + Cf )
+
+
+
+       q2x      Cs + Cf  kT  Cs                                      1 kT
+v o,1 = 2 = kT 
+  2
+                          =     1 +     
+                                                              2
+                                                            v o,2  
+                    2        C f     C f 
+                                                                          CLtot
+       Cf         C f    
+
+
+
+                                       kT  Cs        1 kT
+                             2
+                           v o,tot =       1 +  + 
+                                       Cf  Cf         CLtot
+
+                                                                                        42
+                        Noise Budgeting
+
+• Total input referred noise budget, assuming VFS,diff=1V
+   – Nthermal=Nquant=LSB2/12=(1V/210)2/12=(280mVrms)2
+• First-order partitioning of input referred noise:
+   – SHA → 1/3
+   – Stage 1 → 1/3
+   – All remaining stages → 1/3
+
+
+
+
+                                                            43
+              SHA-Less Architectures (1)
+
+• SHA can burn up to 1/3 of the total ADC power
+• For low power design, we want to removing front-end SHA
+   – It causes acquisition timing mismatch between 1st stage MDAC
+      and flash ADC
+
+
+                           Sampler
+                           (MDAC)
+
+
+
+
+                                             [Chiu 2004]
+
+
+                                                                    44
+               SHA-Less Architectures (2)
+
+• Solutions
+   – Use low-bit 1st stage with large redundancy
+        • This can help absorb fairly large skew errors
+   – Try to match sampling sub-ADC/MDAC networks
+        • Bandwidth and clock timing
+
+
+
+
+                                                     [Mehr 2000]
+
+
+
+
+                                                                   45
+Amplifier Sharing (1)
+
+
+                           [Min 2003]
+
+
+
+
+             • Limited power savings because
+               amplifiers have different specs
+             • We can turn off the OTA when
+               not in use; however, be careful
+               about memory effects
+                                          46
+                    Amplifier Sharing (2)
+
+              [Kurose 2006]
+
+
+
+
+• Sharing of amplifiers is most efficiently done in a pair of converters
+  that process I/Q signals
+
+                                                                           47
+                          Research Topics
+
+             Open-loop amplification!                         Analog
+                                                            Nonlinearity
+
+
+   Vin                                                            Backend
+                                                 g
+                                                                    A/D
+                                            -
+           A/D                 D/A
+                                                Coefficient
+                                                Estimation
+[Murmann 2003]      MOD
+   Dout
+                                                     g-1
+            12
+
+
+                    ~8400 gates                                Digital
+                                                              Inverse
+                                                                            48
+                        Research Topics
+
+[H. Boo, ISSCC, 2015]
+
+
+
+
+                                          49
+                        Research Topics
+
+[H. Boo, ISSCC, 2015]
+
+
+
+
+                                          50
+                        Research Topics
+
+[Y. Lim, ISSCC, 2015]
+
+
+
+
+                                          51
+                       Research Topics
+
+
+
+
+              [Fiorenza 2006]
+
+
+• Comparator-based switched-capacitor circuits
+• Output slews to final value
+   – Most efficient way to transfer charge
+
+                                                 52
+                         Research Topics
+
+[N. Dolev, VLSI, 2013]
+
+
+
+
+                                           53
+                      Research Topics
+
+[J. Hu, JSSC, 2009]
+
+
+
+
+                                        54
+                              Cyclic ADC
+
+                             Digital Output
+
+
+                         Store bits & combine
+Start of conversion
+
+
+ VIN
+               T/H     ADC                    DAC            G           T/H
+
+
+
+
+• Essentially same as pipeline, but a single stage is used in a cyclic
+  fashion for all operations
+• Need many clock cycles per conversion
+
+
+                                                                               55
+     Implementation Example
+
+
+
+f1                                     C 
+                                Vo1 =  1 + 5 Vo 2
+                       Vo1             C6 
+
+
+
+
+                             [Erdogan et al. JSSC 12/99]
+f2
+                 Vo2
+
+                                     (
+                               Vo 2 = Vip  Vref   ) CC4
+                                                      3
+
+
+
+                                                           56
+                               Discussion
+
+• Advantages
+   – Area efficient
+        • Only one or two switched capacitor stages plus comparator
+    – Easy to calibrate
+        • Only one stage
+• Disadvantages
+   – Slow
+        • Need many clock cycles for a single conversion
+    – Sub-optimal power efficiency
+        • Cannot scale stages like in a pipeline ADC
+        • Noise and accuracy requirements decrease from MSB to LSB cycle, but
+          invested circuit energy per cycle is (usually) constant
+
+
+
+                                                                            57
+

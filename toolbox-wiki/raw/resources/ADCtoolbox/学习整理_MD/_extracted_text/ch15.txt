@@ -1,0 +1,260 @@
+Oversampling DACs
+
+
+
+        Nan Sun
+   Tsinghua University
+ nansun@tsinghua.edu.cn
+
+
+
+                          1
+              Digital-to-Analog Conversion
+
+
+
+
+•   What are the benefits for oversampling (fs = 2  OSR  fout)?
+    – Relax the requirement for the reconstruction filter
+    – Use noise shaping to achieve 24-bit resolution with a 1-bit DAC
+        • 1-bit DAC is simple and guaranteed linear!
+
+
+
+                                                                   2
+Zero-Order-Hold
+
+
+
+
+                  /
+
+
+
+
+                      3
+Oversampling by 2
+
+
+
+
+                    4
+                    Reconstruction Filter
+
+
+
+
+•   We usually need a least (2x or 4x) oversampling even for Nyquist-
+    rate DAC
+     – Otherwise, the requirement for the reconstruction filter is too
+        tough
+     – Oversampling significantly relaxes the filter requirement
+                                                                     5
+                   How to Oversample?
+• How to oversample when the DAC digital input is at the Nyquist rate?
+   – For an ADC whose input is continuous time, oversampling is easy
+     as we can acquire the input at any given time instance
+   – For a DAC, we only know the digital inputs at fixed time instances
+• Several options
+   – Perform an equivalent digital zero-order hold
+        • Does this change the signal spectrum?
+   – Linear interpolation between adjacent points
+        • Does this distort the signal spectrum?
+   – Adding zeros in between adjacent points and then digital LP
+     filtering
+        • Equivalent to sine wave reconstruction and then re-sampling
+
+
+
+                                                                          6
+Interpolation
+
+
+
+
+                7
+Frequency-Domain View
+
+
+
+
+                        8
+            Benefits of Digital Oversampling
+
+• The design of the analog reconstruction filter can be much simpler
+   – The first few images are removed by digital low pass filtering
+   – Analog re-construction is equivalent to oversampling by infinity
+• Oversampling allows quantization noise shaping!
+• Given 24-bit digital data, we want to convert it to an analog signal:
+   – Option #1: design a 24-bit DAC
+        • Complicated, area/power consuming, cannot guarantee linearity
+   – Option #2: design a 16-bit DAC, and only use the first 16-bit data
+        • Less complicated, less area/power, but less accuracy, nonlinear
+   – Option #3, design a 1-bit DAC, and use noise shaping to move the
+      truncation (quantization) error out of signal band
+        • Easy to design, area/power efficient, and guaranteed linearity!
+
+                                                                        9
+      Oversampled DAC with Noise Shaping
+
+
+
+
+•   The digital DS modulator shapes the “truncation noise”
+     – The truncation noise is equivalent to quantization noise by
+       nature
+        • Converting a fine-grain signal to a coarse-grain signal
+
+
+                                                                     10
+           1st-Order Digital DS Modulator
+
+
+
+
+•   Same block diagram as an analog DS modulator
+     – Intermediate nodes need to have more bits to ensure no
+       overflow
+
+
+                                                                11
+            2nd-Order Digital DS Modulator
+
+[Su &Wooley, JSSC 12/93]
+
+
+
+
+                                             12
+Spectra
+
+
+
+
+          13
+                 Problems with 1-bit DAC
+• The DAC output has large jumps
+   – It is sensitive to clock jitter
+   – It is hard to guarantee linearity due to inter symbol interference,
+     slewing, etc
+       • 1-bit DAC is guaranteed linear only when we do not consider
+           dynamic errors
+• It would be nice if we can reduce the step size and apply some
+  “digital” filtering before the DAC output goes to the analog
+  reconstruction filter
+
+
+
+
+                                                                           14
+ISI Error
+
+
+
+
+            15
+                           Semi-Digital FIR Filter
+
+                Digital                          n -Bit Shift Register
+                Input 1
+                 DIN         z– 1                z– 1                ...           z– 1
+                                                                                                     DIGITAL
+
+                                                                                                     ANALOG
+                                     a1                   a2                ...              an
+
+
+
+
+                                                                 S
+[Su &Wooley, JSSC 12/93]
+
+                                                 Analog Output, A OUT
+
+                                           –1            –2            –3               –n
+                   AOUT  z  =     a1 z        + a2 z        + a3 z        +  + anz        DIN  z 
+
+
+                                                              H (z)
+
+
+    • An FIR filter is implemented by DAC weightings {ai}
+                                                                                                               16
+                     Circuit Implementation
+
+           Digital
+           Input             128-Bit Shift Register
+                                                                           DIGITAL
+
+                                                                          ANALOG
+                                                        Weighted
+                                                        Current
+                                                        Sources
+
+                     a
+                         1
+                             a
+                             2
+                                      ... a   128
+
+                                                              Current-to-Voltage
+                                                                Conversion
+
+               I
+               out
+
+
+
+
+                                                                                   Analog
+                                                      I out         +              Output
+
+
+
+
+• It seems that we still end up with 128 elements. Why is it better?
+    – Variations in {ai} do not cause nonlinearity
+    – They only change filter coefficients
+                                                                                            17
+                  Frequency Response
+
+
+Reconstruction Filter                                                  Output
+
+
+                                                    0
+                                                                    Noise Shaper Output
+                                                  – 20
+                                                                    Analog Output
+
+
+
+
+                           Power Spectrum (dB)
+                                                  – 40
+
+
+                                                  – 60
+
+
+                                                  – 80
+
+
+                                                 – 100
+
+
+                                                 – 120
+
+
+                                                 – 140
+
+
+                                                 – 160
+                                                         1k   10k           100k          1M
+                                                                    Frequency (Hz)
+
+
+
+
+                                                                                               18
+

@@ -1,0 +1,829 @@
+Data Converter Testing
+
+
+
+           Nan Sun
+      Tsinghua University
+   nansun@Tsinghua.edu.cn
+
+
+
+                            1
+Get the Die
+
+
+
+
+              2
+Packaging
+
+
+
+
+            Off-centered
+             packaging
+                           3
+         ADC Test Setup
+
+
+            Evaluation    How to acqure
+Specs?     board design    the output?
+
+
+
+
+             Specs?
+
+
+                                          4
+             High-Performance ADC Specs
+
+       Resolution                  > 14b
+       Conversion rate             > 100 MS/s
+       Input range                 2V peak-to-peak
+       SNR                         > 80 dB
+       SFDR                        > 90 dB
+       DNL                         < 1 LSB
+       INL                         < 1 LSB
+
+
+• Testing a high performance ADC is very challenging!
+   – Almost as hard as designing one
+   – Test instruments need to be much better than the ADC under test
+• We need to be aware of the test setup and the equipment limitations
+
+                                                                    5
+                A Low-Cost Signal Source
+• We want the input signal to be very linear
+   – E.g., SFDR > 90dB @ 100 MHz
+• How about using a low-cost signal generator?
+   – Frequency range limited to 15MHz
+   – Large harmonic distortion: -40dBc for fin > 1MHz
+   – Far away from what we need!
+
+
+
+
+                                                        6
+                 An Expensive Signal Source
+
+
+• Now let us use an expensive ($50K) signal generator
+• Frequency range is significantly extended
+   – Up to 20GHz
+• But distortion problem is still not solved
+   – Large harmonic distortion: -40dBc
+   – How to remove the distortion?
+
+
+
+
+                                                        7
+               Filtering Out Harmonics
+
+
+
+
+• Given HD = -40dBc, we need a stopband rejection > 50dB to ensure
+  SFDR > 90dB
+   – The design of the filter is nontrivial
+
+                                                                     8
+                  High-End Filters
+
+
+
+
+www.tte.com
+www.allenavionics.com
+
+                                     9
+                Tunable Filters
+
+
+
+
+Manually tune                         Digitally tune
+
+                www.klmicrowave.com
+
+
+                                                       10
+                        Filter Distortion
+• Filters themselves generates distortions!
+   – Many filters are designed to operate with a small signal swing
+        • In ADC testing, the input swing is usually large ~ 2V
+   – Low-cost filters may not satisfy the linearity requirement
+        • The self-generated distortion may be even larger
+• Filter distortion is usually not specified
+   – Need to call manufacturer
+         • High-end filters usually have HD<-85dBc, but don't trust your
+           filters blindly
+   – Use a spectrum analyzer to test the filter distortion before using it
+         • The spectrum analyzer itself generates distortion!
+              – We can place attenuators in front of the spectrum
+                 analyzer
+
+                                                                        11
+                       Clock Generator
+
+• The clock source needs to have a high quality
+   – We do not care about distortion
+   – We care about phase noise or jitter
+• High frequency clocks are always sine wave like
+   – We need a clock receiver to turn it into a square wave
+   – Be careful about the phase noise of the clock interface circuits
+        • Ideally, the jitter should be limited by the clock source
+
+
+
+
+                                                                        12
+                   Phase Noise and Jitter
+• For a clock generator, its phase is not fixed, but follows a random
+  walk
+
+
+                           n2 = 2 Dt
+• Where D is the phase diffusion constant
+• Low-end signal generator:
+   – Large D, cycle-to-cycle jitter  100ps rms
+• High-end signal generator:
+   – Small D, cycle-to-cycle jitter  0.1ps rms
+
+
+
+
+                                                                        13
+                 Jitter from Other Circuits
+• Other clock interface circuits also contribute jitter.
+• Clock jitter from other circuits can be minimized by:
+   – Separate supplies
+   – Separate analog and digital clocks
+   – Short inverter chains between the clock source and the
+      destination
+• Jitter induced noise has the following unique properties
+    – RMS noise proportional to input frequency
+    – RMS noise proportional to input amplitude
+• Thus, it is easy to identify when ADC noise is jitter limited
+
+
+
+
+                                                                  14
+                           Jitter Estimation
+
+• Jitter can be measured even if the ADC is not jitter limited
+    – D.M. Hummels, W. Ahmed, W., F.H. Irons, "Measurement of
+       random sample time jitter for ADCs," Proc. ISCAS, pp.708-711, May
+       1995.
+
+
+
+
+After removing all harmonics:
+
+
+
+
+                                             This is a component at 2w0
+                                             that is proportional to jitter sD
+
+                                                                                 15
+                        Evaluation Board
+
+
+• The ADC pin-out need to be carefully
+  planned
+   – We need to place sensitive analog
+      pins far away from “dirty” digital
+      output pins
+• Key considerations in the board design
+   – Supply/ground routing
+   – Bypass capacitors
+   – Coupling between signals
+• Check out ADC vendor datasheets for
+  example schematics and layouts
+
+
+                                           16
+        Good References on Board Design
+• Analog Devices Application Note 345: "Grounding for Low-and-High-
+  Frequency Circuits"
+• Maxim Application Note 729: "Dynamic Testing of High-Speed ADCs,
+  Part 2"
+
+
+
+
+                                                                      17
+Example Board Schematic (1)
+
+    [Analog Devices AD9235 Data Sheet]
+
+
+
+
+                                         18
+Example Board Schematic (2)
+
+
+
+
+                              19
+Example Board Schematic (3)
+
+
+
+
+                              20
+Example Vendor Board Layout
+
+
+    [Analog Devices AD9235 Data Sheet]
+
+
+
+
+                                         21
+                ADC Digital Output Signaling
+
+• CMOS signaling works well for low fCLK<100MHz
+• For high frequencies signaling, we prefer LVDS
+   – Low voltage differential signaling
+• LVDS vs. CMOS:
+   – Higher speed ☺
+   – More power efficient ☺
+   – Less noise ☺
+   – Lower swing 
+   – Two pins/bit 
+
+
+
+
+    Analog Devices application note 586: "LVDS data outputs for high speed ADCs"
+
+                                                                                   22
+              How to Acquire ADC Output
+• Several options:
+   – Logic analyzer with PC interface
+   – FIFO board, interface to PC DAQ card
+   – Oscilloscope
+• We can build on-chip DACs and send multiple bits through one pin
+   – It reduces the pin count ☺
+   – It lowers the power ☺
+• We can use an oscilloscope to capture the DAC outputs and re-
+  quantize it to obtain the ADC digital output
+   – This works especially well for ultra-high-speed ADCs
+       • Logic analyzers usually cannot work beyond 2GS/s
+       • High-speed (e.g., 50GS/s) oscilloscopes are easy to find
+
+
+                                                                     23
+                    Complete Setup
+
+
+
+
+[Maxim Application Note 729: "Dynamic Testing of High-Speed ADCs, Part 2]
+
+
+                                                                        24
+                    Spectral and DNL/INL
+• We can perform FFT in Matlab to measure spectral metrics
+• How about DNL/INL for a DAC?
+   – "Trivial", apply codes and use "a good voltmeter" to measure
+     outputs
+• How about DNL/INL for an ADC?
+   – Need to find "decision levels", i.e. input voltages at all code
+     boundaries
+   – We can measure code widths through histogram testing
+
+
+
+
+                                                                       25
+                         Histogram Test
+
+
+
+
+• Code width is proportional to the number of code occurrences
+• Ramp needs to be sufficiently slow to provide enough code occurrence
+   – For a 16-bit 100 kS/s ADC, to provide on average 100 occurrence per
+     code, we need the ramp period to be 216100/100k  64 seconds
+
+
+                                                                      26
+                                     Histogram of an Ideal 3-Bit ADC
+
+                                          A/D Characteristics [1]
+
+                           ADC characteristics
+                           ideal converter
+                      7                                                                  200
+
+
+                                                                                         180
+                      6
+                                                                                         160
+
+                      5
+                                                                                         140
+Digital Output Code
+
+
+
+
+                      4                                                                  120
+
+
+
+
+                                                                                Counts
+                                                                                         100
+                      3
+                                                                                          80
+
+                      2
+                                                                                          60
+
+
+                      1                                                                   40
+
+
+                                                                                          20
+                      0
+
+                                                                                           0
+                                                                                               0   1   2      3       4      5   6   7
+                      -1   0     1       2     3        4      5    6   7   8                              ADC output code
+                                         ADC Input Voltage [1/D]
+
+
+
+
+                                                                                                                                         27
+                                Histogram of a Non-ideal 3-Bit ADC
+
+                                          A/D Characteristics [3]                        200
+
+                           ADC characteristics
+                           ideal converter                                               180
+                      7
+
+                                                                                         160
+                      6
+
+                                                                                         140
+                      5
+                               -0.4 LSB DNL
+                                                                                         120
+Digital Output Code
+
+
+
+
+                                                                                Counts
+                      4
+                                                                                         100
+
+
+                      3                                                                   80
+                                                         +0.4 LSB INL
+                      2                                                                   60
+
+
+                                                                                          40
+                      1                          +0.4 LSB DNL
+                                                                                          20
+                      0
+
+                                                                                           0
+                                                                                               0   1   2      3       4      5   6   7
+                      -1   0     1       2     3        4      5    6   7   8
+                                                                                                           ADC output code
+                                         ADC Input Voltage [1/D]
+
+
+
+                                                                                                                                         28
+                  DNL from Histogram (1)
+
+
+•   Step 1                                                   140
+
+
+
+     – Remove “over-range bins”                              120
+        (0 and 7)
+                                                             100
+
+
+
+
+                                  Counts, End bins removed
+                                                              80
+
+
+
+
+                                                              60
+
+
+
+                                                              40
+
+
+
+                                                              20
+
+
+
+
+                                                               0
+                                                                   0   1   2      3       4      5   6   7
+                                                                               ADC output code
+
+
+
+
+                                                                                                             29
+                  DNL from Histogram (2)
+• Step 2
+   – Divide by average count
+• Step 3                                                         0.4
+
+
+
+   – Subtract 1                                                  0.3
+
+
+
+   – Ideal bins have exactly the                                 0.2
+
+      average count, which
+
+
+
+
+                                   DNL = Counts / Mean(Counts)
+                                                                 0.1
+      corresponds to 1 after
+      normalization                                                0
+
+
+
+• Result is DNL                                                  -0.1
+
+
+
+                                                                 -0.2
+
+
+
+                                                                 -0.3
+
+
+
+                                                                 -0.4
+                                                                        0   1   2      3       4      5   6   7
+                                                                                    ADC output code
+
+
+
+
+                                                                                                                  30
+                    INL from Histogram
+• INL is simply running sum of
+  DNL
+• The DNL information can also
+  be used directly to construct                                    7
+
+
+  the converter transfer function                                  6
+
+
+   – Simply add up all bin-                                        5
+
+
+
+
+                                    Reconstructed Characteristic
+      widths to find transition
+      levels                                                       4
+
+
+
+                                                                   3
+
+
+
+                                                                   2
+
+
+
+                                                                   1
+
+
+
+                                                                   0
+
+
+                                                                   -1   0   1   2      3       4      5   6   7   8
+                                                                                    ADC Input Voltage
+
+
+
+
+                                                                                                                  31
+                                                   DNL and INL of the ADC
+                                                                                                          DNL and INL of 3 Bit converter (from histogram testing)
+                                          A/D Characteristics [3]                                2
+
+                           ADC characteristics                                                 1.5
+                           ideal converter
+                      7                                                                                   avg=-1.9e-017, std.dev=0.25, range=0.8
+
+
+
+
+                                                                                DNL [in LSB]
+                                                                                                 1
+
+                                                                                               0.5
+                      6
+                                                                                                 0
+
+                      5                                                                        -0.5
+                               -0.4 LSB DNL
+Digital Output Code
+
+
+
+
+                                                                                                -1
+                                                                                                      1       2              3             4             5          6
+                      4
+                                                                                                                                   bin
+
+
+                      3                                                                          2
+
+                                                         +0.4 LSB INL                          1.5
+                      2                                                                                   avg=0.2, std.dev=0.22, range=0.4
+
+
+
+                                                                                INL [in LSB]
+                                                                                                 1
+
+                                                                                               0.5
+                      1                          +0.4 LSB DNL
+                                                                                                 0
+
+                      0                                                                        -0.5
+
+                                                                                                -1
+                                                                                                      1       2              3             4             5          6
+                      -1   0     1       2     3        4      5    6   7   8
+                                                                                                                                   bin
+                                         ADC Input Voltage [1/D]
+
+
+
+                                                                                                                                                                        32
+          Histogram Test Based on Sine Inputs
+
+• It is nontrivial to generate highly
+  linear ramps                                                 Raw Histogram of ADC Output
+
+    – The ramp needs to be more         250
+
+
+        linear than the ADC
+    – E.g., for a 16-bit ADC, the       200
+
+
+        ramp needs to be 18-b linear
+                                        150
+• It would be nice to use a
+  sinusoidal input to perform
+  histogram test                        100
+
+
+    – Nature allows perfect sine
+                                         50
+• Problem for using a sine input
+   – The histogram is not flat
+                                          0
+   – We can apply an inversion                0   500   1000      1500    2000    2500       3000   3500   4000
+
+
+     function
+
+                                                                                                           33
+After Correction for Sinusoidal PDF
+
+                 -3
+          x 10                     Linearized Histogram
+    1.4
+
+
+
+    1.2
+
+
+
+     1
+
+
+
+    0.8
+
+
+
+    0.6
+
+
+
+    0.4
+
+
+
+    0.2
+
+
+
+     0
+          0           500   1000   1500   2000     2500   3000   3500   4000
+
+
+
+
+                                                                               34
+                              Resulting DNL and INL
+
+                             DNL = +1.3 / -1 LSB, 1 missing codes (DNL<-0.9)
+            1.5
+
+              1
+DNL [LSB]
+
+
+
+
+            0.5
+
+              0
+
+            -0.5
+
+             -1
+                   0   500       1000    1500    2000    2500     3000    3500   4000
+                                                 code
+                                         INL = +1.7 / -0.69 LSB
+              2
+
+            1.5
+
+              1
+INL [LSB]
+
+
+
+
+            0.5
+
+              0
+
+            -0.5
+
+             -1
+                   0   500       1000    1500    2000    2500     3000    3500   4000
+                                                 code
+
+
+
+
+                                                                                        35
+            Correction for Sinusoidal PDF
+• References
+   – M. V. Bossche, J. Schoukens, and J. Renneboog, “Dynamic Testing
+     and Diagnostics of A/D Converters,” IEEE TCAS, Aug. 1986.
+   – IEEE Standard 1057
+• Do we need to know the exact amplitude and offset of the sine input?
+   – No!
+   – DNL and INL are independent from amplitude and offset
+
+
+
+
+                                                                    36
+                               DNL/INL Code
+
+function [dnl,inl] = dnl_inl_sin(y);   % transition levels
+%DNL_INL_SIN                           T = -cos(pi*ch/sum(h));
+% dnl and inl ADC output
+% input y contains the ADC output      % linearized histogram
+% vector obtained from quantizing a    hlin = T(2:end) - T(1:end-1);
+% sinusoid
+
+                                       % truncate at least first and last
+% Boris Murmann, Aug 2002
+                                       % bin, more if input did not clip ADC
+% Bernhard Boser, Sept 2002
+                                       trunc=2;
+                                       hlin_trunc = hlin(1+trunc:end-trunc);
+% histogram boundaries
+minbin=min(y);
+maxbin=max(y);                         % calculate lsb size and dnl
+                                       lsb= sum(hlin_trunc) / (length(hlin_trunc));
+
+% histogram                            dnl= [0 hlin_trunc/lsb-1];
+h = hist(y, minbin:maxbin);            misscodes = length(find(dnl<-0.9));
+
+
+% cumulative histogram                 % calculate inl
+ch = cumsum(h);                        inl= cumsum(dnl);
+
+
+                                                                                      37
+                          DNL/INL Code Test
+
+% converter model
+                                                                       DNL = +0.7 / -0.71 LSB, 0 missing codes (DNL<-0.9)
+B = 6;                 % bits                             1
+
+
+range = 2^(B-1) - 1;                                    0.5
+
+
+
+
+                                            DNL [LSB]
+% thresholds (ideal converter)                            0
+
+th = -range:range;     % ideal thresholds
+                                                        -0.5
+
+th(20) = th(20)+0.7; % error
+                                                         -1
+                                                          -30    -20         -10              0               10            20        30
+                                                                                            code
+
+fs = 1e6;                                               0.8
+                                                                                   INL = +0.76 / -0.063 LSB
+
+
+fx = 494e3 + pi;       % try fs/10!                     0.6
+
+
+C   = round(100 * 2^B / (fs / fx));
+
+
+                                            INL [LSB]
+                                                        0.4
+
+                                                        0.2
+
+                                                          0
+t = 0:1/fs:C/fx;
+                                                        -0.2
+x = (range+1) * sin(2*pi*fx.*t);                           -30   -20         -10              0
+                                                                                            code
+                                                                                                              10            20        30
+
+
+y = adc(x, th) - 2^(B-1);
+
+
+hist(y, min(y):max(y));
+dnl_inl_sin(y);
+
+                                                                                                                                 38
+          Limitations of Histogram Testing
+• Histogram testing assumes monotonicity
+   – E.g. “code flips” will not be detected
+• Dynamic sparkle codes produce only minor DNL/INL errors
+   – E.g. 123, 123, …, 123, 0, 124, 124, …
+   – Must look directly at ADC output to detect
+• Noise can smear DNL
+   – E.g. 9, 9, 9, 10, 9, 9, 9, 10, 9, 10, 10, 10, …
+   – INL is more robust against noise, need to look at both INL and DNL
+• Reference
+   – B. Ginetti and P. Jespers, “Reliability of Code Density Test for High
+     Resolution ADCs,” Electron. Letters, pp. 2231-2233, Nov. 1991.
+
+
+
+
+                                                                         39
+DNL Smeared By Noise
+
+
+
+
+ [Source: David Robertson, Analog Devices]
+                                             40
+

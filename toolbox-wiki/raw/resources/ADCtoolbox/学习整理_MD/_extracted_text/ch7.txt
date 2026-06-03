@@ -1,0 +1,1231 @@
+Voltage Comparators
+
+
+
+         Nan Sun
+    Tsinghua University
+  nansun@tsinghua.edu.cn
+
+
+
+                           1
+                      ADC Big Picture
+
+
+
+
+• How to quantize a voltage signal?
+   – Use voltage comparators to make decisions
+
+
+
+
+                                                 2
+               Ideal Voltage Comparator
+
+
+
+
+•   The comparator acts as a 1-bit ADC. It converts an “analog”
+    input into a “digital” output.
+•   How to get more bits?
+     – Use an array of comparators
+
+                                                                  3
+ Flash ADC Basic Concept
+
+
+2B-1
+
+
+
+
+                  Dout
+
+
+                                            Vin
+
+
+                         2B-1 Decision Levels
+
+
+
+
+                                                  4
+                  Design Considerations
+• Accuracy
+   – Comparator resolution
+   – Comparator offset
+• Speed
+   – Comparator delay
+   – Comparator recovery time
+• Power dissipation
+• Other properties
+   – Common-mode rejection
+   – Input capacitance and linearity of input capacitance
+   – Kickback noise
+
+
+
+
+                                                            5
+                    Gain Requirements
+
+
+
+
+• Comparator output is ‘digitally’ unknown for VREF-D/2<Vin<VREF+D/2
+• We need comparator with a large effective gain AV
+• Assuming DV=1mV and VDD = 1.8V, we have:
+
+
+
+•   How can we achieve this high gain?
+
+                                                                       6
+          How about Using an Op-Amp?
+
+• Opamp can achieve high gain, but its speed is a problem.
+• For an opamp, Av = gmR, w0 = 1/RC  Avw0 = gm/C = Id /C * (gm/Id)
+   – gm/Id depends on biasing, but usually around 10~20 V-1
+   – For the same Id (power), a direct trade-off between Av and f0
+
+                                    E.g., fu = Avfo = 1GHz and Av = 1800
+
+
+
+
+                                       Too slow!
+
+
+•   We can trade power for speed: 2X power  2X speed
+•   Is there a smarter approach?
+                                                                      7
+                    Cascade 2 Amplifiers
+• Analysis
+   – 2 amplifier  2X power
+   – Total gain Av  each amplifier with gain of Av0.5 and BW of AV0.5f0
+   – Thus, the overall bandwidth ≈ AV0.5f0 >> 2f0
+   – Much favorable tradeoff!
+• Can cascade even more
+
+
+
+
+                                                                           8
+                 Cascade of Amplifiers
+
+
+
+
+                     /
+In each stage:
+
+Overall:                                           /
+
+
+
+                             Av : Total gain requirement
+                             w0N: 3dB bandwidth of N stage realization
+                                                                 9
+               Bandwidth Perspective
+
+                                   /
+                                       /
+
+
+              1500
+
+
+         𝜔    1000
+         𝜔                                           (Av=10,000)
+               500
+
+
+                0
+                     0     5               10   15
+                               𝑁
+
+
+
+• As N increases, the return in BW diminishes and the power
+  goes up. We do not want too large N.
+• We also do not prefer a large N from the delay perspective.
+                                                                   10
+                 Bandwidth vs. Delay
+
+• What we care most is the comparator delay.
+• Comparators in ADCs are usually clocked.
+   – Comparison starts when f = 1; reset when f = 0
+• Analysis: the input is equivalent to a step
+
+
+
+
+                                                      11
+                     Step Response (1)
+
+• Calculate the comparator delay for a step input:
+
+
+
+                                                /
+
+
+
+
+                                                    /
+                                     /
+                                 ⋅
+
+
+
+
+                                         A(t)
+
+
+                                                        12
+                                 Step Response (2)
+
+                           10
+
+
+                            8
+                                 d(N=3)
+      Step response A(t)
+
+
+
+
+                            6                                                 10(1-e-1)
+
+
+                            4                               N=1
+                                                            N=3
+                                                            N=5
+                            2
+                                                            Av*(1-e-1)
+
+                            0
+                             0         5               10                15
+                                           Time t/u
+
+
+• 3-stage amplifier wins for Av=10!
+
+                                                                                          13
+                               Delay vs. Number of Stages
+
+
+                          50
+                                                                    Av=10
+                                                                    Av=100
+                          40                                        Av=1000
+       Delay time d/u
+
+
+
+
+                          30
+
+
+                          20
+
+
+                          10
+
+
+                           0
+                                2   4    6      8        10    12      14
+                                        N (Number of stages)
+
+• The minima are shallow
+                                                                              14
+                                  Optimum Number of Stages
+
+                           12
+
+                                    Numerical result
+                           10
+Optimum number of stages
+
+
+                                    ln(Av)
+
+                            8
+
+                            6
+
+                            4
+
+                            2
+
+                            0 0           1            2             3        4        5
+                            10       10           10            10       10       10
+                                                   Av (Total gain)
+
+
+
+
+                                                                                           15
+                                             Optimum Gain per Stage
+
+                                      5
+                                                                                  Numerical result
+A0,opt (Optimum gain per stage)
+                                  4.5                                             e
+                                      4
+
+                                  3.5
+
+                                      3
+
+                                  2.5
+
+                                      2
+
+                                  1.5
+
+                                      1 0               1     2               3           4            5
+                                      10           10       10          10           10           10
+                                                            Av (Total gain)
+
+
+                                  𝑁         ≈ ln( 𝐴 )                                         ,
+                                                                         ,
+
+
+                                                                                                           16
+          Can We Further Increase Speed?
+• Cascade multi-stage integrators
+• Regenerative latch using positive feedback
+   – E.g. cross coupled inverters
+
+
+
+
+                                               17
+                  Cascade of Integrators
+
+
+
+
+• Intuition
+   – Load resistors (in cascade of open loop amplifiers) shunt signal
+      current away from load capacitance  this slows down the
+      amplification
+   – Let us use all signal currents to charge the load capacitor
+• Step response analysis
+
+
+
+
+                                                                        18
+                                     Simulation Results
+
+
+                                 N=1                                                       N=3
+                     10                                                         10
+
+
+                      8                                                          8
+Step response A(t)
+
+
+
+
+                                                           Step response A(t)
+                      6                                                          6
+
+
+                      4                                                          4
+
+                                       N=1 (with R)                                               N=3 (with R)
+                      2                                                          2
+                                       N=1 (integ)                                                N=3 (integ)
+                                       Av*(1-e-1)                                                 Av*(1-e-1)
+                      0                                                          0
+                       0   5           10             15                          0   5            10            15
+                               Time t/u                                                  Time t/u
+
+
+
+
+                                                                                                                      19
+                                 Analysis
+
+• Cascade of integrators is faster than cascade of resistively loaded stages
+• Integrator requires reset, but not a problem due to clocked comparison
+• Delay time
+                                              /
+
+
+
+•   Optimum number of stages approximately given by
+
+             Nopt  1.1ln  A( d )  0.79       [Wu, JSSC 12/1988)
+
+
+•   Effective gain per stage is still close to e≈2.7183
+•   Can we further increase the speed but without requiring many
+    stages?
+
+                                                                        20
+Use Positive Feedback – Regenerative Latch
+
+                       setup initial condition
+                       enable positive feedback
+
+
+
+
+                                                  /
+
+
+
+                                      /
+
+
+
+
+                                                      21
+                                      Comparison
+
+                                10
+
+
+           Amplification A(t)    8
+
+
+                                 6
+
+
+                                 4
+                                                            N=3 (with R)
+                                                            N=3 (integ)
+                                 2
+                                                            Latch
+                                                            Av*(1-e-1)
+                                 0
+                                  0    5               10                  15
+                                           Time t/u
+
+
+• Exponential wins over polynomial!
+• Latch is much faster than cascade of amplifiers/integrators
+                                                                                22
+                           Latch "Gain"
+
+
+                   A(d)                   d/u
+
+                    10                      2.3
+
+                    100                     4.6
+
+                   1,000                    6.9
+
+                  10,000                    9.2
+
+
+
+•   Trade exponential gain (A) with linear delay (d)
+•   Better than amplifier and integrator
+                                                        23
+        Standard Comparator Architecture
+
+
+
+
+• Why bother using pre-amplification?
+   – Offset
+      • Use pre-amplification to lower input referred offset
+      • Hard to build latches with offset < 10~100mV
+   – Common mode rejection
+      • Comparator offset can be input dependent
+   – Attenuate "kickback noise"
+   – Metastability
+                                                               24
+                      Metastability (1)
+
+• Consider minimum initial latch input voltage needed to regenerate to
+  VDD within maximum available time Tmax
+
+                                      /
+
+
+•   Minimum-required pre-amplifier input
+
+                                           /
+
+
+•   Probability of seeing a metastable output
+
+
+
+
+                                                                     25
+                            Metastability (2)
+
+• Assuming a uniform input signal distribution over some range, we have
+                                                  PDF
+
+
+                        𝑉
+           𝑃(Error) =
+                        𝑉              -Vid0max               +Vid0max
+                                              -Vid0min +Vid0min
+
+•   In a flash ADC, only 1 comparator can be metastable. The
+    effective input range Vid0max over which the signal is distributed
+    is thus D/2
+                                  /
+                                                         /
+
+
+
+
+                                                                         26
+                       Metastability (3)
+
+•   Example: 6-bit, 1GHz Flash ADC, Tmax=Ts/2=0.5ns,
+    u=1/(2p·10GHz)=16ps, Av=3, VFS=VDD
+                                         /
+
+
+
+•   Mean time to failure (MTF)
+                 1             1
+     MTF                 12       sec  1000 sec  17min
+             P(Error) f s 10 110 9
+
+
+• We can enlarge MTF by
+   – Reducing speed (larger Tmax/u)
+        • Exponential dependence
+    – Increasing pre-amplifier gain Av
+        • Linear dependence
+
+
+                                                              27
+                   Comparator Offset
+
+
+
+
+• Example: sVOS1=1mV, sVOS2=10mV, Av=10
+
+
+
+
+                                          28
+            Causes for Comparator Offset
+• Vth mismatch
+• Device dimension mismatch
+• Load capacitance mismatch
+   – Load both sides even if only one side output is needed
+   – Be careful about wiring
+
+
+
+
+                                                              29
+              Load Capacitance Mismatch
+
+
+
+                                            DC  C1  C2
+
+
+
+
+•   Can show Vos  0.5(V(t=0)-VS)DC/C; VS = inverter switching voltage
+     – Nikoozadeh & Murmann, IEEE TCAS II, Dec. 2006.
+•   Example
+     – 0.5·10fF/100fF·(1V-0.5V)= 25mV (!)
+•   Need to match the output load.
+
+
+                                                                   30
+                Preamp Offset Cancellation
+
+
+Output Series
+Cancellation
+
+
+
+
+Input Series
+Cancellation
+
+
+
+
+                                             31
+                Output Series Cancellation
+
+
+
+          f2
+                                                   f2
+
+           f1
+                                              f1
+
+
+
+
+• Phase 1: Offset storage; Phase 2: Amplify
+• Design considerations
+   – Must ensure that amplifier does not saturate during phase 1
+   – Must make C sufficiently large to avoid attenuation and mitigate
+     charge injection error
+                                                                        32
+                Input Series Cancellation
+
+
+
+                                            f1
+
+
+                f2
+
+
+                 f1
+
+
+
+• Phase 1: Offset storage; Phase 2: Amplify
+• In phase 2, input referred offset  Vos/(A+1)
+   – 4x reduction if A=3
+
+                                                  33
+   What about using an integrator as pre-amp?
+• Integrator vs. pre-amp
+   – Faster, higher gain, lower noise, better suppression for latch noise/offset
+• Cannot use traditional input/output series offset cancellation
+   – Too slow to settle due to high gain
+   – Can saturate for output series offset cancellation
+• Use a diode-connected gm to store the current mismatch
+
+
+
+
+           Gm1                            Gm2
+
+                            Gaz1                            Gaz2
+
+
+
+                                                                          34
+       Comparator Transient Noise Simulation
+
+• Comparator is a dynamic circuit
+   – Not LTI
+   – No operating point  AC noise simulation does not apply
+• Transient noise simulation works
+   – We give an nonzero input, and calculate the input referred
+     comparator noise based on the histogram
+
+
+
+
+                                                                  35
+Vin = 100 uV
+
+
+
+
+               36
+Vin = 300 uV
+
+
+
+
+               37
+Vin = 500 uV
+
+
+
+
+               38
+          Comparator Noise Simulation (2)
+• Assuming comparator input referred noise follows normal distribution,
+  we can estimate comparator noise s based on the following formula:
+
+
+
+
+• Vin = 300uV, P(Dout=1) = 80%  s  350uV
+   – In MATLAB, s = Vin /norminv(P,0,1)
+• To reduce estimation error, we want to:
+   – Simulate more samples
+   – Make Vin  s
+• Be careful
+   – If the comparator has offset (due to post-layout asymmetry), we
+      need to take it away first
+   – We also need to ensure the comparator is fully reset (no memory
+      effect), otherwise there will be correlation between samples, causing
+      miscalculations
+                                                                          39
+           Comparator PNOISE simulation
+
+• We can use transient noise, but it is sometimes too slow due to
+   – Large noise bandwidth needed
+       • In TSMC 40nm, I found that the noise bandwidth typically
+         needs to be at least 50GHz
+   – Long simulation time (at least 100+ points are needed)
+• Yet, there are still randomness, which can cause the noise estimation
+  to fluctuate
+• It would be nice if we can get PSS PNOISE simulation to work
+    – Although there is no steady-state for a comparator especially
+      when its input is very small, it seems that the time-domain
+      PNOISE simulation is correct.
+
+
+
+                                                                      40
+    PSS/PNOISE
+• We can set up the comparator and give a very
+  small input (e.g., 1mV).
+• Then we run PSS simulation to get steady state
+  (without the presence of noise)
+
+
+
+
+                                               41
+                             PSS/PNOISE
+• We can calculate the gain of the comparator at specific times instances
+   – We can also estimate comparator time constant
+   – If we can calculate the total time-domain integrated noise, then we
+     know the total input referred noise
+
+
+
+
+                                                                            42
+   Run PNOISE
+
+• PNOISE gives us the noise at specific time points
+   – Here I am calculating the noise at 90ps and
+     100ps
+• In sidebands, now we can choose “full spectrum”
+   – It automatically calculates the number of
+       sideband needed
+   – It uses APS so the simulation time is very
+       short
+
+
+
+
+                                                43
+                  PNOISE Simulation Results
+• The input referred noise does not       • Runtime for 6 time points
+  change much with time                      – Only 4 seconds
+• As long as we are in regeneration
+  phase, the total input referred noise
+  remains roughly the same
+• Why?
+   – In regeneration phase, both
+     signal and noise grows at the
+     same rate
+   – Can be derived using Langevin
+     equation with negative
+     resistance
+
+
+
+                                                                        44
+Transient noise simulation
+
+            • Using APS for speed-up
+               – Without APS, 40G BW would take
+                  84s, flip rate 0.15
+            • Simulating 500 points
+               – There is still fluctuations in the
+                 output, and we still underestimate
+                 the noise
+            • In comparison, PSS/PNOISE is 10x faster
+               – Can be used in comparator
+                  synthesis
+
+
+
+
+                                              45
+                 Static Comparator #1
+
+• Mehr & Dalton, JSSC 7/1999
+
+
+
+
+                                        46
+                   Static Comparator #1
+
+• Mehr & Dalton, JSSC 7/1999
+
+
+
+
+•   Two stage gain; current re-use; short the output to clear charge
+                                                                       47
+                      Static Comparator #2
+
+   • Mehr & Singer, JSSC 3/2000
+
+
+
+
+• Input series cancellation; provide input common mode; couple the current
+                                                                        48
+   Strong-Arm Latch
+
+Fully-dynamic: no static current
+
+
+
+
+                                   49
+Simulation for Vin = 1mV
+
+
+
+
+                           50
+Simulation for Vin = 1uV
+
+
+
+
+                           51
+Pre-amplification phase: dynamic integrator
+
+
+
+
+              ,       /                       52
+                           Latch phase
+
+
+                                 • Both signal and noise grows
+                                   exponentially
+                                 • Latch input referred noise does
+                                   not decrease with time
+
+
+
+
+                                                                 53
+
+[P. Nuzzo, TCAS-I, 2008]
+          Comparator noise and offset analysis
+
+
+
+
+• For a well-optimized comparator, we prefer:
+   – Large G: attenuate the noise from the latch stage
+        • For Strong-Arm, G is 3~5
+   – Large gm/ID: it improves energy efficiency
+        • In practice, gm/ID is 10~20 V-1
+        • A too-large gm/ID slows down the comparator and increases the
+          comparator input capacitance
+
+
+                                                                          54
+Strong-Arm Latch
+
+
+        • Dynamic pre-amp
+        • No static current
+
+
+        • Tail transistor operates in linear
+          region
+        • Common-mode variation
+        • Process corner variation
+        • Speed issue with low Vcmi
+        • Large room for energy efficiency
+          boost
+
+
+                                          55
+                 Impact of Vcmi and Process Corner
+                                  • A smaller Vov increases gm/ID
+                                    and G, but it slows down the
+                                    comparator
+                                  • Comparator offset and noise
+                                    increases as G decreases
+
+
+
+
+                                                                    56
+
+[Chen, ISCAS, 2016]
+                          Two-stage comparator v1
+        • Decouple regeneration from pre-amp; increase speed 
+        • M10/11 starts from linear region  low preamp gain 
+
+
+
+
+                                                                 57
+
+[Schinkel, ISSCC, 2007]
+                          Two-stage comparator v2
+
+• M14/15 provide extra gain 
+• M14/15 starts from saturation  increased preamp gain 
+
+
+
+
+                                                            58
+
+[Miyahara, ASSCC, 2008]
+                         Two-stage comparator v3
+
+
+
+
+       • M6/7 starts from saturation  increased preamp gain 
+       • CP fully discharged  waste of energy 
+                                                                 59
+
+[Elzakker, JSSC, 2010]
+                          Dynamic biasing
+
+
+
+
+    • CP only partially discharged 
+    • gm/ID increases as time goes by      60
+
+[Bindra, JSSC, 2018]
+                        Bidirectional integration
+
+
+
+
+           • 2 times current reuse 
+           • CP fully discharged        limited pre-amp gain 61
+[M. Liu, ISSCC, 2015]
+                        Cascade-input comparator
+
+
+
+
+           • Triple integration  3X preamp gain 
+           • CP fully discharged 
+           • No net energy efficiency boost for the preamp 
+                                                               62
+
+[S.-E. Hsieh, JSSC, 2018]
+                              Objective
+
+                              Energy-efficiency          Robustness
+                     Current Partially Dynamic Pre-amp   CM/Process
+                      reuse discharge    bias    gain    insensitivity
+Strong-Arm                                                
+2-stage v1                                               
+2-stage v2                                                
+2-stage v3                                                
+Dynamic Bias Int.                                         
+Bidirectional Int.                                        
+Cascade Input                                            
+Objective                                               
+                                                                  63
+                                   Schematic
+       • Floating Inverter Pre-Amplifier (FIA) + Strong-Arm Latch
+
+
+
+
+                                                                    64
+
+[X. Tang, VLSI, 2019]
+              Conventional NMOS Integration
+
+• Conventional NMOS Integration
+
+
+
+
+                                              65
+          Dynamically-biased NMOS Integration
+• Dynamically-biased NMOS integration
+   – CTAIL as degeneration capacitor
+
+
+
+
+                                                66
+          Dynamically-biased CMOS Integration
+• Dynamically-biased CMOS integration
+   – Current reuse 
+
+
+
+
+                       >2.5x average
+                       gm/ID boost
+
+
+
+
+                                                67
+          Dynamically-biased CMOS Integration
+• Dynamically-biased CMOS integration
+   – Current reuse 
+   – Process robustness 
+
+
+
+
+                                                68
+          Dynamically-biased CMOS Integration
+• Dynamically-biased CMOS integration
+   – Current reuse 
+   – Process robustness 
+   – Input CM insensitivity 
+
+
+
+
+                                                69
+        Dynamically-biased CMOS Integration
+
+• Dynamically-biased CMOS
+  integration
+   – Current reuse 
+   – Process robustness 
+   – Input CM insensitivity 
+
+
+
+
+                                              70
+                    Robust CMOS Integration
+
+• Isolated voltage domain for FIA
+
+
+
+
+                            Merged CTAIL
+
+                                    1
+                            𝐶   =     𝐶
+                                    2
+
+
+
+
+                                              71
+                    Robust CMOS Integration
+
+• Isolated voltage domain for FIA
+    – IRES+ = IRES-
+
+
+
+
+                                              72
+                    Robust CMOS Integration
+
+• Isolated voltage domain for FIA
+    – IRES+ = IRES-
+    – IINT+ = IINT-
+    – Constant output CM voltage
+
+
+
+
+                                              73
+                  Process Corner Insensitivity
+
+• Isolated voltage domain for FIA
+    – IRES+ = IRES-
+    – IINT+ = IINT-
+    – Constant output CM voltage
+• Process corner variation
+   – Auto-balanced PMOS/NMOS strength
+   – Current reuse preserved
+
+
+
+
+                                                 74
+                  Process Corner Insensitivity
+
+
+• Simulated FIA behavior with process corners
+
+
+
+
+                                                 75
+             Input Common-Mode Insensitivity
+
+
+• Isolated voltage domain for FIA
+    – IRES+ = IRES-
+    – IINT+ = IINT-
+    – Constant output CM voltage
+• Input CM variation
+   – Initial VOV remains constant
+   – Current reuse preserved
+   – FIA operation isolated from input CM
+   – CM insensitive offset/noise/power/speed
+
+
+
+
+                                               76
+             Input Common-Mode Insensitivity
+
+• Simulated FIA behavior with input CM voltage
+
+
+
+
+                                                 77
+        Input Common-Mode Insensitivity
+• Isolated voltage domain for FIA
+    – Output CM remain constant with input CM voltage varying from
+      0.4V to 0.8V
+
+
+
+
+                                                                     78
+              Input Common-Mode Insensitivity
+
+• Isolated voltage domain for FIA
+    – Settled FIA gain variation <10% with input CM varying from 0.4V to 0.8V
+
+
+
+
+                                                                           79
+                     Simulated CLK-Q delay
+
+• Simulated CLK-Q delay vs. input CM voltage
+   – Strong-Arm: large delay at lower CM
+   – Proposed comparator: much less delay variation
+
+
+
+
+                                                      80
+                    Parasitic Capacitance
+
+• 1.5% parasitic capacitor on both sides
+   – Vx,cm variation less than 100mV for 400mV VI,cm variation
+   – Still achieve over 30-dB improvement in CMRR
+
+
+
+
+                                                                 81
+                  Comparator Operation
+• Floating Inverter Pre-Amplifier (FIA) + Strong-Arm Latch
+
+
+
+
+                                                             82
+                             Chip Micrograph
+
+  • Fabricated in 180nm CMOS with 1.2V power supply
+     – Proposed comparator
+     – Standard SA latch with 2x input pair size for the same initial
+
+
+
+
+                                                                        83
+
+[X. Tang, VLSI, 2019]
+ Measured Cumulative Distribution Functions (CDF)
+
+• Measured CDF with 1.2V supply and 0.6V input CM voltage
+   – Strong-Arm: 62 uV @ 4.1 pJ/conv
+   – Proposed Comparator: 46 uV @ 0.98 pJ/conv
+
+
+
+
+                                                            84
+               Measured Input-referred Noise
+
+• Measured comparator noise variation vs. input CM voltage
+   – Strong-Arm: large noise at higher CM
+   – Proposed comparator: >4X noise variation reduction
+
+
+
+
+                                                             85
+             Measured Input-referred Offset
+
+• Measured comparator offset variation vs. input CM voltage
+  – Both comparators calibrated at 0.6V input CM voltage
+  – Proposed comparator: >5X offset variation reduction
+
+
+
+
+                                                              86
+             Measured Energy Consumption
+
+• Measured energy consumption vs. differential input voltage
+  – Proposed comparator: >4X energy reduction over all cases
+
+
+
+
+                                                               87
+                        Comparison with Prior Works
+
+
+        Specifications             This Work                  [2]                [5]
+
+          Featured            Proposed   Standard   Dynamic         Double-    Double-
+         Architecture          FIA+SA       SA        Bias          Tail [4]     Tail
+
+         Process [nm]           180        180         65              65         90
+          Supply [V]            1.2        1.2        1.2              1.2       1.2
+          Noise [uV]             46         62        400             450       1500
+          Energy [pJ]           0.98       4.1       0.034           0.088      0.113
+         FoM* [nJ∙uV2]          2.07       15.8      5.44             17.8       254
+
+         Insensitive to
+                                Yes            No     No              No         No
+       Input CM voltage
+     *𝑭𝒐𝑴 = 𝑬𝒏𝒆𝒓𝒈𝒚      (𝑵𝒐𝒊𝒔𝒆𝑷𝒐𝒘𝒆𝒓)
+
+
+
+                                                                                   88
+
+[X. Tang, VLSI, 2019]
+                              Objective
+
+                              Energy-efficiency          Robustness
+                     Current Partially Dynamic Pre-amp   CM/Process
+                      reuse discharge    bias    gain    insensitivity
+Strong-Arm                                                
+2-stage v1                                               
+2-stage v2                                                
+2-stage v3                                                
+Dynamic Bias Int.                                         
+Bidirectional Int.                                        
+Cascade Input                                            
+Objective                                               
+                                                                  89
+

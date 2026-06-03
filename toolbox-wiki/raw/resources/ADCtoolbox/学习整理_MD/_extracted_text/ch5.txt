@@ -1,0 +1,1390 @@
+Sampling Circuits
+
+
+
+       Nan Sun
+  Tsinghua University
+nansun@tsinghua.edu.cn
+
+
+
+                         1
+                        ADC Big Picture
+
+
+
+
+• How to build a sampling circuit in the real-world?
+   – Ideal Dirac sampling is impractical
+   – Build a track and hold circuit
+
+
+
+
+                                                       2
+                 Ideal Track-and-Hold Circuit
+
+
+
+
+•   Infinitely fast and accurate tracking of Vin
+•   No error in the hold phase
+                                                   3
+                Circuit with MOS Switch
+
+
+
+
+•   Tracking error
+•   Pedestal error
+                                          4
+                          Nonidealities
+• Switch resistance
+   – Finite acquisition time
+   – Thermal noise
+   – Nonlinear resistance
+• Switch capacitance
+• Sampling clock jitter
+• Other nonidealities
+
+
+
+
+                                          5
+                 Finite Acquisition Time
+• Case 1: Input is a sampled data   • Case 2: Input is a varying
+  signal, e.g. the output of a        continuous-time signal
+  switched capacitor circuit
+
+
+
+
+                                             Track    Hold
+        Track Hold
+
+                           t                                       t
+  Vin                                Vin
+
+                                       0
+                            t                                      t
+
+
+
+                                                                   6
+              Finite Acquisition Time – Case 1
+
+• For simplicity, let us ignore the finite rise time of Vin
+• Consider the worst case: Vout settles from 0 to VFS
+
+        1st-order MOS switch model
+
+
+
+
+                      /
+
+                                     /
+
+
+
+
+                                                              7
+              Finite Acquisition Time – Case 1
+• We want the settling error |Verr| < ½ LSB?
+
+          /
+
+
+
+• The required # time constant N:
+                                               B     N
+                                               6    >4.9
+                                               10   >7.6
+• Does settling error cause distortion?
+                                               14   >10.4
+                                               18   >13.2
+
+
+
+
+                                                            8
+           Finite Acquisition Time – Case 2
+
+• Consider a sinusoidal input with zero offset
+
+
+                                                             Amplitude
+                                                             attenuation
+                                                                               Delay
+
+
+                                                    /
+
+
+
+
+                                              Initial
+                                                            Steady-state
+                                          discontinuity
+                                                          RC filter response
+                                             settling
+
+
+
+
+                                                                           9
+           Finite Acquisition Time – Case 2
+• The error at t=Ts/2 consists of two parts:
+   – Error due to the exponential decay of the initial discontinuity
+       • Similar to Case 1, it decays with time
+   – Error in the steady-state term
+       • Result of RC LPF
+            – Magnitude attenuation and phase shift
+            – It depends on RC (filter response) and the input
+              frequency
+            – It does not decay with time
+       • Will this error cause distortion?
+       • How large is the amplitude attenuation?
+
+
+
+
+                                                                       10
+             Finite Acquisition Time – Case 2
+
+• Let us calculate the percent amplitude error
+
+
+
+
+• Amplitude error increases with fin, but decreases with N.
+
+         B          N         Aerr (f = fs/10)     Aerr (fin = fs/2)
+         6         4.9            0.20%                  5%
+        10         7.6            0.08%                  2%
+        14        10.4            0.05%                  1%
+        18        13.2            0.03%                 0.7%
+                                                                       11
+        Summary – Finite Acquisition Time
+
+• For sampled-data input, we can achieve accurate tracking given a
+  sufficient amount of time.
+• For continuous input, we need to consider the errors due to both the
+  initial settling and the filter response.
+   – In applications where attenuation is intolerable, we may need to
+       further reduce the RC time constant.
+   – In applications where attenuation is tolerable, the RC time
+       constant is usually set by the distortion specs.
+         • The larger the attenuation, the larger the instantaneous
+            voltage drop across the nonlinear MOSFET  undesired
+            harmonics.
+• What about the phase delay?
+   – The sampled input is always a delayed (t) version.
+
+                                                                     12
+Thermal Noise
+
+
+       • Transistor thermal noise dominates
+       • 1/f noise can be ignored
+          – 1/f noise is like an offset
+
+
+
+
+                       ∞
+                               1          𝑘𝑇
+      |𝑣   [𝑛]| = 4𝑘𝑇𝑅               𝑑𝑓 =
+                       0 1 + (2𝜋𝑓𝑅𝐶)      𝐶
+
+
+
+
+                                          13
+                  Equipartition Theorem
+
+• Equipartition theorem in statistical physics states that in thermal
+  equilibrium each degree of freedom holds on average thermal energy
+  of kT/2.
+• In an electronic circuit, each independent capacitor holds an electric
+  energy of kT/2 and each independent inductor holds a magnetic
+  energy of kT/2.
+• This theorem can help reduce the complexity of noise analysis.
+• Use this theorem cautiously!
+
+
+
+
+                                                                           14
+                            kT/C Noise
+
+• Assuming that we make the kT/C noise equal to the quantization
+  noise of a B-bit ADC
+
+
+
+
+• Assuming VFS = 1V,
+
+                       B             C [pF]
+                       8             0.003
+                       10            0.052
+                       12            0.834
+                       14             13.3
+                       16             213
+                       18            3416
+                                                                   15
+Real-World Example
+
+
+            • LTC 2242
+            • 12-bit ADC
+            • Why 2pF?
+
+
+
+
+                           16
+              Voltage Dependence of Ron
+
+
+
+
+                                 →
+
+
+
+
+• RON is dependent on Vin
+
+
+                                          17
+                Track Mode Nonlinearity
+
+
+
+
+                                          [Razavi, Data Conversion System Design, p.16]
+
+
+
+
+• Vout tracks Vin well for small Vin
+   – Large Vin  large Ron  distortion
+
+                                                                                18
+                            Analysis
+
+
+
+
+• We can solve the above equation use Volterra Series analysis
+   – General method that allows us to calculate the frequency domain
+     response of nonlinear circuits with memory
+   – See [Yu, TCAS II, 2/1999]
+
+
+
+
+                                                                   19
+                                Result
+
+
+
+
+• VGS is the value of the gate-source voltage when AC input is zero.
+• For low distortion
+   – Make amplitude A smaller than (VGS-Vth)
+        • Low swing  SNR decreases
+    – Make w smaller
+        • Low frequency  speed decreases
+    – Make t=RC smaller
+        • Big switch  parasitic caps increases and driving power goes up
+
+
+
+                                                                            20
+                             Example
+
+• Parameters
+   – VDD = VCLK = 1.8V
+   – Vin is centered at VDD/2 = 0.9V
+   – VGS-Vth = 1.8V - 0.9V - 0.45V = 0.45V
+   – A = 0.4V
+   – N = 0.5Ts/t = 10
+   – fin = fs/2
+
+
+
+
+• The nonlinearity is huge. How can we reduce it?
+
+
+
+                                                    21
+                        CMOS Switch
+
+• Adding a PMOS can reduce the resistance variation
+   – As VIN increases, NMOS resistance goes up, but PMOS resistance
+     goes down
+
+
+
+
+                                                                      22
+                              Analysis
+
+
+
+
+                                     if
+
+
+• R is independent from Vin; however, this model is over-simplified.
+• Missing factors
+   – Short channel effects
+   – Back-gate effect
+
+                                                                       23
+                        Real CMOS Switch
+
+
+                                       100
+                                              NMOS
+                                        80    PMOS
+                                              NMOS || PMOS
+                                        60
+
+
+
+
+                               R []
+                                        40
+
+                                        20
+
+                                         0
+                                          0      0.5           1   1.5
+From B. Murmann, EE 315, Ch.
+                                                         Vin [V]
+             5
+
+
+• There are still large resistance variations. The benefit is limited.
+
+
+
+                                                                         24
+                             Clock Bootstrapping
+
+                  Hold phase                                            Track phase
+
+
+
+           +                                                   +
+          VDD                                                 VDD                    VGS=VDD=const.
+                    Cboot                                      -        Cboot
+           -
+
+                                                                          Vin
+
+   A. Abo, "Design for Reliability of Low-voltage, Switched-capacitor Circuits," PhD Thesis, UC Berkeley, 1999.
+
+
+• Hold phase
+   – Sampling switch is off
+   – Cboot is precharged to VDD
+• Track phase
+   – Sampling switch is on with VGS=VDD=const
+   – Thus, Ron is signal independent
+                                                                                                            25
+                                     Waveforms
+
+
+
+
+A. Abo, "Design for Reliability of Low-voltage, Switched-capacitor Circuits," PhD Thesis, UC Berkeley, 1999.
+
+
+                                                                                                         26
+                  Implementation Issues
+
+                                           PMOS thick       NMOS thick
+                                           oxide switch     oxide switch
+
+
+
+
+                                                                 May exceed
+                                                                    VDD
+
+
+
+• VGS or VGD may exceed VDD, causing transistor breakdown.
+• Thick oxide devices can be used to ensure reliability, leading to
+  increased cost, larger parasitic capacitance, and larger resistance.
+
+                                                                         27
+                With Thick-Oxide Devices
+
+
+
+
+Siragusa and Galton, “A digitally enhanced 1.8-V 15-bit 40-Msample/s CMOS
+pipelined ADC," JSSC, Dec. 2004.
+                                                                            28
+                 Without Thick-Oxide Devices
+
+
+
+
+Dessouky and Kaiser, "Input switch configuration suitable for rail-to-rail operation of
+switched opamp circuits," Electronics Letters, Jan. 1999.
+
+                                                                                          29
+                    Another Implementation
+
+
+
+Voltage
+doubler
+
+
+                                                                    Switch
+
+
+
+
+          A. Abo et al., “A 1.5-V, 10-bit, 14.3-MS/s CMOS Pipeline Analog-to-
+          Digital Converter,” IEEE J. Solid-State Circuits, pp. 599, May 1999
+
+
+                                                                                30
+                     Simplified Implementation
+• An incremental design procedure to complete the schematic
+   – B. Razavi, "The Design of a Bootstrapped Sampling Circuit [The Analog Mind]"
+
+
+
+
+          C.-C. Liu, “A 10-bit 50-MS/s SAR ADC with a monotonic capacitor
+          switching procedure,” IEEE J. Solid-State Circuits, pp. 731, 2010
+                                                                              31
+                         Design Procedure
+• A complete bootstrapped switch model
+   – 1 capacitor with 5 switches
+   – Track mode: S1 and S3 on
+   – Hold mode: S2, S4, and S5 on
+
+
+                         S4         S3   S5
+
+
+
+
+                         CB
+
+                                    S1
+
+                    S2
+                              Vin             Vout
+                                                     32
+                          Design Procedure
+• S2 and S5 must be NMOS devices because they pull nodes to ground
+   – Cascode implementation of S5 avoids using thick-oxide device
+
+
+
+                                                  
+                          S4         S3
+
+                                             S5
+
+
+
+                          CB
+
+                                     S1
+                     S2
+
+                              Vin                Vout
+                                                                     33
+                         Design Procedure
+• The gate of S1 should be bootstrapped similar to the main switch
+   – If connected to (0 VDD), S1 will turn off with large input swing
+
+
+
+                                                  
+                         S4         S3
+
+
+
+
+                         CB
+
+                                         S1
+
+                             Vin                  Vout
+                                                                        34
+                        Design Procedure
+• S4 must be a PMOS device to charge CB in the hold mode
+   – Body connection?
+   – Gate connection?
+
+
+                         ？                      
+                                   S3
+
+                        S4
+
+
+
+                        CB
+
+
+
+
+                            Vin                 Vout
+                                                           35
+                         Design Procedure
+• S4 must be a PMOS device to charge CB in the hold mode
+   – The body should be connected to terminal with the highest voltage
+   – The gate should be bootstrapped
+       • If connected to (0 VDD), S4 fails to turn off in the track mode
+                                                  
+                                    S3
+
+                         S4
+
+
+
+                         CB
+
+
+
+
+                             Vin                  Vout
+                                                                           36
+                         Design Procedure
+• S3 should be a PMOS device to pull up the gate of the main switch
+   – Hold mode: Vgate = VDD
+   – Track mode: Vgate = Vin to avoid using thick-oxide device
+   – Body connection?
+                                                    
+
+                                    S3
+
+                                     ？
+
+
+                         CB
+
+
+
+
+                             Vin                  Vout
+                                                                      37
+                         Design Procedure
+• S3 should be a PMOS device to pull up the gate of the main switch
+   – Hold mode: Vgate = VDD
+   – Track mode: Vgate = Vin to avoid using thick-oxide device
+   – Body should be connected to terminal with the highest voltage
+                                                    
+
+                                   S3
+
+               
+
+
+                        CB
+
+
+
+
+                            Vin                  Vout
+                                                                      38
+                         Design Procedure
+• An extra NMOS device is necessary for the start-up of the bootstrapped circuit
+   – Initially pull down the gate of S3
+
+
+
+                                                   
+
+                                    S3
+
+
+
+              
+
+                         CB
+
+
+
+
+                             Vin                  Vout
+                                                                          39
+                            Design Procedure
+• Finally, here is what we’ve got!
+
+
+
+
+         C.-C. Liu, “A 10-bit 50-MS/s SAR ADC with a monotonic capacitor
+         switching procedure,” IEEE J. Solid-State Circuits, pp. 731, 2010
+                                                                             40
+            Limitation of Bootstrap Technique
+• Parasitic capacitance at the gate
+  of the sampling switch
+   – Capacitive divider  VGS not a
+      constant
+   – Can be alleviated by
+      increasing the size of the
+      bootstrap capacitor
+        • However, limited by the
+          intrinsic parasitic cap
+          associated with the
+          bootstrap cap
+• Back-gate effect
+   – Can be alleviated by using       Brunsilius, ISSCC 2011, 10.4, pp. 186
+     triple well process
+
+                                                                         41
+     Performance of Bootstrapped Sampler
+• Bootstrapped sampling tends to work well up to 60 dB linearity
+   – Now the linearity bottleneck is related to the switch capacitance.
+• Example
+
+
+
+
+       [Louwsma, JSSC 4/2008]
+
+
+
+
+                                                                          42
+                          Nonidealities
+• Switch resistance
+• Switch capacitance
+   – Clock feedthrough
+   – Channel charge injection
+• Sampling clock jitter
+• Other nonidealities
+
+
+
+
+                                          43
+      Charge Injection & Clock Feedthrough
+
+                                             Track Hold
+             
+                   Col      Clock
+      Tf                 feedthrough                             t
+                                       Vin
+    Vin                      Vout
+             -
+     Charge e
+                         C
+     injection                                                   t
+                                       Vout         ideal
+                                                             “Pedestal error”
+                                                    actual
+• Analyze two extreme cases
+   – Slow gating with a large Tf                                 t
+   – Fast gating with a small Tf
+
+                                                                        44
+Slow Gating
+
+
+
+      • All channel charges have
+        disappeared by Tf . They are
+        absorbed by the input source,
+        and thus, do not introduce error.
+      • Pedestal error is only due to clock
+        feedthrough.
+
+
+
+
+                                      45
+                   Slow Gating Model for t > Tf
+
+  Vin +Vth0
+
+        Col       Clock
+               feedthrough                        switch open
+
+                   Vout
+               C
+                                  Gain Error   Offset Error
+
+
+
+• Example: C=1pF, Col=2fF, and Vth=0.45V
+
+
+
+• Does this cause nonlinearity?
+
+                                                                46
+                            Fast Gating
+
+
+
+
+• Channel charge Qch has to flow to the input and the output nodes
+• Under fast gating, we assume a 50/50 split
+
+                                                                     47
+                          Fast Gating Model for t > Tf
+
+       
+               Col      Clock
+  Tf                 feedthrough
+
+Vin                      Vout
+           -
+ Charge e            C
+injection
+
+
+
+
+• Example: C=1pF, VDD=1.8V, Vth=0.45V, W=20mm, LCox=2fF/mm, and Col=2fF
+
+
+
+• Does this cause nonlinearity?
+                                                                    48
+                        Charge Split Ratio Data
+
+
+                                        Larger C2
+
+
+
+
+                                        Smaller C2
+
+
+
+                                                      Tf
+[G. Wegmann et al., IEEE JSSC, 1987]                 RonC2
+
+    • In practice, RonC2 and Tf are usually comparable
+    • Charge split depends on the impedances on both sides
+       – More charge will go to the side with lower impedance
+                                                                49
+                             Summary
+• In practice, the situation is in between slow gating and fast gating.
+• Slow gating shows less gain and offset error
+   – Unsuitable for high-speed
+   – More later
+• Are the gain error and the offset error really constant?
+   – No, our first-order model is not accurate enough.
+   – We have ignored back-gate effect and short-channel effect
+   – In practice, about 20% or 30% of what we calculated are nonlinear
+      errors
+
+
+
+
+                                                                          50
+                Does CMOS Scaling Help?
+
+
+
+
+• For the same R (speed), channel-charge induced error DV decreases
+  as technology advances
+   – Smaller L and larger m
+• For the same DV, R is smaller, leading to faster speed.
+• In general, switches benefit from CMOS scaling!
+                                                                      51
+                    Charge Cancellation
+
+
+
+
+[Eichenberger and Guggenbűhl, JSSC 8/89]
+
+
+• Perfect cancellation relies on
+   – Exactly 50% channel charge splitting
+• Limited improvement
+
+                                            52
+                   Differential Sampling
+
+
+
+
+• Offset will be cancelled, but the gain error remains the same.
+   – Differential circuit only cancels out the common mode.
+                                                                   53
+                         CMOS Switch
+
+
+
+
+• Unfortunately, the signal dependent parts do not cancel, but add!
+
+
+
+                                                                      54
+                  Bottom Plate Sampling
+
+• Key idea: sample Vin at the "grounded" side of the capacitor to
+  achieve signal independent sampling
+• This technique allows us to achieve high linearity in combination with
+  bootstrap technique
+• Original papers:
+   – D. J. Allstot and W. C. Black, “Technological Design Considerations
+      for Monolithic MOS Switched-Capacitor Filtering Systems,” Proc.
+      IEEE, pp. 967-986, Aug. 1983.
+   – K.-L. Lee and R. G. Meyer, “Low-Distortion Switched-Capacitor
+      Filter Design Techniques,” IEEE J. Solid-State Circuits, pp. 1103-
+      1113, Dec. 1985.
+
+
+
+
+                                                                       55
+Bottom Plate Sampling Analysis (1)
+
+
+                 • Turn M2 off "slightly" before M1
+                    – Typically 100 ps difference
+                 • When M2 is off, it injects charge
+
+
+
+
+                 • To 1st-order, the charge injected by
+                   M2 is signal independent
+                    – Assuming R1 does not depend
+                       on Vin
+                 • Voltage across C (50% split)
+
+
+                                                   56
+Bottom Plate Sampling Analysis (2)
+                 • The channel charge of M1 is
+                   signal dependent:
+
+
+
+
+                 • However, when M1 is off, it
+                   cannot inject charge to C
+                   because its bottom side is open.
+                 • This model is too ideal – we
+                   need to consider the parasitic
+                   cap
+
+
+
+
+                                                    57
+Bottom Plate Sampling Analysis (3)
+                 • There are parasitic capacitors
+                 • M1 will inject signal dependent
+                   charge onto the series
+                   combination of C and the
+                   parasitic capacitance at its
+                   bottom plate Cpar
+                 • This seems that the
+                   improvement is quite limited,
+                   as Vout is affected.
+                 • Nevertheless, if we consider
+                   the sampled charge instead of
+                   the voltage…
+
+
+
+                                                    58
+Bottom Plate Sampling Analysis (4)
+
+                 • Key observation:
+                    – Even though M1 injects
+                      charge to C, the total charge
+                      at node X cannot change!
+                 • Let us process total charge at
+                   node X instead of looking at
+      X
+                   voltage across C.
+
+
+
+
+                 • The charge can be processed in
+                   two ways
+                    – Open-loop
+                    – Closed-loop
+                                                    59
+Open-Loop Charge Processing
+
+             • During 1, Vin is sampled at X. Qx is
+               linearly proportional to Vin.
+             • Due to charge conservation, Qx
+               does not change when M3 is on 
+
+
+
+
+             • Signal flow: Vin  Qx  Vx
+             • Remaining drawback
+                – Cpar includes transistor parasitic
+                  cap. It is nonlinear and will
+                  introduce distortion.
+                                                 60
+           Closed-Loop Charge Processing
+
+
+
+
+•   The opamp forces voltage at node X to “zero”
+     – Means that charge at node X must redistribute onto
+       feedback capacitor CF
+
+                                                            61
+                Charge Conservation Analysis
+
+            During 1:                          During 2:
+
+
+
+
+Charge at node X during when M2 is off:   Charge at node X during 2:
+
+
+
+
+                                                                 62
+Behavioral Simulation
+
+
+
+
+                        63
+                                Comments
+• CF is highly linear (more later)
+• Gain can be provided.
+• Offset term can be easily removed by going differential.
+• Linearity can be limited by opamp (offset, insufficient gain, nonlinear gain)
+
+
+
+
+                                                                            64
+                     Clock Generation
+
+
+
+
+[A. Abo, "Design for Reliability of Low-voltage, Switched-capacitor Circuits," PhD
+Thesis, UC Berkeley, 1999]
+
+
+                                                                              65
+Fully Differential Circuit
+
+
+
+
+                             66
+            Analysis (1)
+
+During 1                  During 2
+
+
+
+
+              𝑉
+
+
+
+
+                  
+
+
+
+
+                                       67
+                          Analysis (2)
+
+• Subtracting 1) and 2), we obtain:
+
+
+
+•   Adding 1) and 2), we obtain:
+
+
+
+
+•   Vcmi (input common mode) shows up at the opamp input
+     – Opamp must have wide input common mode range
+     – Opamp must have good CMRR
+
+                                                           68
+          T/H with Common Mode Cancellation
+
+
+
+
+•   Shorting switch allows to re-distribute only differential charge
+•   Common mode at opamp input becomes independent of Vcmi
+
+                                                                       69
+                           Analysis (1)
+
+            During 1                             During 2
+
+
+
+
+•   Charge conservation at the left plate of C:
+
+
+
+
+                                                              70
+                        Analysis (2)
+
+• Common mode charge conservation at the opamp input node:
+
+
+
+
+•   Thus, opamp input common mode Vcmx is independent of
+     – Input common mode Vcmi
+     – Output common mode Vcmo
+         – Usually set by common mode feedback circuit
+
+
+
+
+                                                             71
+                         Flip-Around T/H
+
+
+
+                                                              CL
+
+                                          Vxp
+                                          Vxm
+
+                                                              CL
+
+
+
+
+•   The same cap used for both sampling and opamp feedback
+     – Larger feedback factor (lower noise, higher speed) 
+     – OTA is subjected to input common mode variations 
+                                                                   72
+                        Standard T/H Design
+
+
+
+
+• M1 is more effective in sampling the differential common mode
+   – M1 has half channel length
+• Ideally turn off M2 and M3 before M1
+   – Usually turn off simultaneously for simplicity
+• M4 and M5 should be larger than M1 as their resistances are signal dependent
+                                                                         73
+                Schematic and Layout of M1
+
+                                       Spice               Layout
+
+
+
+
+           1       M1
+
+
+
+
+                          From B. Murmann, EE 315, Ch. 5
+
+
+
+• M1 is usually implemented using anti-parallel devices to ensure symmetry
+   – Drain and source are not necessarily symmetric in circuit models
+   – Drain and source are not symmetric due to process artifacts
+
+                                                                        74
+            What Ultimately Limits Linearity?
+
+• Bottom-plate sampling plus clock bootstrapping solve majority
+  nonlinearity problems. We can achieve 80~100dB linearity up to a few
+  hundreds of MHz.
+• Limitation of clock bootstrapping: Rtop,SW varies with Vin due to back-gate
+  effects and parasitic capacitances (especially at high frequency)
+   – In the track phase, it causes nonlinear filter response
+        • Bottom-plate sampling does not help.
+   – In the hold phase, it causes input dependent charge injection because
+      the charge splitting depends on the impedance
+   – We can mitigate this issue by reducing Rtop,SW
+• Limitation of bottom-plate sampling
+   – Open-loop charge transfer: nonlinear parasitic cap
+   – Close-loop charge transfer: opamp nonlinearity
+
+                                                                          75
+                                        Capacitors
+
+ Metal-Insulator-Metal (MIM)                         Metal-On-Metal (MOM)
+
+
+
+
+   [Ng, Trans. Electron Dev., 7/2005]                 [Aparicio, JSSC 3/2002]
+
+
+• Both MIM and MOM capacitors have good electrical properties
+   – Series and parallel resistances are usually not a concern
+   – Mostly worry about parasitic caps
+• MOM caps are preferred in advanced processes due to higher density.
+   – The density increases as process scales.
+• MIM cap density is usually 1-2 fF/mm2
+   – For 1 fF/mm2, a 10 pF capacitor occupies 100mm x 100mm
+                                                                                76
+                        Plate Parasitics
+
+
+
+
+• The two plates of a real capacitor are usually unsymmetrical
+   – We usually use the fat plate to indicate the plate that has larger
+     parasitic capacitance.
+• For a MIM capacitor, the plate that is away from the substrate has
+  smaller parasitic capacitance (typical value: a=1%, b=10%).
+• For a MOM capacitor, a and b can vary.
+• We can change the effective a and b through layout design.
+                                                                          77
+          Proper Connection of Capacitors
+
+
+
+
+• The more ideal plate should face the virtual ground nodes
+   – Avoid reduction of feedback factor
+   – Reduce potential noise coupling
+                                                              78
+                          Nonidealities
+• Switch resistance
+• Switch capacitance
+• Sampling clock jitter
+• Other nonidealities
+
+
+
+
+                                          79
+                    Sampling Clock Jitter
+• Clock jitter introduces sampling errors.
+   – Its magnitude is proportional to the variation of Vin.
+
+
+
+
+• Let us consider a sine wave input signal and assume Dt follows normal
+  distribution with zero mean and standard deviation st
+
+
+                                                                     80
+                                          Analysis
+
+                              dV 2         dV 2 
+             E    
+                 DVin2    E  in   Dt   E  in    E Dt 2
+                               dt 
+                                         2
+
+                                                dt  
+                                                                         
+                              d                       2 1
+                                                        2
+                          E  A cos  2  fin  t     st   2  A  fin   s2t
+                                                                                  2
+                                  dt                             2
+                                                     
+
+                                          1 2             
+                                           A                                          
+                                          2                                     1
+       SNR jitter [dB]  10  log                           20  log                 
+                                    1                                     2   f    s
+                                    2  A  fin  st  
+                                                         2
+                                                                                in     t
+                                  2                       
+
+
+• Note that this jitter limited SNR does not depend on signal amplitude!
+• The jitter induced error increases as signal amplitude increases.
+   – In testing, if SNR remains constant for various signal amplitudes, it is
+     highly possible that the SNR is limited by clock jitter.
+                                                                                             81
+Result
+
+
+
+
+         82
+                             ADC Performance Survey
+                                   From B. Murmann, EE 315, Ch. 5
+          1.E+11
+                                                                     ISSCC 2010
+                                                                     VLSI 2010
+          1.E+10
+                                                                     ISSCC 1997-2009
+                                                                     VLSI 1997-2009
+          1.E+09
+                                                                     Jitter=1psrms
+                                                                     Jitter=0.1psrms
+          1.E+08
+BW [Hz]
+
+
+
+
+          1.E+07
+
+          1.E+06
+
+          1.E+05
+
+          1.E+04
+
+          1.E+03
+                   10   20    30     40   50    60   70    80   90    100    110       120
+                                               SNDR [dB]
+                                                                                             83
+                          Nonidealities
+• Switch resistance
+• Switch capacitance
+• Sampling clock jitter
+• Other nonidealities
+   – Signal dependent sampling instants
+   – Hold mode feed-through
+   – Hold mode leakage
+
+
+
+
+                                          84
+      Signal Dependent Sampling Instant (1)
+
+              ()
+
+
+
+
+                                       [Razavi, Data Conversion System Design, p.17]
+
+
+
+
+                      Tf
+
+• Must make Tf much smaller than maximum dVin/dt
+   – This means that we are in the fast-gating scenario.
+
+                                                                             85
+       Signal Dependent Sampling Instant (2)
+
+•   Distortion analysis result (see Yu, TCAS II, 2/1999]
+
+
+
+
+•   Example #1: VCLK = 1.8V, A = 0.5V, Tf = 100ps, w = 2100MHz
+
+
+
+
+•   Example #2: VCLK = 1.8V, A = 0.5V, Tf = 100ps, w = 21GHz
+
+
+
+
+•   Short Tf is a must for sampling high frequency signal
+     – Note that a realistic Tf should be set in simulation
+
+                                                                   86
+      Signal Dependent Sampling Instant (3)
+
+• Distortion due to signal dependent sampling instant (also called
+  timing modulation, green line in the figures below), dominates at high
+  input frequency compared to charge-injection-based distortion and
+  Ron-modulation effect
+   – T. Iizuka, T. Ito and A. A. Abidi, "Comprehensive Analysis of
+      Distortion in the Passive FET Sample-and-Hold Circuit"
+
+
+
+
+                                                                      87
+                 Hold Mode Feedthrough
+
+
+                                        [Razavi, Data Conversion System Design, p.17]
+
+
+
+
+                     CDS
+
+
+• Make Rout as small as possible
+• Use T-switch when hold-mode feedthrough is a
+  problem (for low-speed)
+• Use cross coupling for cancellation (for high-speed)
+• Minimize CDS in layout
+                                                                                 88
+Minimize CDS (1)
+
+          [Manar El-Chammas, ISSCC 2015, 15.8 slide]
+
+
+
+
+                                               89
+Minimize CDS (2)
+
+          [Manar El-Chammas, ISSCC 2015, 15.8 slide]
+
+
+
+
+                                               90
+Hold Mode Leakage
+
+
+
+
+                    91
+                                    Gate Leakage Data
+
+                                                                                       Limited “current gain”
+
+
+
+
+ A. Annema, et al., “Analog circuits in ultra-deep-submicron CMOS,” IEEE J. Solid-State Circuits, pp. 132-143, Jan. 2005.
+
+• fgate indicates how fast charge leaks
+• Gate leakage depends strongly on dielectric thickness (tunneling effect)
+   – 1nm reduction in tox leads to 106 increase in gate leakage current
+• The use of high-K dielectric (Hf) reduces gate leakage
+• Gate leakage is more troublesome for low speed operation!
+                                                                                                                 92
+   – Avoid holding charges for a long time
+

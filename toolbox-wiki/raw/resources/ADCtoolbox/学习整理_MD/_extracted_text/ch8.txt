@@ -1,0 +1,413 @@
+   Flash ADCs
+
+
+
+        Nan Sun
+   Tsinghua University
+nansun@Tsinghua.edu.cn
+
+
+
+                         1
+                Nyquist ADC Architectures
+
+• Nyquist rate
+   – Flash ADC
+       • Instantaneous comparison with 2B-1 reference levels
+   – Folding and interpolating ADC
+       • Two steps
+   – Pipeline ADCs
+       • Multi steps
+   – Successive approximation ADCs
+       • Conversion via a binary search algorithm
+   – Single or dual slope ADCs
+       • Input is converted by measuring the time it takes to
+         charge/discharge a capacitor from/to input voltage
+
+
+                                                                2
+ADC Performance Survey (ISSCC & VLSI 97-08)
+             Data: http://www.stanford.edu/~murmann/adcsurvey.html
+
+
+                                                           Flash
+                  10
+             10                                            Pipeline
+                                                           SAR
+                                                           Sigma-Delta
+                                                           Other
+                  8
+             10                                            1psrms Jitter
+   BW [Hz]
+
+
+
+
+                  6
+             10
+
+
+
+                  4
+             10
+
+
+                      20   30   40   50    60   70    80   90   100    110
+                                          SNDR [dB]
+                                                                             3
+                           Flash ADC
+
+               2B-1
+
+
+
+
+                                         Dout
+
+
+                                                                   Vin
+
+
+                                                2B-1 Decision Levels
+
+
+
+• Fast speed ☺
+   – Speed limited by 1 comparator plus encoding logic
+• High complexity (2B-1 comparators) and large input capacitance 
+   – Typically use for resolution up to 6 bits
+                                                                         4
+Use Capacitor to Generate References
+
+
+
+
+      S. Lee, A. Chandrakasan, and H.-S. Lee, JSSC, Dec. 2014.
+
+                                                                 5
+             Real Implementation
+
+
+
+
+K. Uyttenhove, M.S.J. Steyaert, "A 1.8-V 6-bit 1.3-GHz flash ADC in 0.25-μm
+CMOS," Solid-State Circuits, IEEE JSSC, pp. 1115-1122, July 2003.
+                                                                              6
+                          Error Sources
+
+
+• Comparator
+   – Offset
+   – Nonlinear input capacitance
+   – Kickback noise (disturb reference)
+   – Metastability
+• Timing skew
+   – Comparators clocked at different times
+   – Produce bubbles that lead to sparkle codes
+
+
+
+
+                                                  7
+    Bubbles Due to Timing Errors
+
+     1 bubble                                              2 bubbles
+
+
+
+
+K. Uyttenhove, M.S.J. Steyaert, "A 1.8-V 6-bit 1.3-GHz flash ADC in 0.25-μm
+CMOS," Solid-State Circuits, IEEE JSSC, pp. 1115-1122, July 2003.
+
+                                                                              8
+                        Bubble Problem
+
+
+
+
+• Two rows in the ROM are enabled.
+• Correct output: 1000, actual output: 1110
+                                              9
+                   Bubble Tolerant Encoder
+
+
+
+
+•   Protects against isolated bubbles
+•   Reference: C. W. Mangelsdorf, “A 400-MHz Flash Converter with Error
+    Correction,” IEEE JSSC., pp. 184-191, Feb. 1990.
+                                                                          10
+Wallace Encoder (“Ones Adder”)
+
+
+
+                 F. Kaess, R. Kanan, B. Hochet, and M.
+                 Declercq, “New encoding scheme for
+                 high-speed flash ADC’s,” IEEE ISCAS,
+                 pp. 5–8, 1997.
+
+
+
+                 Number of adders required for N bits
+                              N
+
+                              (i − 1)2
+                              i =1
+                                          N −i
+
+
+
+
+                                                         11
+                        Add Track-and-Hold
+
+•   Completely remove the timing skew problem ☺
+•   Speed and power penalty 
+
+
+
+
+           Y. Tamba, and K. Yamakido, "A CMOS 6 b 500 MSample/s ADC for a hard disk
+           drive read channel,“ ISSCC Dig. Techn. Papers. pp.324-325, Feb. 1999.
+                                                                                      12
+                  Metastability Problem
+
+
+
+
+• Metastability happens when X drives multiple gates
+• Different gates interpret X differently due to mismatches
+• Correct output: 0111 or 1000, actual output: 1111           13
+                   Another Possibility
+
+
+
+
+• Correct output: 0111 or 1000, actual output: 0000
+
+                                                      14
+              Solution 1: Latch Pipelining
+
+
+
+
+• Use additional latches to create extra gain before the encoder
+• Latency, not delay
+• Power hungry and area inefficient
+                                                                   15
+                            Solution 2: Gray Encoding
+
+         Thermometer Code                 Gray             Binary
+T1   T2    T3    T4   T5   T6   T7   G3   G2     G1   B3    B2      B1
+0    0      0    0    0     0   0    0     0     0    0      0      0
+                                                                         •   Each Ti affects only one Gi
+1    0      0    0    0     0   0    0     0     1    0      0      1         – Avoids inconsistent
+1    1      0    0    0     0   0    0     1     1    0      1      0            interpretation
+1    1      1    0    0     0   0    0     1     0    0      1      1    •   Also helps protect against
+1    1      1    1    0     0   0    1     1     0    1      0      0        sparkles
+1    1      1    1    1     0   0    1     1     1    1      0      1
+1    1      1    1    1     1   0    1     0     1    1      1      0
+1    1      1    1    1     1   1    1     0     0    1      1      1
+
+
+
+
+            G3                  G2                            G1
+
+
+
+
+                                                                                                     16
+                Efficient Implementation
+
+
+
+
+• Reference
+   – C. Portmann and T. Meng, “Power-efficient metastability error reduction
+     in CMOS flash A/D converters,” IEEE JSSC, pp. 1132-40 , Aug. 1996.
+
+
+
+
+                                                                           17
+                             Why Low Resolution?
+          Data: http://www.stanford.edu/~murmann/adcsurvey.html
+
+
+                                                        Flash
+               10
+          10                                            Pipeline
+                                                        SAR
+                                                        Sigma-Delta
+                                                        Other
+               8
+          10                                            1psrms Jitter
+BW [Hz]
+
+
+
+
+               6
+          10
+
+
+
+               4
+          10
+
+
+                   20   30   40   50    60   70    80   90   100    110
+                                       SNDR [dB]
+                                                                          18
+                       Comparator Offset
+
+• Want comparator offset smaller than LSB/4
+   – Budget half of the offset for the latch, the other half for the pre-
+     amp → pre-amp offset must be smaller than LSB/4/sqrt(2)
+
+                                  AVT   1 FSR
+                      3VOS = 3       
+                                   WL 4 2 2B
+
+• E.g. 6-bit flash ADC, FSR = 1V
+                              AVT   1 1V
+                          3            6
+                                          = 2.8mV
+                               WL 4 2 2
+                  2                 2
+         3 AVT       3  4mV m                 18.4m 2
+   WL             =             = 18.4m  W 
+                                             2
+                                                              = 102m
+         2 . 8 mV      2 . 8 mV                  0 . 18m
+                                                     Does scaling
+                                                     help? Scaling
+                                                     reduced AVT
+                                                                            19
+                            Solutions
+• Simply use large devices
+   – For each extra bit
+       • Reduce offset by 2x → increase device width by 4x
+       • Increase comparator number by 2x
+       • Overall 8x in power
+• Input/output series offset cancellation
+   – Reduce speed
+• Offset averaging
+• Calibration
+• Comparator redundancy
+
+
+
+
+                                                             20
+ Offset Averaging (1)
+
+
+
+
+                                  R2/R1=1.3
+
+
+
+
+[Kattmann & Barrow, ISSCC 1991]
+                                        21
+                     Offset Averaging (2)
+
+
+
+
+                                  DNL/
+[Bult & Buchwald, JSSC 12/1997]
+
+
+
+
+                                           [Scholtens & Vertregt, JSSC 12/2002]
+                                                                            22
+6-bit Flash ADC with Averaging
+
+                     [Choi & Abidi, JSSC 12/2001]
+
+
+
+
+                    Averaging networks designed to
+                    reduce input referred offset by 3x
+
+
+
+                                                  23
+            Offset Calibration Example #1
+
+
+
+
+S. Sutardja, "360 Mb/s (400 MHz) 1.1 W 0.35μm CMOS PRML read channels with 6
+burst 8-20× over-sampling digital servo," ISSCC Dig. Techn. Papers, Feb. 1999.
+
+                                                                           24
+        Offset Calibration Example #2
+
+
+
+
+K.-L.J. Wong and C.-K.K. Yang, "Offset compensation in comparators
+with minimum input-referred supply noise," JSSC, May 2004.
+
+
+                                                                     25
+     Offset Calibration Example #3 (1)
+
+
+
+
+[Park & Flynn, "A 3.5 GS/s 5-b Flash ADC in 90 nm CMOS," CICC 2006]
+                                                                      26
+     Offset Calibration Example #3 (2)
+
+
+
+
+[Park & Flynn, "A 3.5 GS/s 5-b Flash ADC in 90 nm CMOS," CICC 2006]
+
+                                                                      27
+               Comparator Redundancy (1)
+
+• Idea: build "a sea of imprecise comparators", then select which ones
+  to use
+
+
+
+
+ C. Donovan, M. P Flynn, "A 'digital' 6-bit ADC in 0.25-μm CMOS," IEEE J.
+ Solid-State Circuits, pp. 432-437, March 2002.
+                                                                            28
+             Comparator Redundancy (2)
+
+
+    90mW        900mW
+
+
+
+
+Paulus et al., "A 4GS/s 6b flash ADC in 0.13um CMOS," VLSI Circuits
+Symposium, 2004
+
+                                                                      29
+Stochastic Flash ADC (1)
+
+
+
+
+              S. Weaver, IEEE TCAS-I, pp. 2825, 2010
+
+                                               30
+Stochastic Flash ADC (2)
+
+
+
+
+                           31
+

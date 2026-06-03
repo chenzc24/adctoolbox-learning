@@ -1,0 +1,347 @@
+Time Interleaving
+
+
+
+        Nan Sun
+   Tsinghua University
+nansun@Tsinghua.edu.cn
+
+
+
+                         1
+Single Channel ADC
+
+
+
+
+                     2
+Time Interleaved ADC
+
+
+
+
+                       3
+Conceptual Implementation
+
+
+
+
+                            4
+      How Fast Can a Pipelined ADC Go? (1)
+
+• Non-dominant pole in two-stage amplifier hard to move past fT/5
+• For 73 phase margin (optimum for fast settling), loop crossover
+  frequency is 1/3 of non-dominant pole frequency
+• Settling linearly to 0.1% precision takes 7 loop time constants;
+  typically budget ~10 time constants
+• Ideally, we'd have 1/2 clock cycle to settle linearly, but there is some
+  time needed for slewing and non-overlap clock timing
+   – Assume 60% of half cycle is available for linear settling
+• In summary (here we have assume that the feedback factor is 1)
+
+                           f 1      1           f
+               fCLK ,max = T  2  0.5  0.6 = T
+                            5 3    10          80
+
+
+                                                                             5
+      How Fast Can a Pipelined ADC Go? (2)
+
+                             NMOS fT
+     Technology                                    fCLK,max = fT/80
+                   (at moderate VGS-Vt ~150mV)
+
+       0.35um                 10GHz                  125 MHz
+
+
+       0.18um                 30GHz                  375 MHz
+
+
+       90nm                   90GHz                  1.125GHz
+
+
+• Sampling speeds of 200-300MHz are "easily" achievable in today's
+  technologies
+   – fT is no longer a showstopper
+   – Speed ultimately constrained by power and clock jitter
+
+                                                                      6
+              How Fast Can a SAR ADC Go?
+• Total conversion time  B(tcomp + tLogic + tDAC)
+• There are technology limits for all of them
+• We cannot trade power linearly with speed
+
+
+
+
+                                                     7
+                    Why Interleaving?
+
+
+
+
+• There are hard frequency boundaries
+                                        8
+                    Time Interleaved ADC
+
+
+
+
+• Idea: interleave 4 ADCs so that each ADC runs as fs/4
+• Originally, (SH + Conversion) needs to finish within ts
+• Now, both the SH and conversion speed are relaxed.
+   – Note that SH has to finish within ts regardless of how many ADCs are
+     interleaved
+
+                                                                            9
+                        Example (1)
+
+
+
+
+[Poulton, ISSCC 2003]
+
+
+
+
+                                      10
+                          Example (2)
+
+
+                                   [Draxelmayr, ISSCC 2004]
+
+
+
+
+• Interleave "slow" SAR ADCs to get high throughput while maintaining
+  low complexity and good power efficiency
+• Eight 6-bit SAR ADCs, each running at 75 MS/s, overall throughput of
+  600MS/s, power=10mW in 90-nm CMOS technology
+
+                                                                         11
+                  Issues with Time Interleaving
+
+•   Offset mismatch
+     – Channels may have different offsets
+     – Output will contain a periodic error sequence that manifest itself as spurs in
+        the output spectrum
+•   Gain mismatch
+     – Channels may also have different gains
+     – Results in amplitude modulation
+•   Clock skew
+     – Hard to guarantee precise phase relationship between individual clocks
+     – Results in phase modulation (similar to aperture uncertainty)
+•   Solutions
+     – "Careful design"
+     – Analog or digital calibration
+          • See e.g. [Jamal, JSSC 12/2002]
+
+
+                                                                                   12
+Offset Errors
+
+
+
+
+                13
+                Impact of Offset Errors
+
+
+                                  [Gustavsson, p.262]
+
+
+
+
+                               sOS/FS
+
+• E.g. FS=1V, sOS=1mV  ENOB~9bits!
+                                                        14
+Gain Errors
+
+
+
+
+              15
+                 Impact of Gain Errors
+
+
+                                          [Gustavsson, p.266]
+
+
+
+
+                                  sGain
+
+• E.g. sGain=0.1%  ENOB~10bits
+
+                                                                16
+Clock Skew (1)
+
+
+
+
+                 17
+Clock Skew (2)
+
+
+
+
+                 18
+                  Impact of Clock Skew
+
+
+                                    [Gustavsson, p.267]
+
+
+
+
+• Above chart is for M=4 channels
+• E.g. fin=100MHz, phase skew=3ps  ENOB~9bits!
+                                                          19
+          Timing-Skew Estimation Techniques
+
+
+                          • Timing mismatch estimation
+                            using two additional channels
+                                               𝑑𝑉
+                             – Computes 𝑣𝜖 and 𝑖𝑛 to estimate
+                                               𝑑𝑡
+                               Δ𝑡
+
+                             – Fast convergence speed
+                             – Spurs from input impedance
+                               variation
+Image courtesy by            – Large power and area overhead
+[Stepanovic, JSSC 2013]
+
+
+
+
+                                                           20
+                 Calibration Example
+
+                                    [Stepanovic and Nicolic, JSSC 2013]
+
+
+
+
+• 24 8-bit SAR ADCs, aggregate throughput of 2.8GS/s,
+  power=45mW in 65-nm CMOS technology
+
+                                                                          21
+         Prior Timing-Skew Calibration Works
+
+
+
+                          •   Timing mismatch estimation with a
+                              comparator-based reference
+                              – cross-correlation based estimation
+
+                              – Power-efficient reference
+                              – Slow convergence speed with random
+                                signals
+
+Image courtesy by
+[El-Chammas, JSSC 2011]
+
+                                                                          22
+
+                                                                     22
+           Background Calibration of Clock Skew
+
+[El-Chammas, JSSC 2009]
+
+
+
+
+                                                  23
+          Timing-Skew Estimation Techniques
+
+
+                         • Timing mismatch estimation
+                           with flash ADC as a reference
+                            – Variance-based estimation
+                            – No spurs from input impedance
+                              variation
+                            – Slow convergence speed with
+                              random signals
+                            – Power-hungry Flash ADC
+                            – Large variance computation
+Image courtesy by
+[Lee, JSSC 2014]              power
+
+
+
+
+                                                         24
+          Timing-Skew Estimation Techniques
+
+
+                        • Timing mismatch estimation
+                          with a single comparator
+                          reference
+                           – Variance-based estimation
+                           – No spurs from input impedance
+                             variation
+                           – Faster convergence speed with
+                             random signal inputs
+                           – Power-efficient reference
+Image courtesy by
+[Song, JSSC 2017]          – Reduced variance computation
+                             power
+                           – Still requires digital multiplication
+
+                                                               25
+          Timing-Skew Estimation Techniques
+
+
+                        • Timing mismatch estimation
+                          without additional channel
+                           – Autocorrelation-based algorithm
+                           – Eliminated multiplication to
+                             reduce digital computation power
+                           – No extra hardware
+                           – Tight restrictions on the shape of
+                             input autocorrelation function
+Image courtesy by
+[Wei, JSSC 2014]
+
+
+
+
+                                                           26
+Block Diagram of the Proposed TI-SAR
+
+
+                     • Two SAR ADCs
+                     • Window detector reference
+                     • Mean absolute deviation (MAD)
+                       estimator
+                        – 𝑴𝑨𝑫 = 𝑬 |𝑫𝒐𝒖𝒕 |
+                        – Uses MAD to estimate timing skew
+                          (Δ𝜏)
+                        – No multiplication required
+                        – Faster convergence speed even
+                          with random signals
+                        – no spurs from input impedance
+                          variation
+Image courtesy by       – Moderate input constraints
+[Song, CICC, 2018]
+                                                       27
+             Fully digital background calibration
+
+
+
+
+Image courtesy by
+[Dortz, ISSCC, 2014]
+                                                    28
+             Fully digital background calibration
+
+
+
+
+Image courtesy by
+[Dortz, ISSCC, 2014]
+                                                    29
+

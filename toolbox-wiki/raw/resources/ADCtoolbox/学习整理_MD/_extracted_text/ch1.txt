@@ -1,0 +1,182 @@
+ Introductions
+
+
+
+       Nan Sun
+  Tsinghua University
+nansun@tsinghua.edu.cn
+
+
+
+                         1
+                        Teaching Staffs
+• Instructor: Nan Sun
+   – Office: Rohm 8105
+   – Phone: 13693524561
+   – Email: nansun@tsinghua.edu.cn
+• Teaching assistant:
+   – Mingyang Gu
+   – Mingtao Zhan
+
+
+
+
+                                          2
+                           Motivation (1)
+
+• Information is increasingly being processed in the digital domain; yet, the
+  real world is analog by nature
+   – Whenever an electronic device wants to talk to the real world, it
+      needs a data converter.
+                                Sensors &
+                                Actuators
+
+
+
+
+                                                         Transmission
+        Audio I/O                                        Media
+                             Electronic System
+                              for Information
+         Imager &               Processing
+          Displays                                       Storage Media
+
+
+
+                                                                           3
+                        Motivation (2)
+
+• Benefits of digital signal processing
+   – Amenable to automated design and test
+   – Enhanced functionality and flexibility
+   – Direct benefit from the scaling of VLSI technology
+   – Reduced sensitivity to "analog" noise
+   – "Arbitrary" precision
+• Issues
+    – Data converters are difficult to design
+       • Especially due to ever-increasing performance requirements
+    – Data converters often present a performance bottleneck
+       • Speed, resolution or power dissipation of the A/D or D/A
+         converter can limit overall system performance
+
+
+                                                                      4
+Data Converter Applications
+
+
+
+
+                              5
+                              Examples
+
+
+
+
+• A typical cell phone contains   •   Digital oscilloscopes are
+  more than 20 data converter         essentially high-performance
+                                      ADCs
+                                                                     6
+                             A/D Converter Application Space
+
+                    24
+                    22
+                                       DVD                                              1kW
+                    20                 Audio
+                    18                                       1W
+Resolution [bits]
+
+
+
+
+                    16
+                                    Audio
+                    14                                   GSM Rx
+                                                                           GSM Base
+                                                                    DSL
+                    12                      1mW                                     Ultra-
+                                                                                    sound
+                    10                             Motor                      DTV                    Dig. Scope
+                                                  Controls                    DVC
+                     8                                            Video
+                         Teleph.                                                             HDD
+                     6
+                     4         1µW
+                                                                                              Wireline Interface
+                     2
+                      1kHz         10kHz       100kHz        1MHz         10MHz      100MHz        1GHz        10GHz
+                                                                  Bandwidth
+
+                                                                                                                       7
+               Course Contents
+
+  Digital        Mixed-Signal                   Analog
+
+
+
+                                   Signal
+              ADC
+                                 Conditioning
+
+  Digital                                            Analog Media
+  Signal     This class                                  and
+Processing                                           Transducers
+
+                                   Signal
+              DAC                Conditioning
+
+
+
+                    Interface Circuits
+
+                                                                    8
+How I look at data converters
+
+
+
+
+   Crown in analog mixed-signal IC design
+              Difficult but fun!
+
+                   Power
+
+
+
+   Linearity                       Noise
+
+
+
+                   Speed
+                                            9
+                   Course Prerequisites
+• Undergraduate electronic circuit courses:
+   – Device physics and models
+   – Transistor level analog circuits
+   – Frequency response, feedback, and noise
+• Graduate circuit course:
+   – Analog IC design
+• Prior exposure to SPICE (Cadence) and Matlab
+
+
+
+
+                                                 10
+                        Course Topics
+• Ideal sampling, reconstruction, & quantization
+• Sampling circuits
+• Voltage comparators
+• Nyquist-rate ADCs and DACs
+• Oversampled ADCs and DACs
+• Data converter performance trends and limits
+• Data converter testing
+
+
+
+
+                                                   11
+Let us go over the syllabus
+
+
+
+
+                              12
+

@@ -1,0 +1,947 @@
+Nyquist Rate DACs
+
+
+
+        Nan Sun
+   Tsinghua University
+ nansun@tsinghua.edu.cn
+
+
+
+                          1
+                           Overview
+• Topologies
+   – Resistor string DAC
+   – Voltage switching DAC
+   – Current steering DAC
+   – Switched capacitor DAC
+   – R-2R DAC
+• Current steering DAC architectures
+• Static errors
+• Dynamic errors
+• Example implementations
+
+
+
+
+                                       2
+               Resistor-String Voltage DAC
+• Digitally controlled
+  potentiometer
+• Advantages
+   – Simple 
+   – Monotonic 
+• Unsuitable for high-speed 
+   – Tree-type of decoder has a
+     large resistance
+   – Large and unequal RC time
+     constant at the output
+   – Add an opamp will help
+       • High power & low-speed
+• Unsuitable for high-resolution 
+   – Too many resistors &
+     switches
+
+                                             3
+                  Voltage Switching DAC
+
+
+
+
+•   Use analog adders
+•   Nonlinearity due to nonzero switch turn-on resistance
+
+
+                                                            4
+                   Current Steering DAC
+
+
+
+
+•   MOS switches are much better at switching current than voltage!
+•   Can build very good current sources with high impedances
+•   Suitable for high speed 
+     – Avoid the use of opamps
+     – Small RC time constants at the output
+                                                                      5
+Switched Capacitor DAC
+
+
+
+
+                         6
+Initialization Phase (f=Vdd)
+
+
+
+
+                               7
+                  Evaluation Phase (f=0)
+
+
+
+
+•   Due to charge conservation:
+
+
+
+
+•   Nonlinear cap at Vout is a big problem
+     – Use an opamp with a feedback cap
+                                             8
+          R-2R DAC Concept (voltage mode)
+
+•   Aforementioned techniques all require large device ratios
+     – Assuming the size of the smallest device is fixed by matching
+         requirement, a large device ratio leads to a large area
+•   Is it possible to get exponentially weighted voltage/currents by
+    using similar sized devices?
+     – R-2R ladder
+
+
+
+
+                                                                       9
+         R-2R DAC Concept (current mode)
+
+•   Current mode (need a FB-OTA to buffer the output current)
+
+
+
+
+•   Output impedance is code dependent
+
+
+
+
+•   How to pull the current out?
+                                                                10
+                R-2R DAC Implementation
+
+
+
+
+•   OTAs can be used to remove VGS variations
+     – Extra power, area, and slow
+                                                11
+                  Drain R-2R Ladder
+
+
+
+
+• This topology ensures the same current
+• Low output impedance of R-2R ladder  necessitate opamp 
+  unsuitable for high speed
+• Nowadays, most high-speed DACs are current-steering DACs
+   – We will focus on current-steering DACs from now on
+                                                              12
+                           Overview
+• Topologies
+• Current steering DAC architectures
+   – Binary weighted DAC
+   – Thermometer DAC
+   – Segmented DAC
+• Static errors
+• Dynamic errors
+• Example implementations
+
+
+
+
+                                       13
+       Binary Weighted Current Steering DAC
+
+
+
+
+• Simple structure 
+• No encoder needed 
+• How to match the current sources?
+                                              14
+             How to Achieve Good Matching
+
+
+
+
+• All current sources are made by identical unit current sources put in
+  parallel.
+
+                                                                          15
+Binary Weighted DAC Principle
+
+
+
+
+                                16
+MSB Transition Problem
+
+   Cannot ensure monotonicity 
+
+
+
+
+      MSB transition
+        problem
+
+
+
+
+                                  17
+         Thermometer Current Steering DAC
+
+
+
+
+• Inherently monotonic 
+• Need large encoder with 2B-1 outputs 
+   – Impractical for large B                18
+Thermometer DAC Principle
+
+
+
+
+                            19
+Monotonicity Guaranteed
+
+
+
+
+        Always
+       monotonic
+
+
+
+
+                          20
+                              Segmented DAC
+
+
+
+
+•   Binary segment with Bb bits; thermometer segment with Bt = B - Bb bits
+•   Easier to ensure monotonicity than purely binary DAC 
+•   Smaller encoder than purely thermometer DAC 
+                                                                             21
+Segmented DAC (2-2)
+
+
+
+
+                      22
+Easier to Ensure Monotonicity
+
+
+
+
+          Still monotonic
+
+
+
+
+                                23
+                           Overview
+• Topologies
+• Current steering DAC architectures
+• Static errors
+   – Mismatch
+   – Finite output impedance
+• Dynamic errors
+• Example implementations
+
+
+
+
+                                       24
+                   Systematic Mismatch
+• DNL and INL due to unit element mismatch
+• Systematic mismatches
+   – IR drop due to contact and wiring resistance
+   – Process artifact
+       • Gradient
+       • Well proximity effect
+       • Length of diffusion (shallow trench isolation)
+       • Metal coverage
+• Systematic mismatches can be mitigated through proper layout
+   – Add dummy cell
+   – Common centroid layout
+
+
+
+                                                                 25
+Layout Techniques to Reduce Gradient
+               Errors
+
+
+
+
+                                       26
+                      Gradient Errors
+• In modern CMOS process, parametric gradients are generally well
+  below 1 %/cm (1ppm/μm). They are smaller than other nonidealities.
+   – Most mixed-signal blocks are spread out over less than 2mm
+   – Most IP-blocks are smaller than 100 x 100 μm2
+• Use common centroid layouts only for very big components
+
+
+
+
+                                                                   27
+                          Well Proximity Effect
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+
+
+
+                                                   28
+                           WPE Effect Study (1)
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                   29
+                           WPE Effect Study (2)
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                   30
+             Well Proximity Effect (WPE)
+• WPE depends on:
+   – Distance of well edge to active region
+   – Well implant dose density and energy
+   – Oxide thickness and channel doping profile of the devices
+• WPE impacts:
+   – VT variation (up to 30mV per well edge)
+• Method to alleviate WPE problem
+   – Ensure well-to-active-region distance >1μm
+
+
+
+
+                                                                 31
+                   Shallow Trench Isolation (STI)
+
+
+                                              • STI produces compressive
+                                                mechanical stress
+                                                 – Increases hole m, reduces
+                                                    electron m
+                                                 – Stress effect proportional to
+                                                    inverse of distance (length of
+                                                    diffusion)
+                                                 – Makes device current
+                                                    dependent on layout
+                                                    environment
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                                               32
+                            STI Effect Study (1)
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                   33
+                            STI Effect Study (2)
+
+                                     d = 0.12 (= reference), 0.14, 0.27 and 0.5 mm
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                                            34
+                       Metal Induced Stress (1)
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                   35
+                       Metal Induced Stress (2)
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                   36
+                       Metal Induced Stress (3)
+
+
+
+
+From H. Tuinhout, CICC 13’, Education Session 2.
+                                                   37
+                     Random Mismatch
+• Random mismatches are more fundamental and cannot be improved
+  through layout
+   – Random number of dopants (Vt variation)
+   – Random etching (W & L variation)
+• For a well-designed DAC, its nonlinearity should be limited by random
+  mismatch, not systematic mismatch
+• What is the distribution of the random mismatch:
+   – Normal distribution (central limit theorem)
+   – For a unit current source I[k]
+      • Mean: I
+      • Standard deviation: s
+   – We can write I[k] = I(1+DI/I), then the percentage mismatch DI/I
+     has:
+      • Mean: 0
+      • Standard deviation: sDI/I
+
+
+                                                                        38
+          Mismatch in MOS Current Sources
+
+
+
+
+• Example
+   – W=10mm, L=0.1mm, gm/I=10S/A, AVt=5mV-mm, Ab=1%-mm
+
+
+
+   – Mismatch is usually dominated by Vt mismatch.
+                                                         39
+        How to Reduce Random Mismatch
+• Use larger transistors with bigger W and bigger L
+   – Larger area 
+   – Larger parasitics 
+• Reduce gm/I
+   – Bias in strong inversion  large Vov  reduced output swing 
+• Reduce Avt and Ab
+
+
+    – Better process  increased cost 
+
+
+
+
+                                                                     40
+                 DAC INL/DNL Analysis
+• Question to ask:
+   – Given su, how large are DAC INL and DNL?
+   – It depends on different architectures
+       • Thermometer DAC
+       • Binary-weighted DAC
+       • Segmented DAC
+
+
+
+
+                                                41
+          Thermometer DAC DNL Analysis
+• For thermometer DAC, the step size for code k equals the magnitude
+  of the k-th current source.
+
+
+
+
+                       [ ]     /
+
+
+
+
+                                                                   42
+               Thermometer DAC DNL Yield
+
+• Question to ask:
+   – We have a 8-bit thermometer DAC with su = 1%. We want the DAC
+     DNL to be within 0.03 LSB. What is the yield after fabrication?
+• Analysis
+   – 0.03 LSB = 3% = 3su
+   – For one code, its width falls in between 3s is 99.73%, according to
+     normal distribution.
+   – We want all 28=256 codes satisfy the requirement, thus, the yield is:
+     (99.73%)256  50%
+• How about a 12-bit DAC?
+   – All 4096 codes satisfy the requirement  yield = (99.73%)4096  0
+   – Let us relax the DNL requirement to 0.05 LSB  yield  99%
+   – A big change, why?
+                                                                         43
+Thermometer DAC INL Analysis
+
+
+
+
+                               44
+                 Thermometer DAC sINL Plot
+
+
+
+
+ sINL is maximum at mid-scale (k=N/2=2B-1)
+
+                                                            /
+
+
+
+•   This is a “Brownian bridge:” summation of random DNLs
+•   Unlike sDNL, sINL grows as B increases.
+                                                                45
+                 Thermometer DAC INL
+
+
+
+
+•   1 run for a 10-b DAC with su=1%
+
+                                       46
+              Thermometer DAC sINL Plot
+
+
+
+
+•   100 runs, plot sINL
+•   Match well with theory
+                                          47
+              Thermometer DAC INL Yield
+• Question to ask:
+   – We have a 8-bit thermometer DAC with su = 1%. We want the
+     DAC INL to be within 0.03 LSB. What is the yield after
+     fabrication?
+   – It turns out that this is not easy to solve analytically
+       • Unlike {DNL[k]}, {INL[k]} are not independent
+• In general, DAC designers will rely on numerical Monte Carlo
+  simulations to estimate the DNL/INL yield instead of solving analytical
+  solutions
+   – This method is conceptually very simple
+   – It works for all types of DACs (thermometer, binary, and
+      segmented)
+   – Yet a basic understanding will be very helpful for finding errors in
+      the simulation
+
+                                                                        48
+        Binary Weighted DAC DNL Analysis
+• {DNL[k]} are different and depend on transition
+• Worst case: 01111111 …  1000000 …
+   – Turning off all LSBs and turn on the MSB
+
+             Step[2   ]=      I −       I
+
+
+
+
+         ,
+
+
+
+
+• For example, B = 10, su = 1%  sDNL,worst = 0.32 LSB
+   – Much larger than that of the thermometer DAC (sDNL=0.01 LSB).
+                                                                     49
+              Binary Weighted DAC DNL
+
+
+
+
+•   1 run for a 10-b DAC with su=1%
+
+                                        50
+              Binary Weighted DAC DNL
+
+
+
+
+•   Another run, worst DNL does not happen at the MSB transition
+     – Due to randomness
+                                                                   51
+               Binary Weighted DAC sDNL
+
+
+
+
+•   100 runs, plot sDNL
+•   Match well with theory
+                                          52
+         Binary Weighted DAC INL Analysis
+•   sINL is the same as that for a thermometer DAC
+    – Why?
+    – INL is the overall deviation from the ideal straight line
+    – It does not matter how we select the elements
+
+
+
+
+• What is the difference in the INL of a binary weighted DAC?
+   – There are large discontinuities due to large DNLs
+
+                                                                  53
+               Binary Weighted DAC INL
+
+
+
+
+•   1 run for a 10-b DAC with su=1%
+
+                                         54
+            Binary Weighted DAC sINL Plot
+
+
+
+
+•   100 runs, plot sINL
+•   Match well with theory
+                                            55
+         Segmented DAC DNL/INL Analysis
+• Worst case DNL
+   – When all LSB DAC elements turn off and 1 MSB DAC element
+     turns on
+   – Same DNL as a binary weighted DAC with Bb+1 bits
+• INL
+   – sINL is the same as that of thermometer DAC
+
+
+
+
+                                                                56
+                     Segmented DAC DNL
+
+
+
+
+•   1 run for a 10-b segmented DAC (3b MSB and 7b LSB) with su=1%
+
+                                                                57
+               Segmented DAC sDNL Plot
+
+
+
+
+•   100 runs, plot sDNL
+•   Match well with theory
+                                         58
+                     Segmented DAC INL
+
+
+
+
+•   1 run for a 10-b segmented DAC (3b MSB and 7b LSB) with su=1%
+
+                                                                59
+                Segmented DAC sINL Plot
+
+
+
+
+•   100 runs, plot sINL
+•   Match well with theory
+                                          60
+                            Summary
+
+                                                   Binary
+                 Thermometer Segmented
+                                                  Weighted
+
+       sINL
+
+       sDNL
+      (worst           su         2(Bb+1)/2 su     2B/2 su
+      case)
+
+    # elements        2B-1         Bb+2Bt-1           B
+
+•    Segmented DAC in general achieves the best trade-off.
+•    Most high-performance DACs adopt segmented DAC structure.
+                                                             61
+               Finite Output Impedance
+• Current source with finite
+  output resistance R
+• The number of closed switches:
+
+
+• Vout =
+                         ×
+
+• As Din increases, do the code
+  widths get wider or narrower?
+• Need to make R large enough
+  • Cascode
+  • Source degeneration
+
+
+
+
+                                         62
+                           Overview
+• Topologies
+• Current steering DAC architectures
+• Static errors
+• Dynamic errors
+• Example implementations
+
+
+
+
+                                       63
+                      Dynamic DAC Errors
+
+• Dynamic DAC errors are generally hard to model
+   – DAC output is continuous in time, and thus, any error at any time
+     instance causes trouble!
+   – High-performance DAC design is nontrivial.
+• Glitches due to timing errors
+   – Current sources do not switch simultaneously
+• Clock feedthrough
+   – Coupling from switch signals to DAC output
+• Finite settling time and slewing
+   – Finite RC time constant
+   – Signal dependent slewing
+• Inter symbol interference
+   – Unmatched rising and falling edges
+
+                                                                         64
+                      Useful References
+• Doris, van Roermund, Leenaerts, Wide-Bandwidth High Dynamic
+  Range D/A Converters, Springer, 2006.
+• Bosch, Steyaert, Sansen, Static and Dynamic Performance Limitations
+  for High Speed D/A Converters, Kluwer, 2004.
+• Gustavsson, Chapter 12
+• M. Albiol, J.L. Gonzalez, E. Alarcon, "Mismatch and dynamic modeling
+  of current sources in current-steering CMOS D/A converters," IEEE
+  TCAS I, pp. 159-169, Jan. 2004
+• T. Chen and G.G.E. Gielen, "The analysis and improvement of a
+  current-steering DAC's dynamic SFDR," IEEE Trans. Ckts. Syst. I, pp. 3-
+  15, Jan. 2006.
+
+
+
+
+                                                                        65
+                       Glitch Impulse Error
+
+
+• Current sources need to be
+  turned on/off simultaneously
+   – Consider binary weighted
+      DAC transition 0111  1000
+• Worst case glitch impulse area:
+  Dt 2B-1
+• LSB area: Ts
+•   Dt 2B-1 << Ts  Dt << Ts/2B-1
+• E.g., Ts = 1ns, B = 10, Dt < 2ps
+   – Using a segmented structure
+      will help
+
+                                              66
+               Basic Differential Pair Switch
+
+
+
+
+                            Nonlinear cap
+
+
+
+
+• For high-speed, never turn off the current source
+   – Parasitic cap needs to be recharged
+• Need to minimize the swing at Vx
+                                                      67
+                     Design Techniques
+
+• Data retiming
+   – Use a global clock to resample data near the current cells, so that
+     they switch simultaneously independent of encoder delays
+• Make before break
+   – Ensure that the current is never turned off
+   – S and S_bar are not simultaneously off
+• Low swing driver
+   – Drive differential pair with low swing to minimize coupling from
+     control signals to output
+
+
+
+
+                                                                        68
+                       Data Retiming
+
+
+
+
+•   Use a segmented DAC will help too.
+
+                                         69
+                       Make Before Break
+
+
+
+
+•   Ensure that the current source is never turned off
+
+                                                         70
+Example Current Cell Implementation
+
+
+                           Reduced swing (not to ground)
+
+   Latch retiming
+
+
+                                                      Buffer transistor
+
+
+
+
+     in arrives first,
+    clk arrives later
+
+                [Barkin & Wooley, JSSC 4/2004]
+
+
+
+                                                                     71
+                           Overview
+• Topologies
+• Current steering DAC architectures
+• Static errors
+• Dynamic errors
+• Example implementations
+
+
+
+
+                                       72
+           High Performance DAC Example #1
+
+                                                                   2um CMOS
+
+
+
+
+Segmented DAC
+
+
+
+
+ [T. Miki, Y. Nakamura, M. Nakaya, S. Asai, Y. Akasaka, and Y. Horiba, “An 80-MHz 8-
+ bit CMOS D/A Converter,” IEEE J. of Solid-State Circuits, pp. 983-988, Dec. 1986.]
+
+                                                                                   73
+                Decoder Design
+
+
+
+
+Fast decoding
+                                 Latch retiming
+
+                                                  74
+                         Mitigating IR Drop
+
+  Systematically decreasing currents
+
+
+
+
+                                              Reducing INL
+
+
+
+
+INL can be reduced by re-arranging DNLs
+                                                   75
+High Performance DAC Example #2
+
+
+
+
+                                      Latch retiming
+
+
+
+
+       [Van den Bosch, JSSC 3/2001]
+
+                                              76
+      Floor Plan
+
+
+
+
+[Van den Bosch, JSSC 3/2001]
+
+                               77
+ Measurements
+
+
+   100MHz
+
+ 1GHz
+
+
+
+
+DAC type?
+
+
+
+
+                78
+High Performance DAC Example #3
+
+  Optimal switching; no glitch at vtail
+
+
+
+                                      Ref.         Replica
+
+
+
+
+                                             [Schafferer, ISSCC 2004]
+
+
+                                                                        79
+Measurements
+
+
+
+
+[Schafferer, ISSCC 2004]
+
+                           80
+High Performance DAC Example #4
+
+
+                    Latch retiming
+
+
+
+
+              [Lin, ISSCC 2009]      DAC type?
+
+
+
+
+                                          81
+              High Performance DAC Example #5
+
+
+
+
+[van de Vel, ISSCC 2014]
+                                                82
+                           Sort and combine
+
+
+
+
+[van de Vel, ISSCC 2014]
+                                              83
+               High Performance DAC Example #6
+
+
+
+
+[Nauta, VLSI 2014]
+                                                 84
+

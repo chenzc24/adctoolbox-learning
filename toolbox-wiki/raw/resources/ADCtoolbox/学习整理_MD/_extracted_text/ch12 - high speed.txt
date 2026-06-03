@@ -1,0 +1,492 @@
+High-Speed SAR ADC Design
+
+
+
+
+            Nan Sun
+       Tsinghua University
+     nansun@tsinghua.edu.cn
+
+
+
+                              1
+                High speed SAR ADCs
+
+
+
+
+•   Common to see SAR ADCs with sampling rates > 100MS/s
+     – Single channel > 1GS/s
+     – Time interleaved SAR ADC ~ 100GS/s
+•   What makes it possible?
+     – Technology scaling                                  2
+     – Circuit ingenuity
+             Classic SAR
+
+
+
+
+𝑇𝑙𝑜𝑜𝑝 = 𝑡𝑐𝑜𝑚𝑝 + 𝑡𝑙𝑜𝑔𝑖𝑐 + 𝑚𝑎𝑥{𝑡𝐷𝐴𝐶 , 𝑡𝑟𝑒𝑠𝑒𝑡 }
+
+
+        𝑇𝑆𝐴𝑅 ≈ 𝑡𝑠𝑎𝑚𝑝𝑙𝑒 + 𝑁 ⋅ 𝑇𝑙𝑜𝑜𝑝
+                                               3
+                     High-speed SAR design
+• 𝑇𝑙𝑜𝑜𝑝 = 𝑡𝑐𝑜𝑚𝑝 + 𝑡𝑙𝑜𝑔𝑖𝑐 + 𝑚𝑎𝑥{𝑡𝐷𝐴𝐶 , 𝑡𝑟𝑒𝑠𝑒𝑡 }
+• 𝑇𝑆𝐴𝑅 ≈ 𝑡𝑠𝑎𝑚𝑝𝑙𝑒 + 𝑁 ⋅ 𝑇𝑙𝑜𝑜𝑝
+• Reducing tcomp
+   – Asynchronous clocking
+• Reducing tlogic
+   – Direct path from comparator to DAC
+• Reducing tDAC
+   – Add redundancy
+   – Self timing
+• Reducing treset (treset > tDAC for b < 6-bit)
+   – Ping-pong operation
+   – Loop unrolled SAR
+• Reducing N
+   – Multi-bit-per-cycle
+                                                  4
+Simulation for Vin = 1mV
+
+
+
+
+                           5
+Simulation for Vin = 1uV
+
+
+
+
+                           6
+              Reducing total comparator delay
+
+
+
+
+  •   Comparator delay is signal dependent → smaller input takes longer time to resolve
+  •   Only one comparison has input less than D/2; do not budget for the worst case
+                                                                                    7
+
+[M. Chen, ISSCC, 2006]
+               Asynchronous SAR Architecture
+
+
+
+
+               A NAND gate is sufficient as a comparator ready generator
+                                                                           8
+
+[M. Chen, ISSCC, 2006]
+                               Reducing logic delay
+     • Conventional SAR logic:
+        – Comparator ready → sequencer → data-storage → DAC
+        – Long delay from comparator output to DAC update
+
+
+                                              CKC
+
+           Q    D     Q   Ok                   Q
+                  DFF
+           Sk    ck                                 t1
+                                               Sk
+                  Rst                                    tdff
+                                              Ok                Time allowed for settling
+
+
+
+
+                                                                                            9
+
+[Slides from Prof. Fule Li, Tsinghua Univ.]
+           Typical SAR Logic and Timing Diagram
+
+
+
+
+                                                  10
+
+
+[T. Anderson, Computer Design, 1972]
+                           Fast dynamic SAR logic
+ • Sequencer state (SCk) pre-determined
+ • Comparator output (Q) directly goes to DAC (Ok) via transparent latch
+ • Very fast logic, but can have metastability issue (more later)
+
+
+
+       Rst
+                                              CKC
+                   Ok
+       SCk                                     Q
+
+                                              SCk          tla
+        Q
+                                              Ok                 Time allowed for settling
+
+
+
+
+                                                                                             11
+
+[Slides from Prof. Fule Li, Tsinghua Univ.]
+                 High-speed SAR logic example
+
+
+
+
+                  • Sequencer state pre-determined
+                  • Comparator output directly goes to the DAC
+                  • Data is latched during DAC settling          12
+
+
+[C.-H. Chan, JSSC, 2016]
+                  High-speed SAR logic example
+
+
+
+
+                   • Sequencer state pre-determined
+                   • Comparator output directly goes to the DAC
+                   • Data is latched during DAC settling          13
+
+
+[L. Kull, JSSC, 2013]
+                       Fast SAR logic
+
+
+
+
+                                        14
+
+[Z. Cao, JSSC, 2009]
+                          Reducing tDAC
+• Without redundancy, each bit needs to settle to the target resolution
+   – For a 10-bit SAR, need to allocate 7t
+• With redundancy, each bit only needs to settle to the redundancy range
+   – Incomplete settling error can be recovered later
+   – For a 10-bit SAR with 5% redundancy, only need 3t
+
+
+
+
+                                                                          15
+                           DAC self-timing
+    • DAC settling speed also depends on PVT
+    • Also depend on redundancy and bits
+    • Having a replica prevents over-design
+
+
+
+
+                                               16
+
+
+[R. Kapusta, JSSC, 2013]
+           Reducing treset: ping-pong comparator
+     • Time interleave 2 comparators
+        – Fire one comparator and reset the other at the same time
+        – Only need to calibrate 2 comparator offset
+
+
+
+
+                                                                     17
+
+
+[L. Kull, JSSC, 2013]
+                         Loop-Unrolled SAR
+
+
+
+
+     • 𝑇𝑐𝑟𝑖𝑡𝑖𝑐𝑎𝑙 = 𝑡𝑐𝑜𝑚𝑝 + 𝑡𝐷𝐴𝐶 ☺
+     • No logic delay ☺; No comparator reset ☺
+     • Comparator offset mismatch 
+     • Monotonic switching → large Vcm variation → offset calibration cannot
+       be done at the fixed Vcm                                         18
+
+[T. Jiang, JSSC, 2012]
+       Comparator offset foreground calibration
+
+
+
+
+          • Bidirectional single-side switching to reduce Vcm variation ☺
+              • Simple change to the circuit
+              • Optimized Vcm for speed and noise
+          • Vcm adaptive offset calibration ☺
+              • Shorting differential DAC during the calibration mode
+                                                                            19
+
+[L. Chen & N. Sun, TCAS-II, 2017]
+                       Proposed Architecture
+
+
+
+
+        Comparators Offsets
+
+     MSBs                 LSBs
+    Coarse                 Fine
+ Foreground Cal       Background Cal
+       +
+  Redundancy
+                                               20
+
+
+[K. Ragab & N. Sun, ESSCIRC, 2016]
+     LSB Comparators Background Offset Calibration
+
+
+
+
+                                                21
+
+
+[K. Ragab & N. Sun, ESSCIRC, 2016]
+     Background Calibration Loop Convergence
+
+
+
+
+                       Convergence time ~30us@350MS/s
+
+                                                        22
+
+
+[K. Ragab & N. Sun, ESSCIRC, 2016]
+     Circuit Implementation: Compact LPF/DAC
+                                                             LPF + DAC
+
+
+
+
+              1 − 𝜇 𝑉𝑐𝑎𝑙,𝑛 𝑛 − 1 + 𝜇 ⋅ 𝑉𝑑𝑑 , 𝑑𝑟𝑒𝑓 = 0 𝑎𝑛𝑑 𝑑 = 1
+ 𝑉𝑐𝑎𝑙,𝑛 𝑛 = ൞ 1 − 𝜇 𝑉𝑐𝑎𝑙,𝑛 𝑛 − 1 − 𝜇 ⋅ 𝑉𝑑𝑑 , 𝑑𝑟𝑒𝑓 = 1 𝑎𝑛𝑑 𝑑 = 0
+                    𝑉𝑐𝑎𝑙,𝑛 𝑛 − 1 ,              𝑑𝑟𝑒𝑓 = 𝑑
+
+                                      −𝑡𝑝
+                     𝐶𝑝𝑎𝑟             𝜏𝑐𝑎𝑙
+                                                 𝐶𝑝𝑎𝑟 𝑡𝑝
+              𝜇=                1−𝑒          ≅
+                   𝐶𝑐𝑎𝑙 +𝐶𝑝𝑎𝑟                    𝐶𝑐𝑎𝑙 𝜏𝑐𝑎𝑙
+
+
+                                                                         23
+
+
+[K. Ragab & N. Sun, ESSCIRC, 2016]
+                        Measurement Results
+
+
+
+
+                                              24
+
+
+[K. Ragab & N. Sun, ESSCIRC, 2016]
+            Two-stage sub-ranging architecture
+  • Two-stage loop-unrolled SAR with shared DAC (no need for interstage gain cal)
+     – Pre-amp is shared and attenuates the offset mismatch → Calibration free ☺
+     – Fully dynamic ☺ suitable for higher resolution ☺
+     – Add pre-amp delay ☺
+
+
+
+
+                                                                          25
+
+[X. Tang & N. Sun, ESSCIRC, 2016]
+                        Measurement Results
+
+
+
+
+           DNL: +1.1/-0.9 LSB        Low freq input: 54.5dB
+           INL: +0.9/-1.0 LSB        Nyquist input: 50.5dB
+
+                                     FoM of 8.6fJ/step at 200MS/s
+                                                             26
+
+[X. Tang & N. Sun, ESSCIRC, 2016]
+                     High-speed SAR design
+• 𝑇𝑙𝑜𝑜𝑝 = 𝑡𝑐𝑜𝑚𝑝 + 𝑡𝑙𝑜𝑔𝑖𝑐 + 𝑚𝑎𝑥{𝑡𝐷𝐴𝐶 , 𝑡𝑟𝑒𝑠𝑒𝑡 }
+• 𝑇𝑆𝐴𝑅 ≈ 𝑡𝑠𝑎𝑚𝑝𝑙𝑒 + 𝑁 ⋅ 𝑇𝑙𝑜𝑜𝑝
+• Reducing tcomp
+   – Asynchronous clocking
+• Reducing tlogic
+   – Direct path from comparator to DAC
+• Reducing tDAC
+   – Add redundancy
+   – Self timing
+• Reducing treset (treset > tDAC for b < 6-bit)
+   – Ping-pong operation
+   – Loop unrolled SAR
+• Reducing N
+   – Multi-bit-per-cycle
+                                                  27
+                       Reducing N: 2b/cycle
+
+
+
+
+                               • Reduced N to N/2 ☺
+                               • More DACs and more comparators 
+                               • DAC and comparator offset mismatch
+                                 
+                                                              28
+
+[Z. Cao, JSSC, 2009]
+                         3b/cycle
+
+
+
+
+                                    29
+
+[C. Chan, ISSCC, 2015]
+                         3b/cycle
+
+
+
+
+                                    30
+
+[C. Chan, ISSCC, 2015]
+                2b/cycle SAR with REF/SIG DAC
+
+                                • A dedicated DAC for reference
+                                  generation
+                                • Need only 2 DACs ☺
+                                • Need to consider gain mismatch
+                                  between DACs 
+
+
+
+
+                                                             31
+
+[H.-K. Hong, CICC, 2012]
+       A 2.6b/cycle with a Multistep Hardware-Retirement
+
+
+
+
+    • 3 DACs (1 SIG DAC + 2 REF DAC) to achieve 2.6b/cycle
+                                                             32
+
+[H.-K. Hong, ISSCC, 2015]
+                            Hardware retirement
+
+
+
+
+   Use hardware retirement to address gain and comparator offset
+   mismatch ☺                                                      33
+
+[H.-K. Hong, ISSCC, 2015]
+                      Prior 2b/cycle works
+• All requires extra C-DAC or R-DAC to generate reference voltages
+   – Requires extra area & power
+   – Vulnerable to gain mismatch
+   – Requires extra control logics
+
+
+• Can we achieve 2b/cycle without any extra DAC?
+   – 1 differential DAC generate 3 comparison voltage?
+       • Prior works use only differential-mode signal
+       • Add one more dimension: common-mode
+
+
+
+
+                                                                     34
+              Proposed 2b/cycle SAR Algorithm
+
+             Proposed Algorithm
+            1                1
+     𝑉𝑖𝑛𝑝 + 𝑉𝑟𝑒𝑓 ≥𝑉𝑖𝑛𝑝𝑉𝑐𝑚𝑖+ ≡ 𝑉𝑉𝑟𝑒𝑓
+                                 𝑖𝑛𝑝 ≥− 𝑉↔↔
+                                         𝑖𝑛𝑚
+                                         𝑐𝑚𝑖  ≥𝑉
+                                              ≡ −𝑉
+                                                 𝑖𝑛𝑝  − 𝑉𝑖𝑛𝑚 ≥ −𝑉𝑟𝑒𝑓
+                                                    𝑟𝑒𝑓
+            2                2
+            1 1                 1 1
+          𝑉𝑖𝑛𝑝 𝑉+
+     𝑉𝑖𝑛𝑝 +     𝑟𝑒𝑓 𝑉
+                    ≥𝑟𝑒𝑓  ≥ 𝑉+𝑖𝑛𝑚 𝑉+
+                       𝑉𝑖𝑛𝑚             ≡↔
+                                    𝑟𝑒𝑓 𝑉  𝑉𝑖𝑛𝑝
+                                         𝑟𝑒𝑓  ≡−𝑉𝑖𝑛𝑝  − 𝑉≥𝑖𝑛𝑚
+                                                   𝑉𝑖𝑛𝑚     0 ≥0
+            2 2                 2 2
+             1               1
+     𝑉𝑖𝑛𝑚 + 𝑉𝑟𝑒𝑓 𝑉     𝑉𝑐𝑚𝑖+ ≡𝑉𝑉𝑟𝑒𝑓
+                    ≤𝑖𝑛𝑚         𝑖𝑛𝑝 ≤− 𝑉↔↔
+                                         𝑐𝑚𝑖
+                                         𝑖𝑛𝑚  ≡
+                                              ≥ 𝑉𝑖𝑛𝑝
+                                                 𝑟𝑒𝑓 − 𝑉𝑖𝑛𝑚 ≥ 𝑉𝑟𝑒𝑓
+             2               2
+   ∗ 𝑉𝑐𝑚𝑖 ≡ (𝑉𝑖𝑛𝑝 + 𝑉𝑖𝑛𝑚 )/2
+
+   • Left-hand side equations provide 3 comparison equations
+   • Only need 2 voltages: Vinp+Vref/2 and Vinn+Vref/2
+                                                                 35
+
+[J. Song & N. Sun, CICC, 2017]
+        A 5-b example (2 2b/cycle + 1 1b/cycle)
+                    CM updates add 𝑉𝑟𝑒𝑓 /𝟐 by raising 𝐶𝑡𝑜𝑡𝑎𝑙 /𝟐
+
+
+
+
+                                                                  36
+
+[J. Song & N. Sun, CICC, 2017]
+        A 5-b example (2 2b/cycle + 1 1b/cycle)
+                  Simultaneously update the DM and CM of C-DAC
+
+
+
+
+                                                                 37
+
+[J. Song & N. Sun, CICC, 2017]
+    Hardware retirement to enhance resolution
+               Simple conversion to 1b/cycle by disabling CMP1 and
+                                      CMP3
+
+
+
+
+                                                                     38
+
+[J. Song & N. Sun, CICC, 2017]
+                          Circuit implementation
+
+
+
+
+   •   Vcmi is assumed to be available. It can be generated internally through a voltage divider
+   •   Vcmi can also be generated inside the ADC and sent out to the ADC driver as the output
+       common-mode reference
+                                                                                            39
+
+[J. Song & N. Sun, CICC, 2017]
+               Re-cap on high-speed SAR
+• A few high-speed SAR ADC design techniques are presented
+   – Need to tackle every aspect in the delay
+• SARs are very fast now
+   – Single channel can be > 1GS/s
+   – In fact, the fastest ADCs (~100GS/s) are made by time-interleaved SAR
+• Made possible by not only technology scaling, but also circuit innovations
+
+
+
+
+                                                                         40
+

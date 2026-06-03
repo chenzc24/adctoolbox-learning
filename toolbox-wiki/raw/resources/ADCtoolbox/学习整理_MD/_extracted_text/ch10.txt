@@ -1,0 +1,586 @@
+Pipelined ADC Concept
+
+
+
+          Nan Sun
+     Tsinghua University
+   nansun@tsinghua.edu.cn
+
+
+
+                            1
+                          Objective
+• Want an ADC with
+   – High speed
+   – High resolution
+   – Low hardware complexity
+      • Reduce number of comparators
+      • Relax the requirement on comparator precision
+
+
+
+
+                                                        2
+Similar Idea as Folding ADC
+
+
+
+
+                              3
+                     Two-Step Conversion
+
+•   General idea
+    1. Perform a "coarse" quantization of the input
+    2. Compute residual of step 1 conversion using a DAC and a subtractor
+    3. Digitize residual using a "fine" quantizer and digitally add to output
+
+
+
+
+                                                                           4
+Quantizer Model
+
+
+
+
+                  5
+                             Analysis
+
+•   Assuming ideal DAC
+
+
+
+
+•   Output contains only quantization error from fine ADC 
+
+                                                              6
+              Input to Fine Quantizer (Vres)
+
+
+
+
+• Example
+   – 2b coarse ADC and 2b fine ADC
+   – Need only 6 comparators, compared to 15 in a 4-bit flash ADC
+      • Advantage becomes more pronounced at higher resolutions
+
+                                                                    7
+Alternative Illustration
+
+
+
+
+                           8
+               Two-Step ADC Example
+
+
+
+
+B. Razavi and B.A. Wooley, "A 12-b 5-Msample/s two-step CMOS A/D
+converter," IEEE JSSC, pp. 1667-1678, Dec. 1992.
+
+
+                                                                   9
+Multi-Step ADC
+
+
+
+
+                 10
+Multi-Step ADC
+
+
+
+
+                 11
+               Increase Conversion Speed
+• Long conversion time:
+   – Tconv  N(TADC + TDAC + TSUB)
+• Solution
+   – Turn delay into latency by pipelining
+   – Add a S/H after each stage
+
+
+
+
+                                             12
+                  Pipelining – An Old Idea
+
+
+
+
+•   At the Ford Motor Company's Highland Park, Mich., plant in 1913
+
+                                                                  13
+Pipelined Operation (1)
+
+
+
+
+                          14
+Pipelined Operation (2)
+
+
+
+
+                          15
+Bit Alignment
+
+
+
+
+                16
+             Latency
+
+
+
+
+[Analog Devices, AD9226 Data Sheet]
+
+
+
+                                      17
+           Relax Comparator Requirement
+• Fine ADC(s) must have high precision
+   – E.g. 8-bit converter with 4-bit/4-bit partition; fine 4-bit decision
+      levels must have "8-bit precision"
+• Solution
+   – Introduce gain after subtraction
+
+
+
+
+                                                                            18
+           Input to Fine Quantizer with Gain
+
+
+
+
+• No need for precision comparators
+
+                                               19
+Pipeline ADC Block Diagram
+
+
+
+
+                             20
+              Pipeline ADC Characteristics
+• Number of pipelined stages increases linearly with resolution
+   – Hardware complexity ~ B
+   – Flash ADC hardware complexity ~ 2B
+• Pipeline ADC trades latency for conversion speed
+   – Conversion speed limited by only one stage delay
+        • Enables high-speed operation
+   – Latency can be an issue in some applications
+        • E.g. in feedback control loops
+• Pipelining only possible with good analog "memory elements"
+   – Calls for CMOS implementation using switched-capacitor circuits
+
+
+
+
+                                                                       21
+                        Stage Analysis
+
+• Ignore timing/clock delays for simplicity
+
+
+
+
+                                              𝑉   =− 𝐺𝜀
+
+
+
+
+                         𝐷
+                         =𝑉 +𝜀
+                                                     22
+"Residue Plot" (2-bit Sub-ADC)
+
+
+
+
+                                 23
+Pipeline Decomposition
+
+
+
+
+                         24
+Resulting Model
+
+
+
+
+                  25
+                                   Extension
+
+
+
+
+                      G1  q 2     G2          q( n 1)    G( n 1)        qn
+Dout  Vin  q1  1          1       ...  n  2     1              n 1
+                  Gd 1  Gd 1  Gd 2                          Gd( n 1) 
+                                                             
+                                                      djG                      dj G
+                                                      j 1                     j 1
+
+  •   With ideal DACs and matched analog/digital gains (Gdj=Gj)
+                            qn                                n 1
+           Dout  Vin  n 1                 BADC  Bn   log 2G j
+                           G j                                j 1
+
+                           j 1
+                                                                                      26
+                               Analysis
+• The only error in Dout is that of last quantizer, divided by aggregate
+  gain
+• Aggregate ADC resolution is independent of sub-ADC resolutions in
+  stage 1 to stage (n-1).
+• Gain is directly related to resolution
+• Define "effective" resolution of the kth stage as Rk=log2(Gk)
+   – BADC = R1 + R2 + R3 + … + RN-1 + BN
+
+
+
+
+                                                                           27
+                            Questions
+• How to pick inter-stage gain G for a given sub-ADC resolution?
+• Nonidealities and solutions
+   – Sub-ADC errors
+   – Amplifier offset
+   – Amplifier gain error
+   – Sub-DAC error
+
+
+
+
+                                                                   28
+Upper Bound for Stage Gain
+
+
+
+
+                             29
+             Upper Bound for Stage Gain
+
+
+
+
+• Backend ADC will be overloaded for G>2B
+                                            30
+                        Issue with G=2B
+
+
+
+
+                                                                   Over-range!
+
+
+
+
+• Any error in sub-ADC decision levels (e.g. comparator offsets) will
+  overload the backend ADC
+                                                                        31
+          Idea #1: G=2B, extended backend
+
+                                                        +1.25
+                                                        +1
+
+
+       Vres
+
+
+
+                                                        -1
+              -1   0      +1
+                   Vin                                  -1.25
+                                                   qb
+
+• Add extra decision levels in the backend stage
+• See e.g. [Opris 1998]
+
+
+
+
+                                                                32
+            Idea #2: G slightly less than 2B
+
+
+
+
+• Effective stage resolution can be non-integer (R=log2G)
+   – E.g. R = log23.2 = 1.68 bits
+• See e.g. [Karanicolas 1993]
+
+
+                                                            33
+         Idea #3: G < 2B, but Power of Two
+
+
+
+
+• Effective stage resolution is an integer
+   – E.g. R = log22 = 1 = B-1
+   – Digital hardware requires only a few adders, no need to
+      implement fractional weights
+• See e.g. [Mehr 2000]
+
+                                                               34
+          Variant of Idea #3: "1.5-bit stage"
+
+
+
+
+• Number of comparators reduced to 2
+• DAC becomes easier to design
+• R = log22 = 1 (effective stage resolution)
+• See e.g. [Lewis 1992]
+
+                                                35
+        Summary on Sub-ADC Redundancy
+• We can tolerate sub-ADC errors as long as
+   – The residue stays "inside the box", or
+   – Another stage downstream returns the residue "into the box"
+     before it reaches last quantizer
+• This result applies to any stage in an n-stage pipelined ADC
+   – Can always decompose pipeline into single stage + backend ADC
+
+
+
+
+                                                                     36
+                           Amplifier Offset
+
+              Vos                  Push               Vos
+
+        Vin                                                      Vres
+                                                            G1
+                                                            G
+                                               -
+                           ADC         DAC     Vdac
+
+                                   D
+                    -Vos
+
+
+• Amplifier offset can be referred toward stage input and results in
+   – Global offset
+       • Usually not a problem
+   – Sub-ADC offset
+       • Easily accommodated through redundancy
+                                                                        37
+                         Gain Errors
+
+
+
+
+                             G1  D              qn
+           Dout  Vin  q1  1         ...  n 1
+                                 Gd 1 
+                                                 dj G
+                                                 j 1
+
+
+• Want to make Gd1 = G1+D
+
+                                                         38
+               Digital Gain Calibration (1)
+• Key idea
+   – Analog gain error is not a problem as long as digital gain matches
+     analog gain
+   – Need to measure analog gain precisely
+        • Use the backend
+
+
+
+
+                                                                          39
+   Digital Gain Calibration (2)
+
+
+
+
+                                                   Vres  G  Vin  Vdac 
+
+                                                    Db  Vres  qb
+
+       Vdac        -0.75 -0.25 0.25         0.75
+
+                                                        Force 0.25
+
+       Vres
+
+Force -0.25
+
+              -1              0V                   +1
+                                   in,cal
+
+                                                                              40
+                 Digital Gain Calibration (3)
+
+
+        Step1:      Db( 1)  G  Vin  0.25  (qb
+                                                   1)
+
+
+        Step2:      Db( 2 )  G  Vin  0.25   (qb2 )
+
+                                                 1)
+                 Db( 1)  Db( 2 )  0.5  G  (qb   (qb2 )
+
+• We can minimize impact of quantization error by
+   – Averaging (thermal noise dither)
+   – Adding extra backend resolution
+• Gain nonlinearity limits ENOB to about 10 bits.
+
+
+                                                                41
+                        DAC Calibration
+
+Vin                                                         Vres
+                                                     G1
+                                                     G              Backend
+                                               -
+        ADC         Logic DAC
+
+              D        Force             dac
+                                               (D)
+
+                                   REG
+
+
+
+
+Dout                                     corr(D)
+                                                                   Db
+                                                     1/Gd
+
+
+• Same concept as gain calibration
+   – Sweep DAC codes and use backend to measure errors
+• Store coefficients for each DAC transition in a look-up table
+• What if the backend is not accurate?
+                                                                              42
+               Recursive Stage Calibration
+
+
+
+
+• First few stages have most stringent accuracy requirements
+   – Errors of later stages are attenuated by aggregate gain
+• Commonly used algorithm [Karanicolas 1993]
+   – Take ADC offline
+   – First calibrate the least significant stage that needs calibration
+   – Move to the next significant stage and continue toward stage 1
+
+                                                                          43
+Calibration Hardware Example
+
+
+
+
+                          [Chuang 2002]
+
+
+
+
+                                          44
+                   Alternative Schemes
+• Other foreground calibration schemes
+   – Calibrate ADC starting from first stage [Singer 2000]
+   – Connect stages in a circular loop [Soenen 1995]
+• Foreground calibration is not accurate enough when errors drift
+   – Gain error drifts due to temperature variation and device aging
+   – DAC error due to capacitor mismatch does not drift
+• Background calibration techniques [e.g., Ming 2001]
+   – Can keep track of gain variations 
+   – Without disturbing the ADC normal operation 
+
+
+
+
+                                                                       45
+                     Combining the Bits (1)
+
+• Example1: Three 2-bit stages, no redundancy
+
+                  B1=2                   B2=2            B3=2
+                  R1=2                   R1=2
+
+       Vin      Stage 1              Stage 2             Stage 3
+
+
+                 2       D1          2       D2          2      D3
+
+       Dout 6
+                     +                   +
+                              1/22                1/22
+
+
+                                     1      1
+                          Dout  D1  D2     D3
+                                     4     16
+                                                                     46
+       Combining the Bits (2)
+
+D1   XX
+D2      XX      •   Only bit alignment
+D3         XX   •   No digital circuits needed
+------------
+Dout XXXXXX
+
+
+
+
+                                                 47
+                  Combining the Bits (3)
+
+• Example2: 1 bit redundancy in stages 1 and 2
+
+
+
+              B1=3                 B2=3                  B3=2
+              R1=2                 R2=2
+
+   Vin       Stage 1             Stage 2                 Stage 3
+
+
+
+                                 ? Wires?
+
+                                   ???
+                                  ? Wires?
+
+                                             Dout[5:0]
+
+
+                                                                   48
+                        Combining the Bits (4)
+
+                             D1   XXX       • Bits overlap
+              1       1      D2     XXX
+Dout  D1      D2     D3                  • Need adders
+              4      16      D3       XX
+                             ------------
+                             Dout DDDDDD
+
+
+
+
+                                                             49
+                   Combining the Bits (5)
+
+
+
+
+• For fractional weights (e.g. radix <2), avoid the use of complex
+  multipliers
+   – 10X = 8X + 2X
+• See e.g. [Karanicolas 1993]
+
+
+                                                                     50
+

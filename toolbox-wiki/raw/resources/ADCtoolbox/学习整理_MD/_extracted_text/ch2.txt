@@ -1,0 +1,689 @@
+Data Converter High-Level Picture
+
+
+
+               Nan Sun
+          Tsinghua University
+        nansun@tsinghua.edu.cn
+
+
+
+                                    1
+                        Data Conversion
+
+
+                                             Analog
+    Digital World   3, 7, 4, 1, …            World
+
+
+
+• Analog signal: a(t)
+   – Continuous time, continuous amplitude
+• Digital signal: d[n]
+   – Discrete time, discrete amplitude
+• a(t)  d[n]
+   – discretize in time and amplitude
+• d[n]  a(t)
+   – “continuize” in time and amplitude
+
+                                                      2
+Analog-to-Digital Conversion
+
+
+
+
+                               3
+Analog-to-Digital Conversion
+
+
+
+
+                               4
+                               Ideal Sampling
+
+
+•   Ideal sampling
+
+      x (t) = x(t) ⋅     δ(t − nT )
+
+
+
+
+•   Multiplication in time means
+    convolution in frequency
+
+                1
+      X (f) =          X(f − nf )
+                T
+
+
+
+
+                                                5
+                             No Aliasing
+
+
+
+
+• Xd(f) contains replicas of X(f) at Nfs
+• No aliasing for fs – B > B  fs > 2B
+                                           6
+                              Aliasing
+
+
+
+
+• Aliasing for fs < 2B
+• We cannot distinguish signals with different frequencies as they
+  overlap on top of each other after sampling.                       7
+Aliasing Example
+
+
+             • fs = 1000 Hz
+             • Vin = cos(2pfsigt)
+                Vd = cos[2p(fsignTs)]
+                   = cos[2p(fsig/fs)n]
+
+
+             • Signals with different
+               frequencies yield the same
+               sampled result.
+
+
+
+
+                                         8
+                 Frequency-Domain View
+
+
+
+
+• Components at N·fs ± fsig (N integer) are indistinguishable after sampling
+
+
+                                                                         9
+               Nyquist Sampling Theorem
+• In order to prevent aliasing, we need fs > 2B.
+• The sampling rate fs = 2B is called the Nyquist rate.
+
+
+• Question: what if there are out-of-band interferes and noise?
+   – Increase B to contain most interferes and noise
+   – Limit B through filtering (signal conditioning)
+
+
+
+
+                                                                  10
+              Without Anti-Aliasing Filter
+
+
+
+
+• Unwanted interferers and noise are folded into the signal band.
+
+                                                                    11
+Analog-to-Digital Conversion
+
+
+
+
+                               12
+             Brick Wall Anti-Aliasing Filter
+
+
+
+
+•   Use an analog filter to reject unwanted signals.
+
+
+                                                       13
+                 Practical Anti-Aliasing Filter
+
+
+
+
+• How to increase attenuation? 1) increase fs/B; 2) increase filter order
+                                                                            14
+Attenuation vs. Oversampling & Filter Order
+
+    Attenuation
+
+
+
+
+                                                     [v.d. Plassche, p.41]
+              Filter
+              order
+
+
+
+
+                                                         fs/B
+
+
+      We can tradeoff oversampling ratio with filter order
+                                                                    15
+                     Classes of Sampling
+• Nyquist-rate sampling (fs > 2B)
+   – Nyquist-rate data converters
+   – In practice always slightly oversampled (e.g., by 2 or 4)
+• Oversampling (fs >> 2B)
+   – Oversampled data converters
+   – Anti-alias filtering is often trivial
+   – Oversampling also reduces quantization noise
+       • More details to follow
+• Subsampling (fs < 2B)
+   – Exploit aliasing to down-convert high-frequency signals
+   – See [Pekau & Haslett, JSSC, 2005]
+
+
+
+                                                                 16
+                              Subsampling
+
+
+
+
+•   Aliasing is exploited to down-convert a high-frequency signal.
+•   High-Q band-pass filters are needed
+     – They are hard to design.
+•   Noise folding is also a severe problem.
+                                                                     17
+Analog-to-Digital Conversion
+
+
+
+
+                               18
+Quantization of an Analog Signal
+                 • Vq: quantized voltage
+                 • eq: quantization error
+                 • eq = Vq - Vin
+
+
+                 • Quantization step: D
+                 • Quantization error has saw
+                   tooth shape
+                    – Bounded by [–D/2, +D/2]
+
+
+                 • Ideally
+                    – Infinite input range and
+                       infinite number of
+                       quantization levels
+
+                                                 19
+Quantization of an Analog Signal
+                 • In practice
+                    – Finite input range and finite
+                       number of quantization
+                       levels
+                 • Quantization error grows out of
+                   bounds beyond code
+                   boundaries
+                 • We define the full scale range
+                   (FSR) as the maximum input
+                   range that satisfies |eq|  D/2
+                 • Overloading occurs when an
+                   input outside the FSR is applied
+
+
+
+
+                                                     20
+Quantization of an Analog Signal
+                 • In practice
+                    – Output is a digital word
+                       (not an analog voltage)
+                 • Example: b=3
+                    – 23=8 distinct output codes
+                    – Other encoding scheme:
+                         • See e.g. Analog Devices "MT-
+                           009: Data Converter Codes"
+
+
+
+
+                                                      21
+Nomenclature
+      • LSB size (or width) –
+        synonymous with code width D
+      • Transition level – Input value
+        at the transition between two
+        codes. By standard convention,
+        the transition level T[k] lies
+        between codes k-1 and k
+      • Code width – The difference
+        between adjacent transition
+        levels. By standard convention,
+        the code width W[k]=T[k+1]-
+        T[k]
+
+
+
+
+                                      22
+                  Quantizer Classification
+
+• Based on the zero input location, the quantizers can be classified into:
+   – Bipolar input
+       • Mid-rise
+       • Mid-tread
+   – Unipolar input
+
+
+
+
+                                                                        23
+Bipolar Mid-Rise Quantizer
+
+
+
+             • Bipolar input
+                – Differential circuit
+             • Mid-rise characteristic
+                – The center of the transfer
+                  function (zero), coincides
+                  with a transition level
+
+
+
+
+                                               24
+Bipolar Mid-Tread Quantizer
+
+
+
+              • Insensitive to noise at 0 input
+              • In practice, offsets larger than
+                D/2 (due to device mismatch)
+                often make this argument
+                irrelevant
+
+
+
+
+                                                   25
+Unipolar Quantizer
+
+
+
+         • Usually define origin where first
+           code and straight line fit intersect
+            – Otherwise, there would be a
+              systematic offset
+         • Usable range is reduced by D/2
+
+
+
+
+                                           26
+                       Questions to ask
+• How large is the power of the quantization error?
+   – Does it depend on the signal?
+• How is it distributed in frequency?
+   – Is it white?
+• Let us consider several cases
+   – Ramp input
+   – Gaussian random input
+   – Sinusoidal input
+
+
+
+
+                                                      27
+                      Linear Ramp Input
+
+•   8-level quantizer, full-swing input, fin = 101 Hz, fs = 1000 Hz
+
+
+
+
+•   What is the average power of eq?
+•   Key observation: eq is uniformly distributed in [-D/2, D/2]
+                                                                      28
+     Statistical Model of Quantization Error
+
+• eq is uniformly distributed in [-D/2, D/2]
+
+
+                                    Mean
+                                                /
+
+
+
+                                                /
+
+
+
+                                     Variance
+
+                                                /
+
+
+
+                                                /
+
+
+
+
+                                                    29
+                 Gaussian Random Input
+
+•   8-level quantizer, Vin follows normal distribution with mean of 0
+    and standard deviation of ¼.
+
+
+
+
+• Is eq uniformly distributed?
+                                                                        30
+              Histogram of Random Input
+
+
+
+
+•   Close to uniform distribution
+
+                                          31
+                                               31
+                        Sine Wave Input
+
+•   8-level quantizer, full-swing input, fin = 101, fs = 1000.
+
+
+
+
+• Is eq uniformly distributed?
+                                                                 32
+             Quantization Error Histogram
+
+
+
+
+•   Not exactly uniform distribution, but close
+•   Does uniform distribution always hold?
+                                                  33
+                   Small Sine Wave Input
+
+•   A = 0.05;
+
+
+
+
+•   Is eq uniformly distributed?
+                                           34
+           Quantization Error Histogram
+
+
+
+
+•   Why not?
+                                          35
+            Full Swing Input with fin=fs/10
+• Another sine wave example, but now fin/fs=100/1000
+
+
+
+
+                                                       36
+            Quantization Error Histogram
+
+
+
+
+• eq has only a few different values!
+
+                                           37
+                                Explanation
+
+                              f            2πn         2π(n + 10m)
+             V (n) = cos(2π      n) = cos(     ) = cos(           )
+                               f            10              10
+
+
+• Signal repeats every 10 samples, and thus, eq also repeats
+• If we want more distinctive samples and a longer repetition time, we
+  should make fin and fs mutually prime (or even irrational fin/fs)
+
+
+
+
+                                                                         38
+                             Summary
+• Uniform distribution in general holds reasonably well, especially for
+  random input
+• However, it does not hold when:
+   – The input is too small or DC that it spans only 1 or 2 quantization
+     steps
+   – The input is highly correlated with the sampling clock
+   – The input is too large that it overloads the quantizer
+
+
+
+
+                                                                           39
+        Signal-to-Quantization-Noise Ratio
+
+• Signal-to-quantization-noise ratio (SQNR) for an ADC is usually
+  defined as the maximum sinusoidal signal power over the
+  quantization noise power (assuming eq uniformly distributed)
+
+                                   1 2 Δ
+                      P   ,        2 2
+             SQNR =            =           = 1.5 × 2   ≈ (6b + 2) dB
+                      P              Δ
+                                     12
+
+
+
+                b (Number of Bits)                 SQNR
+                          6                        38 dB
+                          10                       62 dB
+                          14                       86 dB
+                          18                      110 dB
+
+
+                                                                       40
+              eq Spectrum for Random Input
+
+• Is the quantization noise spectrum white for a random input?
+
+                                                   eq spectrum
+
+
+
+
+    •   eq looks random.                  • eq spectrum almost flat.
+
+                                                                       41
+                 eq Spectrum for Sine Input
+
+• Is the quantization noise spectrum white?
+    – fin/fs=100/1000, 3-bit quantizer            eq spectrum
+
+
+
+
+ •   eq is weakly correlated with Vin.        •   Some harmonics
+
+                                                                   42
+                 eq Spectrum for Sine Input
+
+• Is the quantization noise spectrum white?
+    – fin/fs=101/1000, 3-bit quantizer            eq spectrum
+
+
+
+
+ •   eq is weakly correlated with Vin.        •   Some harmonics
+
+                                                                   43
+                eq Spectrum for Sine Input
+
+• Is the quantization noise spectrum white?
+    – fin/fs=101/1000, 10-bit quantizer              eq spectrum
+
+
+
+
+ •   The correlation becomes                  •   Spectrum almost white
+     weaker
+                                                                      44
+                                Summary
+
+• For simplicity, we usually assume that the quantization noise power is
+  uniformly distributed in the frequency domain.
+                                PSD
+                      Δ 2
+                        ⋅
+                      12 f
+
+                                                      f
+                                             fs/2
+• This approximation holds well for random input (with electronic noise
+  added) and large quantizer resolution.
+• More details can be found at:
+    – W. R. Bennett, "Spectra of quantized signals," Bell Syst. Tech. J., pp. 446,
+      1948.
+    – B. Widrow, "A study of rough amplitude quantization by means of Nyquist
+      sampling theory," IRE Trans. Circuit Theory, vol. CT-3, pp. 266-76, 1956.
+    – A. Sripad and D. A. Snyder, "A necessary and sufficient condition for
+      quantization errors to be uniform and white," IEEE Trans. Acoustics, Speech,
+      and Signal Processing, pp. 442-448, 1977.
+                                                                             45
+Digital-to-Analog Conversion
+
+
+
+
+                               46
+Digital-to-Analog Conversion
+
+
+
+
+                               47
+                       Ideal DAC Mapping
+
+• Map a digital input to an analog quantity
+• Is there any quantization error for DAC?
+
+
+
+
+                                              48
+Digital-to-Analog Conversion
+
+
+
+
+                               49
+                       Reconstruction Problem
+• How to reconstruct x(t) from x[n]?
+• Ideal interpolation:
+
+                      sin(πf t)
+     x(t) =    x[n]
+                         πf t
+
+
+• However, impossible to
+  implement
+   – sinc is noncausal
+
+
+
+
+                                                50
+              Zero-Order-Hold Reconstruction
+
+
+• We can simply hold the discrete
+  time values
+• What does this do to the signal
+  spectrum?
+
+
+     xZOH (t) = x (t) ∗ u(t)−u(t−T )
+
+
+
+    x (t) = x(t) ⋅    δ(t − nT )
+
+
+
+
+                                               51
+                    /
+
+
+
+               /
+
+
+Magnitude   Delay
+                        52
+Envelope Attenuation of ZOH
+
+
+
+
+                              53
+54
+                    Finite Hold Pulse (RZ DAC)
+
+
+•   Hold output for Tp  Ts
+•   This is equivalent to convolving the
+    Dirac sequence with a rectangular
+    pulse with reduced width of Tp.
+
+
+
+
+                                                 55
+Magnitude   Delay
+
+                    56
+Envelope with Tp=Ts/2
+
+
+
+
+                        57
+                      NRZ vs. RZ DACs
+• Advantage of NRZ DACs
+   – Less high-frequency noise  less burden on the filter
+   – Less sensitivity to clock jitter
+   – Less requirement on slew rate
+   – Less power (smaller unit current source)
+• Disadvantage of NRZ DACs
+   – Large inter-symbol interference
+       • Unmatched rise and fall
+
+
+
+
+                                                             58
+Digital-to-Analog Conversion
+
+
+
+
+                               59
+                    Reconstruction Filter
+
+• Attenuation can be enhanced by increasing:
+   – Oversampling ratio
+   – Filter order
+• We can add pre/post-emphasis to cancel the droop due to the sinc
+  envelope
+
+
+
+
+                                                                     60
+61
+
