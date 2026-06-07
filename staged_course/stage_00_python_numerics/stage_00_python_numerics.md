@@ -119,100 +119,18 @@ n = np.arange(N)
 vin = INPUT_DC + INPUT_AMPLITUDE * np.sin(2.0 * np.pi * fin_bin * n / N)
 ```
 
-这里 `fin_bin / N` 就是归一化频率 `Fin / Fs`。
-
-要理解 coherent sampling，先从 DFT 的性质开始。
-
-DFT 不是在分析无限长的连续信号，而是在分析一段有限长度的离散数据：
+这里 `fin_bin / N` 就是归一化频率 `Fin / Fs`。Stage 00 只需要先记住这个对应关系：
 
 ```text
-x[0], x[1], ..., x[N-1]
+Fin      -> 输入频率，单位 Hz
+Fs       -> 采样率，单位 Hz
+Fin / Fs -> normalized frequency
+fin_bin / N -> 让输入频率对齐 FFT bin 的常见写法
 ```
 
-DFT 默认这 N 个点会按 N 点周期重复：
-
-```text
-x[n + N] = x[n]
-```
-
-换成真实时间，采样率是 `Fs`，所以这段数据的时间窗口长度是：
-
-```text
-T = N / Fs
-```
-
-这个周期延拓信号的基频是：
-
-```text
-f0 = 1 / T = Fs / N
-```
-
-DFT 的第 `k` 个 bin 对应的物理频率就是：
-
-```text
-f_k = k * Fs / N
-```
-
-从“时域到频域”的角度看，DFT 系数就是信号和第 `k` 个复指数基底取内积：
-
-```text
-X[k] = sum_n x[n] * exp(-j 2π k n / N)
-```
-
-频谱幅度就是这个复系数的模，或经过缩放后的模。也就是说，频域里看到的
-第 `k` 个 bin，本质上是在问：
-
-```text
-这段数据里有多少 k * Fs / N 这个频率成分？
-```
-
-如果输入正弦频率刚好满足：
-
-```text
-Fin / Fs = fin_bin / N
-```
-
-等价于：
-
-```text
-Fin = fin_bin * Fs / N
-```
-
-那么它正好等于 DFT 的某个基底频率，能量会集中在对应的
-`fin_bin` 上。这里的 `fin_bin` 同时有两个含义：
-
-```text
-1. 输入正弦在 DFT 里的 bin index
-2. N 个采样点窗口里正弦完成的周期数
-```
-
-这就是 coherent sampling：采样窗口里正好包含整数个输入周期。
-
-如果 `Fin` 不是 `Fs / N` 的整数倍，N 点数据首尾不能无缝周期延拓。
-DFT 只能用多个 bin 一起表示这个频率，频域上就表现为 spectral leakage。
-
-实际使用时要分两种情况：
-
-```text
-Fin 已定：
-    选择合适的 Fs 和 N，让 fin_bin = Fin * N / Fs 是整数
-
-Fs 和 N 已定：
-    调整 Fin 到最近的 coherent frequency，即 Fin = fin_bin * Fs / N
-```
-
-本库里的 `find_coherent_frequency(fs, fin_target, n_fft)` 属于第二种情况：
-在目标 `Fin` 附近找一个合适的整数 `fin_bin`，再返回真正用于仿真的
-`Fin_actual`。这样做的主要目的，是让单音频谱分析时能量落在 FFT bin 上，
-减少 leakage，方便后续看 SNR、SNDR、SFDR 和 sine-based calibration。
-
-注意区分连续傅里叶变换、傅里叶级数和 DFT：
-
-| 方法 | 分析对象 | 频域形式 | 本阶段要记住什么 |
-|---|---|---|---|
-| 连续傅里叶变换 CTFT | 连续时间、无限长度或非周期信号 | 连续频率 | 不是本库 FFT 数据流的直接模型 |
-| 傅里叶级数 | 连续时间、周期为 `T` 的信号 | `k / T` 离散频率 | 基频由周期 `T` 决定 |
-| DFT / FFT | `N` 点离散数据，默认 N 点周期延拓 | `k * Fs / N` 离散 bin | coherent sampling 要让 `Fin` 对齐某个 bin |
+为什么 `fin_bin` 能代表 FFT bin、为什么它也代表采样窗口里的周期数、什么是
+coherent sampling、为什么 non-coherent 会产生 spectral leakage，这些都放到
+Stage 02 系统讨论。本阶段先不要在 DFT 上展开太久，先把数组形状、物理含义和单位稳住。
 
 对应到数组形式，`vin` 通常是一维数组：
 

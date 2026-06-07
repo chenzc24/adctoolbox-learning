@@ -1,4 +1,5 @@
 # ADC Toolbox Notes
+
 ## 1. Modeling ADC 的输入/输出 systems
 
 ### 代码 I/O 数据流
@@ -10,7 +11,7 @@
     -> sar_reconstruct 得到 aout
 ```
 
-Evidence:
+#### Evidence:
 
 ```python
 n = np.arange(N)
@@ -166,6 +167,7 @@ seed 只是为了复现某一次 realization：
 ```python
 rng = np.random.default_rng(seed)
 ```
+
 ## 2. Stage 01: ADC 基础、采样、量化、LSB
 
 ### 本阶段学习目标
@@ -214,7 +216,7 @@ Fs > 2 * Fmax
 
 相干采样在 Stage 00 中已经提及；Stage 02 会继续用它解释 FFT bin 和 spectral leakage。
 
-questions: 奈奎斯特采样定律
+##### questions: 奈奎斯特采样定律
 
 #### 量化 quantization
 
@@ -253,7 +255,7 @@ bits[:, 0]  -> MSB
 bits[:, -1] -> LSB
 ```
 
-questions: 量化过程在本库代码中如何体现？本库有体现非理想量化的 ADC 建模吗？
+##### questions: 量化过程在本库代码中如何体现？本库有体现非理想量化的 ADC 建模吗？
 
 #### 量化误差
 
@@ -274,9 +276,9 @@ RMS(root mean square) quantization noise = LSB / sqrt(12)
 
 这个均匀分布是假设近似，不是永远严格成立。它通常要求输入足够丰富、不超量程，并且量化误差和输入近似不相关。(因为假设了分布均匀，而实现分布均匀的条件是足够大的样本)
 
-questions: 这里涉及到的统计分布知识推导，以及代码体现
+##### questions: 这里涉及到的统计分布知识推导，以及代码体现
 
-answer - key points:
+##### answer - key points:
 
 ```text
 1. 经典模型讨论的是去均值后的量化噪声：
@@ -337,9 +339,9 @@ ENOB = (SNDR_measured - 1.76) / 6.02
 
 因为真实 ADC 的有效位数受到随机噪声和失真共同影响，所以 ENOB 不一定等于 nominal bit 数。
 
-questions: 理想 SNR 和 ENOB 的推导过程，以及代码体现。为什么满幅正弦 A = FS / 2，简要说明过程。
+##### questions: 理想 SNR 和 ENOB 的推导过程，以及代码体现。为什么满幅正弦 A = FS / 2，简要说明过程。
 
-answer - key points:
+##### answer - key points:
 
 ```text
 1. 满幅正弦刚好填满 ADC 输入范围：
@@ -416,3 +418,233 @@ SAR logic  -> 安排试探顺序并记录 bits
 | reference noise | 参考电压不稳 | 增益误差、噪声增加 |
 | offset | 比较器或前端偏置 | code 偏移 |
 | 非线性 | 开关、参考、DAC/CDAC 非理想 | harmonic、spur、SFDR 下降 |
+
+## 3. ADC动态性能指标
+
+### 本阶段学习目标
+
+- 理解 ADC 动态性能测试用单音sine的原因
+- DFT/FFT bin、频率分辨率、single-sided-spectrum是什么
+- 理解 coherent sampling 的概念和重要性
+- spectral leakage 的原因和表现， windowing 的作用和局限
+- SNR、SNDR、SFDR、THD、ENOB、NSD 分别衡量什么
+- 为什么频谱分析必须排除DC、fundamental和harmonics
+- analyze_spectrum 的输入输出是什么，如何对应到理论概念
+- 如何从频谱现象分析 ADC 的性能问题
+
+### 数学补充
+
+#### 1.正弦信号和nomalized frequency
+
+#### 2.DFT
+
+#### 3.coherent sampling
+
+以上三点在 Stage 02 正文中已经系统展开，这里不再赘述。
+
+#### 4.FFT特点-two-sided 和 single-sided spectrum
+
+核心逻辑不是“FFT 只能算到 `Fs/2`”，而是：
+
+```text
+采样后：
+exp(j 2π (f + Fs) n / Fs)
+= exp(j 2π f n / Fs) * exp(j 2π n)
+= exp(j 2π f n / Fs)
+```
+
+因为 `exp(j 2π n) = 1`，所以：
+
+```text
+f 和 f + Fs 对离散序列完全等价
+-> 离散时间频谱以 Fs 为周期
+-> FFT 给出的是一个宽度为 Fs 的频谱周期
+```
+
+这个周期可以按 raw FFT 顺序看成：
+
+```text
+[0, Fs)
+```
+
+也可以重排成 centered two-sided spectrum：
+
+```text
+[-Fs/2, Fs/2)
+```
+
+所以 `Fs/2` 不是 FFT 的“计算上限”，而是以 0 为中心取一个完整频谱周期时的边界，也是 baseband 信号不 alias 的最高频率。
+
+对于实数 ADC 输出：
+
+```text
+X[-k] = conj(X[k])
+|X[-k]| = |X[k]|
+```
+
+负频率半边只是正频率半边的镜像，所以工程上常只画：
+
+```text
+[0, Fs/2]
+```
+
+这就是 single-sided spectrum。
+
+single-sided 幅度补偿规则：
+
+```text
+普通 AC bin：
+    正负频率各占一半幅度
+    -> single-sided amplitude 要乘 2
+
+DC bin:
+    k = 0，没有 +0/-0 两个不同频率
+    -> 不乘 2
+
+Nyquist bin:
+    k = N/2，仅偶数 N 存在
+    exp(+jπn) = exp(-jπn) = (-1)^n
+    -> +Fs/2 和 -Fs/2 是同一个离散频率
+    -> 不乘 2
+```
+
+一句话总结：
+
+```text
+复指数 -> 解释正负频率
+采样 -> 解释频谱以 Fs 为周期
+实数信号 -> 解释负频率是共轭镜像
+single-sided -> 只保留 0~Fs/2，并对普通 AC bin 做幅度/功率补偿
+```
+
+#### 5. Spectral leakage 和 window
+
+核心数学链：
+
+```text
+有限 FFT 不是直接分析无限长 x[n]，
+而是分析 y[n] = x[n] * w[n]
+```
+
+其中 `w[n]` 是 window。不加 window 时其实是 rectangular window：
+
+```text
+w_R[n] = 1, 0 <= n <= N-1
+```
+
+时域相乘对应频域卷积：
+
+```text
+y[n] = x[n] w[n]
+<->
+Y(e^{jω}) = (1 / 2π) X(e^{jω}) * W(e^{jω})
+```
+
+对单音：
+
+```text
+x[n] = A e^{jω0n}
+X(e^{jω}) = 2πA δ(ω - ω0)
+```
+
+所以：
+
+```text
+Y(e^{jω}) = A W(e^{j(ω - ω0)})
+```
+
+结论：
+
+```text
+单音的 leakage 形状 = window 频谱 W 的形状
+```
+
+Rectangular window 的频谱：
+
+```text
+W_R(e^{jω})
+= e^{-jω(N-1)/2} * sin(Nω/2) / sin(ω/2)
+```
+
+它的零点在：
+
+```text
+ω = 2πm / N
+```
+
+所以 coherent + rectangular 时，其它 FFT bin 正好采到零点，看起来没有 leakage。
+non-coherent 时，FFT bin 不再采到零点，旁瓣被采出来，形成 leakage。
+
+主瓣和旁瓣：
+
+```text
+main lobe 主瓣：
+    window 频谱中心峰附近的主要能量区域
+    -> 决定一个单音占多少 bin
+    -> 决定频率分辨率
+
+side lobe 旁瓣：
+    主瓣外侧的小峰
+    -> 决定强信号向远处泄漏多少
+    -> 影响小 spur 是否被盖住
+```
+
+Window 的 tradeoff：
+
+```text
+rectangular:
+    主瓣窄，频率分辨率好
+    旁瓣高，远处 leakage 强
+
+Hann / Blackman:
+    边界更平滑
+    旁瓣更低
+    主瓣更宽
+    需要合并更多 bin
+
+Flattop:
+    幅度测量更稳
+    主瓣很宽
+```
+
+必要校正：
+
+```text
+coherent gain:
+    CG = sum(w[n]) / N
+    -> window 会缩小单音幅度，需要校正
+
+ENBW:
+    ENBW = N * sum(w[n]^2) / (sum(w[n]))^2
+    -> window 会改变噪声带宽，需要校正
+```
+
+与 ADCToolbox 代码对应：
+
+```text
+python/src/adctoolbox/spectrum/_window.py
+    _create_window(win_type, N)
+        -> window_vector
+        -> window_gain = sum(window_vector) / N
+        -> equiv_noise_bw_factor = N*sum(w^2)/(sum(w)^2)
+
+python/src/adctoolbox/spectrum/compute_spectrum.py
+    data_windowed = data_normalized * window_vector
+    power_correction = _calculate_power_correction(window_gain, equiv_noise_bw_factor)
+    power_spectrum *= power_correction
+
+side_bin:
+    fundamental_bin ± side_bin 被合并为 signal power
+    harmonic_bin ± side_bin 被合并为 harmonic power
+    这些 bins 在 noise 估计中被排除
+```
+
+判断：
+
+```text
+side_bin 太小:
+    主瓣没收全 -> 信号被误算成 noise/spur
+
+side_bin 太大:
+    附近真实 spur 被吞进 fundamental/harmonic
+```
