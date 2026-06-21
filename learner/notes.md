@@ -10,7 +10,6 @@
     -> sar_convert 得到 raw bit decisions / codes
     -> sar_reconstruct 得到 aout
 ```
-
 #### Evidence:
 
 ```python
@@ -419,7 +418,7 @@ SAR logic  -> 安排试探顺序并记录 bits
 | offset | 比较器或前端偏置 | code 偏移 |
 | 非线性 | 开关、参考、DAC/CDAC 非理想 | harmonic、spur、SFDR 下降 |
 
-## 3. ADC动态性能指标
+## 3. Stage 02: FFT 和动态性能指标
 
 ### 本阶段学习目标
 
@@ -432,17 +431,12 @@ SAR logic  -> 安排试探顺序并记录 bits
 - analyze_spectrum 的输入输出是什么，如何对应到理论概念
 - 如何从频谱现象分析 ADC 的性能问题
 
-### 数学补充
+### 核心笔记
 
-#### 1.正弦信号和nomalized frequency
+正弦信号、normalized frequency、DFT、coherent sampling 已经在 Stage 02 正文中系统展开；
+notes 只保留后续容易混淆的核心逻辑。
 
-#### 2.DFT
-
-#### 3.coherent sampling
-
-以上三点在 Stage 02 正文中已经系统展开，这里不再赘述。
-
-#### 4.FFT特点-two-sided 和 single-sided spectrum
+#### 1. Two-sided 和 single-sided spectrum
 
 核心逻辑不是“FFT 只能算到 `Fs/2`”，而是：
 
@@ -459,6 +453,26 @@ exp(j 2π (f + Fs) n / Fs)
 f 和 f + Fs 对离散序列完全等价
 -> 离散时间频谱以 Fs 为周期
 -> FFT 给出的是一个宽度为 Fs 的频谱周期
+```
+
+raw FFT 后半段解释成负频率，不只是人为把频率减去 `Fs`，而是因为 DFT 基底有
+modulo-N 等价：
+
+```text
+exp(j 2π k n / N)
+= exp(j 2π (k - N) n / N)
+```
+
+因为：
+
+```text
+exp(-j 2π n) = 1
+```
+
+所以：
+
+```text
+k 和 k-N 表示同一个离散时间复指数基底。
 ```
 
 这个周期可以按 raw FFT 顺序看成：
@@ -517,19 +531,95 @@ Nyquist bin:
 single-sided -> 只保留 0~Fs/2，并对普通 AC bin 做幅度/功率补偿
 ```
 
-#### 5. Spectral leakage 和 window
+#### 2. Spectral leakage 和 window
 
 核心数学链：
 
 ```text
 有限 FFT 不是直接分析无限长 x[n]，
-而是分析 y[n] = x[n] * w[n]
+而是分析 y[n] = x[n] w[n]
 ```
 
-其中 `w[n]` 是 window。不加 window 时其实是 rectangular window：
+注意：
+
+```text
+乘 window 不是把 DFT 变成连续傅里叶变换。
+采样本身也不等于乘 rectangular window。
+DTFT 只是分析工具，用来观察 windowed signal 的连续频率响应。
+N 点 DFT = 在 ω_k = 2πk/N 上采样 Y(e^{jω})。
+```
+
+更严谨地说：
+
+```text
+ADC 采样 -> 得到离散序列
+只取其中 N 点做 FFT -> 有限截取
+有限截取 -> 可以建模成乘 rectangular observation mask
+```
+
+这个 rectangular mask 不是凭空多出来的，而是 DFT 求和范围的另一种写法：
+
+```text
+sum_{n=0}^{N-1} x[n] e^{-j2πkn/N}
+= sum_{n=-∞}^{∞} x[n] r_N[n] e^{-j2πkn/N}
+
+r_N[n] = 1, 0 <= n <= N-1
+       = 0, otherwise
+```
+
+在有限向量内部，乘 `ones(N)` 的确什么都没改变；在无限序列视角里，`r_N[n]`
+表示 N 点内参与分析、N 点外不参与分析。
+
+所以“不显式加 window”的准确含义是：
+
+```text
+不额外乘 Hann / Blackman / flattop 等 taper window。
+但有限截取本身仍然可用 rectangular mask/window 描述。
+```
 
 ```text
 w_R[n] = 1, 0 <= n <= N-1
+```
+
+关键澄清：
+
+```text
+理想单音是一根谱线
+-> 指无限长单音的 DTFT
+-> 或有限 DFT 中刚好 coherent，落在某一个 DFT basis 上
+```
+
+如果非相干：
+
+```text
+x[n] = A e^{j2π(10.3)n/N}
+```
+
+它不是任何一个整数 bin 的 DFT basis，所以有限 N 点 DFT 必须用多个 basis 共同表示它：
+
+```text
+non-coherent finite record
+-> not exactly one DFT basis vector
+-> many nonzero FFT bins
+-> leakage
+```
+
+所以：
+
+```text
+不是“只有额外加 window 才有 leakage”；
+而是“把无限信号截成有限 N 点去分析，可以等价建模为乘了 observation window”。
+
+不显式加 taper window -> rectangular observation window -> 仍然会 leakage
+显式加 Hann/Blackman/... -> 把 rectangular 改成其它 window -> 改变 leakage 的形状
+```
+
+乘 window 的目的：
+
+```text
+改变有限观测带来的 leakage 形状，选择一个频域分析核 W(e^{jω})
+-> 单音在频谱上的扩散形状由 W 决定
+-> 用主瓣/旁瓣 tradeoff 改善 signal / spur / noise 分类
 ```
 
 时域相乘对应频域卷积：
@@ -538,6 +628,17 @@ w_R[n] = 1, 0 <= n <= N-1
 y[n] = x[n] w[n]
 <->
 Y(e^{jω}) = (1 / 2π) X(e^{jω}) * W(e^{jω})
+```
+
+最短推导：
+
+```text
+x[n] = (1 / 2π) ∫ X(e^{jθ}) e^{jθn} dθ
+
+Y(e^{jω})
+= sum_n x[n]w[n]e^{-jωn}
+= (1 / 2π) ∫ X(e^{jθ}) [sum_n w[n]e^{-j(ω-θ)n}] dθ
+= (1 / 2π) ∫ X(e^{jθ}) W(e^{j(ω-θ)}) dθ
 ```
 
 对单音：
@@ -612,11 +713,19 @@ Flattop:
 ```text
 coherent gain:
     CG = sum(w[n]) / N
-    -> window 会缩小单音幅度，需要校正
+    -> W(0)/N，表示 window 频率响应的中心高度
+    -> 只看 coherent tone 中心 bin 时，功率高度和 CG^2 有关
 
 ENBW:
     ENBW = N * sum(w[n]^2) / (sum(w[n]))^2
-    -> window 会改变噪声带宽，需要校正
+    -> 不是主瓣宽度，而是等效白噪声带宽
+    -> DFT bin 可看成由 W(e^{jω}) 决定的分析滤波器
+    -> 单音看中心增益 W(0)=sum(w)
+    -> 白噪声看功率面积 ∫|W|^2 dω
+    -> Parseval: (1/2π)∫|W|^2 dω = sum(w^2)
+    -> 用 FFT bin 宽度 2π/N 归一化后得到 ENBW
+    -> 不要理解成“CG 校正 signal，ENBW 再校正 noise”
+    -> CG^2 * ENBW = mean(w^2)，代码实际做一次 RMS power normalization
 ```
 
 与 ADCToolbox 代码对应：
@@ -633,10 +742,27 @@ python/src/adctoolbox/spectrum/compute_spectrum.py
     power_correction = _calculate_power_correction(window_gain, equiv_noise_bw_factor)
     power_spectrum *= power_correction
 
+    power_correction = 4 / (window_gain^2 * ENBW)
+                     = 4 / mean(w^2)
+    -> 按 window RMS power 归一化，再做 one-sided / dBFS 风格标定
+    -> CG 和 ENBW 没有分别作用到 signal/noise；它们只合成一次 correction
+
+    sig_peak = power_spectrum[fundamental_bin]
+        -> center bin power
+
+    sig_linear = sum(power_spectrum[fundamental_bin-side_bin :
+                                    fundamental_bin+side_bin+1])
+        -> fundamental 主瓣合并功率
+        -> sig_pwr_dbfs 来自这个量
+
 side_bin:
     fundamental_bin ± side_bin 被合并为 signal power
-    harmonic_bin ± side_bin 被合并为 harmonic power
-    这些 bins 在 noise 估计中被排除
+    当前 plotspec-style harmonic power 取 harmonic center bin
+    side_bin 对 harmonic 主要用于 collision 判断
+    noise 估计一定排除 DC 与 fundamental 主瓣
+    harmonic 排除取决于 nf_method:
+        nf_method=3 排除 harmonic center bin
+        nf_method=4 排除 harmonic_bin ± side_bin
 ```
 
 判断：
@@ -647,4 +773,59 @@ side_bin 太小:
 
 side_bin 太大:
     附近真实 spur 被吞进 fundamental/harmonic
+```
+
+#### 3. SNR / NSD / OSR
+
+核心关系：
+
+```text
+SNR 看总噪声：
+    SNR_dB = P_signal_dBFS - P_noise_total_dBFS
+
+NSD 看每 Hz 噪声密度：
+    P_noise_total = NSD_linear * BW
+    P_noise_total_dBFS = NSD_dBFS_Hz + 10log10(BW)
+
+所以：
+    NSD_dBFS_Hz = P_signal_dBFS - SNR_dB - 10log10(BW)
+    SNR_dB = P_signal_dBFS - NSD_dBFS_Hz - 10log10(BW)
+```
+
+OSR 改变 in-band bandwidth：
+
+```text
+Nyquist bandwidth = fs/2
+    -> FFT 仍然可以显示到这里
+
+BW = fs / (2 * osr)
+    -> in-band bandwidth
+    -> 动态指标只统计 0 ~ BW_signal
+
+osr = fs / (2 * BW_signal)
+```
+
+对白噪声：
+
+```text
+osr 增大
+-> BW 变小
+-> 积分总噪声变小
+-> SNR 提高 10log10(osr)
+-> NSD 本身不应因为只改分析带宽而改变
+```
+
+代码对应：
+
+```text
+compute_spectrum.py
+    freq = arange(len(power_spectrum)) * fs/N
+        -> 频率轴仍到 fs/2
+
+    n_inband = rfft_inband_bin_count(N, osr)
+        -> edge_bin = N/(2*osr)
+        -> 只用 spectrum[:n_inband] 计算 in-band 指标
+
+    noise_floor_dbfs = sig_pwr_dbfs - snr_dbc
+    nsd_dbfs_hz = noise_floor_dbfs - 10log10(fs/(2*osr))
 ```

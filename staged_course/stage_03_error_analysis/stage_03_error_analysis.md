@@ -9,6 +9,67 @@
 - error PDF、error autocorrelation、error spectrum 分别回答什么问题。
 - 如何根据 residual 判断噪声、失真、memory、glitch 等问题。
 
+## 从 Stage 02 到 Stage 03：学习衔接
+
+Stage 02 已经让你能从 FFT 频谱里拆出：
+
+```text
+signal / noise / harmonic / spur / DC
+```
+
+并进一步用：
+
+```text
+SNR / SNDR / THD / SFDR / ENOB / NSD
+```
+
+描述“性能坏成什么频谱形状”。但这些指标本身还不是最终归因。例如：
+
+```text
+SNR 差
+```
+
+只能说明“信号相对噪声或非信号成分不够干净”，还不能直接说明它一定来自 thermal
+noise、comparator noise、reference noise、jitter，还是测试源问题。
+
+Stage 03 的任务是接着问：
+
+```text
+把最主要的 sine 成分拿掉以后，剩下的 error 到底长什么样？
+```
+
+因此本阶段的核心衔接链条是：
+
+```text
+analyze_spectrum(...)
+-> 频谱指标提出第一层怀疑
+-> fit_sine_4param(...) 拟合并移除主信号
+-> residual = measured - fitted
+-> PDF / ACF / error spectrum / by value / by phase
+-> 判断误差更像 random、deterministic、memory、clipping 还是 jitter-related
+```
+
+对应关系先记成这张索引：
+
+| Stage 02 的频谱现象 | Stage 03 的验证视角 | 先用哪些工具 |
+|---|---|---|
+| `SNR` 差、noise floor 高 | residual 是否像随机白噪声 | `analyze_error_pdf`、`analyze_error_autocorr` |
+| `THD` 差、harmonic 明显 | residual 是否有确定性的周期结构 | `analyze_error_spectrum`、`analyze_error_by_value`、`analyze_error_by_phase` |
+| `SFDR` 差、单个 spur 突出 | residual 里是否有固定频率线，spur 是否随条件移动 | `analyze_error_spectrum` |
+| 高频输入下 `SNR` 更差 | error 是否和输入相位/斜率相关，是否接近 jitter limit | `analyze_error_by_phase`、`calculate_jitter_limit` |
+| clipping 或接近 full-scale | residual 是否在波峰/波谷、码边界或幅度边缘异常 | `analyze_error_pdf`、`analyze_error_by_value` |
+
+本阶段不会把所有电路来源一次性讲完。这里先训练一种诊断动作：
+
+```text
+先看频谱指标提出假设；
+再看 residual 形状验证假设。
+```
+
+更具体的 ADC 非理想来源，例如 sampling noise、comparator noise、CDAC mismatch、
+settling、reference error，会在 Stage 04 继续展开；deterministic error 为什么可以校准、
+随机噪声为什么不能简单校准，会在 Stage 06 继续展开。
+
 ## 初学者先抓住的主线
 
 Stage 02 的频谱指标回答：
@@ -34,9 +95,20 @@ Stage 03 的 residual 分析回答：
 
 你可以把 fitted sine 看成“ADC 应该输出的主信号”，把 residual 看成“主信号解释不了的剩余部分”。剩余部分越有结构，越说明问题可能不是纯随机噪声。
 
-## 三张图分别看什么
+本阶段建议按这个顺序学：
 
-如果 demo 给你三类 residual 图，按这个顺序看：
+```text
+1. 先理解为什么要 fit sine：建立“主信号模型”
+2. 再理解 residual：只看主信号解释不了的部分
+3. 看 PDF：误差幅度分布像不像随机噪声
+4. 看 ACF：误差样本之间有没有 memory
+5. 看 error spectrum：误差里有没有确定性频率成分
+6. 看 by value / by phase：误差是否依赖输入值或输入相位
+```
+
+## 几类 residual 图分别看什么
+
+如果 demo 给你几类 residual 图，按这个顺序看：
 
 | 图 | 先问什么 |
 |---|---|
@@ -231,8 +303,8 @@ from adctoolbox import analyze_error_by_phase
 ## 实验 1：正弦拟合
 
 ```powershell
-cd C:\Users\90590\adctoolbox_examples
-python 04_debug_analog\exp_a01_fit_sine_4param.py
+cd E:\ADCToolbox\python
+uv run python src\adctoolbox\examples\04_debug_analog\exp_a01_fit_sine_4param.py
 ```
 
 观察：
@@ -244,8 +316,8 @@ python 04_debug_analog\exp_a01_fit_sine_4param.py
 ## 实验 2：error PDF
 
 ```powershell
-cd C:\Users\90590\adctoolbox_examples
-python 04_debug_analog\exp_a21_analyze_error_pdf.py
+cd E:\ADCToolbox\python
+uv run python src\adctoolbox\examples\04_debug_analog\exp_a21_analyze_error_pdf.py
 ```
 
 观察：
@@ -257,8 +329,8 @@ python 04_debug_analog\exp_a21_analyze_error_pdf.py
 ## 实验 3：error autocorrelation
 
 ```powershell
-cd C:\Users\90590\adctoolbox_examples
-python 04_debug_analog\exp_a23_analyze_error_autocorrelation.py
+cd E:\ADCToolbox\python
+uv run python src\adctoolbox\examples\04_debug_analog\exp_a23_analyze_error_autocorrelation.py
 ```
 
 观察：
