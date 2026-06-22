@@ -829,3 +829,182 @@ compute_spectrum.py
     noise_floor_dbfs = sig_pwr_dbfs - snr_dbc
     nsd_dbfs_hz = noise_floor_dbfs - 10log10(fs/(2*osr))
 ```
+
+#### 3b. 动态指标的基本定义（SNR / SNDR / SFDR / THD / ENOB）
+
+Stage 02 不要求深究每个指标，但要记住基本定义、公式、以及它们对什么问题敏感。
+
+设频谱已分类为：`P_signal` / `P_noise`（排除 DC、fundamental、harmonics）/ `P_harm` / `P_spur_max`。
+
+```text
+SNR  = 10 log10(P_signal / P_noise)                   只看随机噪声
+SNDR = 10 log10(P_signal / (P_noise + P_harm))        噪声 + 失真
+THD  = 10 log10(P_harm / P_signal)                    只看 harmonic distortion
+SFDR = 10 log10(P_signal / P_spur_max)                只看最大单个 spur
+ENOB = (SNDR - 1.76) / 6.02                           由 SNDR 换算
+```
+
+##### 几个关键不等式和判据
+
+```text
+1. SNDR ≤ SNR 永远成立，等号当且仅当 P_harm = 0
+   -> 实验 1: 纯噪声信号 SNR ≈ SNDR
+   -> 实验 4: clipping 后 SNR 继续上升，SNDR 反而下降（harmonic 暴涨）
+
+2. ENOB 完全由 SNDR 决定，不是 ADC nominal bit 数的属性
+   -> ENOB = (SNDR-1.76)/6.02
+   -> 一个纯软件生成的浮点正弦+噪声也能算出 ENOB（实验 1）
+
+3. SFDR 通常比 SNR 高 10-20 dB
+   -> SFDR 看单个最大 spur 峰值
+   -> SNR 看所有 noise bin 功率之和
+   -> 同样噪声下，单个 bin 峰值 < 总功率
+
+4. SNR 与 signal_rms 的关系，取决于噪声类型：
+   thermal/quantization 主导: SNR ∝ signal_rms（实验 4 小信号区，20 dB/decade）
+   jitter 主导:              SNR 与 A 无关（见 jitter key points）
+```
+
+##### 实验中的大致情况分析
+
+```text
+实验 1 (clean sine + 白噪声):
+    SNR ≈ SNDR        -> 无失真
+    ENOB = 14.8       -> 纯由 noise_rms 决定，与 ADC 无关
+    SFDR > SNR 20 dB  -> 噪声统计峰值效应
+
+实验 4 (扫幅度，加 clipping):
+    小信号区:    SNR ≈ SNDR, 随 A 线性上升（20 dB/decade）
+    sweet spot:  SNDR 峰值 @ 0 dBFS, SNR ≈ SNDR
+    过载区:      SNR 继续上升，SNDR 反而下降，THD 飙升变正
+    SNR/SNDR 分叉点 = clipping 开始起作用的位置
+
+实验 5 (固定 A，扫 Fin, 只加 jitter):
+    SNR_jitter 每 octave 降 6 dB
+    全频段 SNR ≈ SNDR（jitter 噪声虽是"裙边"形状，但仍是噪声不是 harmonic）
+```
+
+##### 指标选择直觉
+
+```text
+SNR 差  -> 先怀疑 thermal noise / jitter / reference noise
+THD 差  -> 先怀疑非线性 / clipping / CDAC mismatch / settling
+SFDR 差 -> 先定位最大 spur 频率，再判断它是 harmonic 还是外部干扰
+ENOB 差 -> 不够具体，拆成 SNR/THD/SFDR 分别看原因
+```
+
+详细推导见 stage_02_fft_metrics.md 第 6、7 节。
+
+#### 4. ENBW 的双重角色：power correction 与 noise floor 光滑度
+
+##### question: 实验 3（windowing deep dive）里，同一个信号换不同 win_type，为什么 Hann/Blackman/Flattop 的 noise floor 看起来很光滑，rectangular/Hamming 全是毛刺？这和指标有关吗？
+
+##### answer - key points:
+
+```text
+1. 单个 FFT bin 的白噪声功率服从指数分布：
+   std(power_per_bin) ≈ mean(power_per_bin)
+   -> bin-to-bin 天然波动 5-6 dB
+   -> 白噪声 FFT 本来就该是锯齿状直线，不是水平线
+
+2. ENBW 决定相邻 bin 的相关性：
+   ENBW = 1.0 (rectangular)  -> 相邻 bin 主瓣几乎不重叠 -> 不相关 -> 全毛刺
+   ENBW = 1.5 (Hann)         -> 相邻 bin 显著重叠       -> 相关   -> 较光滑
+   ENBW = 3.77 (flattop)     -> 多个 bin 重叠           -> 非常光滑
+
+3. ENBW > 1 在频域相当于做了滑动平均：
+   ENBW 越大 -> 平均窗口越宽 -> noise floor 视觉方差越小
+
+4. 这是 ENBW 的第二个角色。第一个角色是 5.11.3 的 power correction：
+   每个 bin 收到 noise 功率 ∝ sum(w^2) ∝ ENBW
+   所以 power_correction = 4/mean(w^2) 要除掉它
+
+5. 易错点：noise floor 光滑 ⟹ 测量更准？不。
+   光滑只是 ENBW 平均的视觉效果，代价是主瓣变宽 -> 频率分辨率下降
+   Flattop noise 最光滑，但两个靠近的 spur 分不开
+   rectangular noise 最毛刺，但频率分辨率最好
+
+6. 这也解释了 short FFT (N=128) 下主瓣宽的 window ENOB 反而虚高：
+   大主瓣把 fundamental 附近多个 noise bin 平均进了
+   sig_bin_start:sig_bin_end 的合并范围 -> noise 估计偏低 -> SNDR 虚高
+   N 越小、bin 越少，这个效应越明显
+
+7. 代码锚点：python/src/adctoolbox/spectrum/_window.py
+   equiv_noise_bw_factor = N*sum(w^2)/sum(w)^2
+
+8. 详细推导见 stage_02_fft_metrics.md 5.11.3b
+```
+
+#### 5.jitter
+理想采样：在精确时刻 t[n] = n/Fs 取样。
+
+有 jitter 的采样：实际采样时刻偏移了一个随机量 δt[n]：
+```text
+t_actual[n] = n/Fs + δt[n]
+```
+
+关键假设：
+
+- δt[n] 在不同 n 之间不相关（白噪声假设）
+- δt[n] 和信号 x(t) 不相关
+- δt[n] << 1/Fin（小抖动假设）
+
+核心近似（小抖动线性化）：当 2π·Fin·δt[n] 很小时，sin(θ + ε) ≈ sin(θ) + ε·cos(θ)：
+
+```text
+x_jit[n] ≈ A·sin(2π·Fin·n/Fs) + A·cos(2π·Fin·n/Fs) · 2π·Fin·δt[n]
+          = x[n]                              + Δx[n]
+
+Δx[n] = A·cos(2π·Fin·n/Fs) · 2π·Fin·δt[n]
+      = (dx/dt)|_{t=n/Fs} · δt[n]
+
+噪声功率
+E[(Δx)²] = E[(A·cos(·))²] · E[(2π·Fin·δt)²]
+         = (A²/2) · (2π·Fin)² · σt²
+
+SNR_jitter = signal_rms / noise_rms_jitter
+           = signal_rms / (signal_rms · 2π·Fin · σt)
+           = 1 / (2π·Fin · σt)
+
+最终公式
+SNR_jitter_dB = 20·log10(1/(2π·Fin·σt))
+              = -20·log10(2π·Fin·σt)
+```
+
+##### key points:
+
+```text
+1. jitter 电压误差的本质：
+   Δx[n] = (dx/dt)|_{t=n/Fs} · δt[n]
+   = 信号在那一刻的斜率 × 时间偏移
+   -> 高频 / 大幅度信号 dx/dt 大，同一 δt 造成更大 Δx
+   -> 这就是"高频对 jitter 更敏感"的物理根源
+
+2. SNR_jitter 和信号幅度 A 无关（A 在分子分母约掉）：
+   这是 jitter 和 thermal/quantization noise 的本质区别。
+   增大信号幅度能压过 thermal / quantization，但压不过 jitter。
+   所以实验 5 用固定 A=0.5 就能直接测出 SNR_jitter。
+
+   thermal noise:     SNR ∝ A
+   quantization:      SNR ∝ 2^N
+   jitter:            SNR 与 A 无关
+
+3. jitter 噪声的频域形状——fundamental 两侧的"裙边"：
+   Δx[n] = cos(2π·Fin·n/Fs) · δt[n]   (单音 × 白噪声)
+   -> 时域相乘 = 频域卷积 (5.3 节)
+   -> 余弦的 DTFT 是 ±Fin 两根冲激谱线 (5.1 节)
+   -> 冲激卷积搬移：G(ω) * δ(ω-ω0) = G(ω-ω0)
+   -> 白噪声被整体搬移到 ±Fin 附近
+
+   只看一根冲激的卷积结果仍是平坦的，裙边来自：
+   a) 真实时钟 δt 不是严格白噪声，close-in phase noise 在 0 频附近抬升
+   b) 有限 FFT 的 window 主瓣/旁瓣让形状进一步展开
+   c) fundamental 主瓣 leakage 和搬来的 jitter 噪声在 Fin 附近叠加
+
+4. jitter 主导的频谱判据：
+   thermal/quantization 主导 -> 整段 noise floor 平坦
+   jitter 主导 -> fundamental 两侧抬起裙边，远处反而干净
+
+5. 详细推导见 stage_02_fft_metrics.md 4.1 / 4.2
+```
+

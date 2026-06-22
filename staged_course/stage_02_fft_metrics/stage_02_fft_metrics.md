@@ -1841,6 +1841,118 @@ window_gain^2 * ENBW:
     描述 window 对总功率的 RMS 缩放
 ```
 
+##### 5.11.3b ENBW 的另一面：noise floor 为什么有的光滑、有的全是毛刺
+
+跑实验 3（`exp_s08_windowing_deep_dive.py`）的 non-coherent 场景时，会看到一个现象：
+同一个信号，换不同 `win_type`，**noise floor 的视觉光滑度差别非常大**。
+Hann / Blackman / Flattop 的 noise floor 像一条平滑的带子，而 rectangular 和
+Hamming 的 noise floor 全是上下跳动的毛刺。这和 SNR/NSD 指标几乎无关（同样 window
+下 NSD 都在 -154 dBFS/Hz 附近），纯粹是频谱"长相"的差异。
+
+这个差异不是 bug，也不是图渲染问题，而是 ENBW 的另一个直接后果。前面把 ENBW
+理解成"power correction 的一个参数"，但它在频谱形状上还有第二个角色。
+
+先回忆一个事实：对零均值白噪声做 N 点 FFT，单个 bin 的功率是一个随机变量，
+服从指数分布。这个分布有一个麻烦的性质：
+
+```text
+std(power_per_bin) ≈ mean(power_per_bin)
+```
+
+也就是说，单个 bin 的功率天然波动就和均值差不多大，换算成 dB 大约是 5-6 dB 的
+bin-to-bin 波动。所以真正的白噪声 FFT 看起来本来就应该是锯齿状的直线，不是平的。
+
+那为什么 ENBW 大的 window 看起来会光滑？因为第 k 个 FFT bin 实际上是一个以
+ω_k 为中心的分析滤波器：
+
+```text
+H_k(e^{jω}) = W(e^{j(ω - ω_k)})
+```
+
+相邻 bin 的滤波器主瓣会有重叠，重叠多少由 window 的主瓣宽度决定。ENBW 正是描述
+这个重叠程度的一个等效宽度（注意它不是主瓣 null-to-null 宽度，是功率等效宽度，
+但二者强相关）：
+
+```text
+ENBW = 1.0 (rectangular)
+    -> 相邻 bin 的滤波器主瓣几乎不重叠
+    -> 每个 bin 收集的是近似独立的 noise 样本
+    -> bin-to-bin 不相关
+    -> noise floor 全是毛刺
+
+ENBW = 1.5 (Hann)
+    -> 相邻 bin 主瓣显著重叠
+    -> 相邻 bin 收集的 noise 高度相关
+    -> bin-to-bin 平滑
+    -> noise floor 较光滑
+
+ENBW = 3.77 (flattop)
+    -> 好几个相邻 bin 的主瓣都重叠
+    -> 每个 bin 实际上混合了约 3.77 个独立 noise 样本
+    -> noise floor 非常平滑，看起来像一条画出来的线
+```
+
+换句话说，**ENBW > 1 在频域上相当于做了滑动平均**。ENBW 越大，平均窗口越宽，
+noise floor 视觉上越平滑。这和 5.11.3 里 power correction 的角色是同一件事的
+两面：
+
+```text
+5.11.3 的角色：
+    每个 bin 收到的白噪声功率 ∝ sum(w^2) ∝ ENBW
+    -> 影响 noise 功率绝对值，所以 power_correction 要除掉它
+
+本节的角色：
+    相邻 bin 收到的白噪声样本相关性 ∝ 主瓣重叠 ∝ ENBW
+    -> 影响 noise floor 的视觉方差，所以 ENBW 大的看起来光滑
+```
+
+对应到本库代码，这条性质直接来自 `_window.py` 的 `equiv_noise_bw_factor`：
+
+```python
+equiv_noise_bw_factor = N * np.sum(window_vector**2) / (np.sum(window_vector)**2)
+```
+
+`exp_s08_windowing_deep_dive.py` 的 8 个 window，ENBW 从小到大大致是：
+
+```text
+rectangular:    ENBW = 1.00   -> noise floor 全是毛刺
+hamming:        ENBW ≈ 1.36   -> 仍然毛刺（且远处旁瓣不衰减，另有 leakage 干扰）
+hann:           ENBW ≈ 1.50   -> 较光滑
+blackman:       ENBW ≈ 1.73   -> 光滑
+blackmanharris: ENBW ≈ 2.00   -> 光滑
+flattop:        ENBW ≈ 3.77   -> 最光滑，像画出来的线
+```
+
+肉眼数子图的光滑度，和这个 ENBW 排序几乎完全一致。
+
+这里有一个容易上当的工程陷阱：
+
+```text
+noise floor 看起来光滑 ⟹ 测量更准？
+```
+
+不。光滑只是 ENBW 平均效应的视觉效果。Flattop 把约 3.77 个独立 noise 样本平均
+进了一个 bin，方差降了，但频率分辨率也降了（5.11.1：主瓣变宽 -> 分辨率下降）。
+所以同样这段数据：
+
+```text
+Flattop:     noise 光滑，但两个靠近的 spur 分不开
+rectangular: noise 毛刺，但频率分辨率最好
+```
+
+这也是为什么实验 3 场景 3（short FFT, N=128）里，主瓣宽的 window ENOB 反而虚高。
+主瓣宽的 window 会把 fundamental 附近多个 noise bin 平均进 signal 主瓣的合并范围
+（`sig_bin_start:sig_bin_end`，见 5.12），让 noise 估计偏低，SNR/SNDR 虚高。
+N 越小、bin 数越少，这个效应越明显。
+
+一句话总结这一节：
+
+```text
+ENBW 不只参与 power correction，
+它还决定了相邻 bin 的相关性，因而决定了 noise floor 的视觉光滑度。
+光滑 ⟹ 频率分辨率下降，不光滑 ⟹ 分辨率好但需要更多 bin 平均才能降方差。
+```
+
 ##### 5.11.4 Power correction：本库怎样把 window 影响纳入功率谱标定
 
 本库在 `compute_spectrum.py` 中这样做：
@@ -2614,6 +2726,171 @@ from adctoolbox import calculate_jitter_limit
 
 snr_jitter = calculate_jitter_limit(freq=Fin, jitter_rms_sec=50e-15)
 ```
+
+#### 4.1 公式是怎么推出来的：从时刻偏移到电压误差
+
+上面那条公式不是经验拟合，而是可以一步步推出来的。把它拆开之后，"为什么高频
+更敏感"和"为什么 SNR 与信号幅度无关"这两件事会同时变清楚。
+
+设理想采样时刻是 `t[n] = n/Fs`，有 jitter 时实际采样时刻偏移了随机量 `δt[n]`：
+
+```text
+t_actual[n] = n/Fs + δt[n]
+```
+
+`δt[n]` 是零均值随机变量，标准差 `σt` 就是数据手册里的 aperture jitter。三个关键
+假设：`δt[n]` 在不同 n 之间不相关（白噪声假设）、和信号不相关、`2π·Fin·δt[n] << 1`
+（小抖动）。
+
+输入单音正弦：
+
+```text
+x(t) = A·sin(2π·Fin·t)
+```
+
+有 jitter 的采样值：
+
+```text
+x_jit[n] = A·sin(2π·Fin·(n/Fs + δt[n]))
+         = A·sin(2π·Fin·n/Fs + 2π·Fin·δt[n])
+```
+
+对小角度 `ε`，`sin(θ+ε) ≈ sin(θ) + ε·cos(θ)`，所以：
+
+```text
+x_jit[n] ≈ A·sin(2π·Fin·n/Fs) + A·cos(2π·Fin·n/Fs) · 2π·Fin·δt[n]
+          = x[n]               + Δx[n]
+```
+
+其中 jitter 引起的电压误差：
+
+```text
+Δx[n] = A·cos(2π·Fin·n/Fs) · 2π·Fin·δt[n]
+      = (dx/dt)|_{t=n/Fs} · δt[n]
+```
+
+**这一行就是 jitter 的物理本质**：电压误差 = 信号在该时刻的斜率 × 时间偏移。
+信号变化越快（高频 / 大幅度），同一时刻偏移造成的电压差越大。这就解释了为什么
+高频输入对 jitter 更敏感——不是 jitter 变大了，而是信号的 `dx/dt` 大了。
+
+误差功率（用 `δt[n]` 和余弦独立，乘积方差 = 方差相乘；以及 `mean(cos²) = 1/2`）：
+
+```text
+E[(Δx)²] = E[(A·cos(·))²] · E[(2π·Fin·δt)²]
+         = (A²/2) · (2π·Fin)² · σt²
+
+noise_rms_jitter = (A/√2) · 2π·Fin · σt
+                 = signal_rms · 2π·Fin · σt
+```
+
+所以：
+
+```text
+SNR_jitter = signal_rms / noise_rms_jitter
+           = signal_rms / (signal_rms · 2π·Fin · σt)
+           = 1 / (2π·Fin · σt)
+```
+
+`signal_rms = A/√2` 在分子分母同时出现，约掉了。换 dB：
+
+```text
+SNR_jitter_dB = -20·log10(2π·Fin·σt)
+```
+
+这条推导里有一个工程上很重要的副产物：**SNR_jitter 和信号幅度 A 无关**。这是
+jitter 和 thermal noise 的本质区别——增大信号幅度能压过 thermal / quantization
+噪声，但压不过 jitter。所以实验 5 用固定 A=0.5 就能直接测出 SNR_jitter，不需要
+扫幅度；也所以高速 RF ADC 即使输入很大，SNR 也被时钟死死锁住。
+
+| 噪声源 | noise_rms | SNR 与幅度的关系 |
+|---|---|---|
+| thermal noise | σ_thermal（固定）| SNR ∝ A |
+| quantization | LSB/√12（固定）| SNR ∝ 2^N |
+| **jitter** | **signal_rms · 2π·Fin·σt** | **SNR 与 A 无关** |
+
+#### 4.2 jitter 噪声在频谱上长什么样：fundamental 两侧的裙边
+
+公式只给了 SNR 一个数字，没说 jitter 噪声在频谱里长什么样。但这是判断"频谱上
+鼓起来的部分到底是不是 jitter"的关键诊断特征。
+
+回到电压误差那一行：
+
+```text
+Δx[n] = A·cos(2π·Fin·n/Fs) · 2π·Fin·δt[n]
+```
+
+它是一个**确定性单音乘上一个宽带白噪声**。用 5.3 节"时域相乘 = 频域卷积"展开。
+余弦的 DTFT 是两根冲激谱线（5.1 节）：
+
+```text
+cos(2π·Fin·n/Fs)  ⟷  π·δ(ω - ωin) + π·δ(ω + ωin)
+```
+
+白噪声 `δt[n]` 的 DTFT 近似平坦：
+
+```text
+δt[n]  ⟷  G(e^{jω}) ≈ 平坦
+```
+
+卷积时用到冲激的筛选性质（5.1 节）：
+
+```text
+G(e^{jω}) * δ(ω - ω0) = G(e^{j(ω - ω0)})
+```
+
+冲激就像一个定位锚：它位于哪里，G 就整体平移到哪里。所以两份白噪声分别被搬移
+到 +Fin 和 -Fin：
+
+```text
+ΔX(e^{jω}) = 0.5·G(e^{j(ω - ωin)}) + 0.5·G(e^{j(ω + ωin)})
+              ↑                        ↑
+              搬到 +Fin                 搬到 -Fin
+```
+
+这是通信里"调制 = 频移"的同一件事：把一个基带噪声搬到载波附近。在 ADC 里，
+jitter 把时钟的相位噪声搬到了输入信号频率附近。
+
+只看一根冲激的卷积，结果还是平坦的。所以 jitter 在频谱上看起来不是"只在 Fin 一个
+bin 有值"，而是 fundamental 两侧抬起来形成"裙边"或"肩膀"。三个因素决定裙边的
+具体形状：
+
+```text
+1. 真实时钟的 δt 不是严格白噪声
+   -> close-in phase noise 在低频偏移更强
+   -> G(e^{jω}) 本身在 0 频附近抬升
+   -> 搬到 ±Fin 后，fundamental 正下方最厚，远处衰减
+
+2. 有限 N 点 FFT 等价于乘 window
+   -> 实际看到的是 G(e^{jω}) * W(e^{jω})
+   -> window 主瓣和旁瓣让裙边进一步展开（5.2-5.6 节）
+
+3. fundamental 主瓣（window leakage）和搬来的 jitter 噪声在 Fin 附近叠加
+   -> Fin 周围几个 bin 是两者的混合
+```
+
+合起来，jitter 主导时的频谱形状大致是：
+
+```text
+                            裙边（jitter 噪声）
+                            ↙   ↓   ↘
+                          /    /│\    \
+  ____                    /   / │ \   \                    ____
+  flat \                /   /  │  \   \                 /  flat
+   noise\______________/   /   │   \   \_______________/ noise
+         0                Fin   │   -Fin               Fs/2
+```
+
+远处是纯白噪声（平坦的 NSD），Fin 附近因为 jitter 被搬过来而抬升。这是 jitter
+主导的判据：
+
+```text
+thermal / quantization 主导 -> 整段 noise floor 平坦
+jitter 主导                -> fundamental 两侧抬起裙边，远处反而干净
+```
+
+实验 5 的 `exp_g04_sweep_jitter_fin.png` 可以直接看到这个形状：每个子图
+fundamental 尖峰两侧不是平的，而是有本地抬升；Fin 越大，SNR 越差，裙边也越高。
+数据手册里 RF 时钟的 phase noise 曲线，本质就是时域 jitter 在频域的体现。
 
 ### 5. 诊断索引：Stage 02 只做第一层判断
 
