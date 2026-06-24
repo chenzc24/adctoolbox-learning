@@ -364,6 +364,31 @@ ENOB = (SNDR_measured - 1.76) / 6.02
 5. 若信号含 DC：
    total_rms = sqrt(DC^2 + A^2/2)
    但 ADC SNR/SNDR 中的 signal power 通常只看 AC fundamental，不把 DC 算入 signal power
+
+6. 6.02 和 1.76 两个魔数的来源（正文 stage_01 第 5 节有完整推导）：
+   SNR_linear = signal_rms / noise_rms
+              = [FS/(2√2)] / [FS/(2^N·√12)]
+              = 2^N · √(12/8)
+              = 2^N · √(3/2)
+   注意 FS 约掉了：理想 SNR 与具体满幅电压无关，只取决于 N。
+
+   SNR_ideal_dB = 20·log10(2^N · √(3/2))
+               = 20N·log10(2) + 10·log10(3/2)
+               ≈ 6.02·N + 1.76 dB
+
+   6.02 = 20·log10(2)       -> "1 位 ≈ 6 dB" 的精确值
+   1.76 = 10·log10(3/2)     -> 满幅正弦 vs 量化噪声的功率比常数
+
+7. ENOB 是理想 SNR 公式的反函数，不是新物理量：
+   SNDR = 6.02·ENOB + 1.76
+   ENOB = (SNDR - 1.76) / 6.02
+
+   - 用 SNDR 不用 SNR：理想 ADC 无失真 SNR=SNDR；真实 ADC 有失真，
+     用 SNDR 反解才反映"信号被噪声+失真共同拖累"
+   - 理想 N 位：ENOB ≈ N
+   - 真实 ADC：噪声+失真 > 量化噪声 -> ENOB < N
+   - 过采样 + 噪声成型：in-band ENOB 可能 > N（带内等效精度，非物理位数）
+   - ENOB 是换算结果，不是 ADC 固有属性（纯软件正弦+噪声也能算 ENOB）
 ```
 
 ### 基本 ADC 电路
@@ -1006,5 +1031,605 @@ SNR_jitter_dB = 20·log10(1/(2π·Fin·σt))
    jitter 主导 -> fundamental 两侧抬起裙边，远处反而干净
 
 5. 详细推导见 stage_02_fft_metrics.md 4.1 / 4.2
+```
+
+## stage03：正弦拟合与 residual 误差分析
+
+### 本阶段目标
+- 理解为什么ADC单音测试要拟合一个 ideal sine
+- residual/error 的定义
+- error PDF、error autocorrelation、error spectrum 分别回答什么问题
+- 如何根据 residual 判断噪声、失真、Memory、glitch 等问题
+
+### 核心问题
+
+```text
+原始输出 y[n]
+--> 拟合 ideal sine 得到 y_fit[n]
+--> residual/error = y[n] - y_fit[n]
+--> 分析 residual 的形状
+```
+
+### 1. 模型分解：单音测试的写法 y[n] = ideal_sine + error
+
+```text
+y[n] = ideal_sine[n] + error[n]
+
+残差 residual/error 的定义：
+error[n] = y[n] - ideal_sine[n]
+
+分解的意义：
+理想正弦完全确定——A、f、phase、DC 四个参数，任何n的值都可以精确算出
+--> ADC所有的非理想都被归结到 error[n] 里
+--> 核心思路，将精确的信息提取出来，剩下的就是误差，分析误差就能分析 ADC 的非理想
+```
+
+### 2.线性最小二乘（频率已知时：3 参数 A, B, C 的解析解）
+
+```text
+y ≈ X·β
+
+X = [cos(2πfn), sin(2πfn), 1]    (N×3 矩阵，每行是 n=k 时的三个基底值)
+β = [A, B, C]ᵀ                   (3×1 未知参数)
+y = [y[0], y[1], ..., y[N-1]]ᵀ  (N×1 观测数据)
+```
+
+最小二乘求：
+
+```text
+min ||X·β - y||²
+```
+
+对 β 求梯度等于零（假设 XᵀX 可逆；对 cos/sin/1 基底只要 N ≥ 3 且频率不为 0 或 0.5
+即满足），得到正规方程（normal equation）：
+
+```text
+L(β) = ||X·β - y||² = (X·β - y)ᵀ(X·β - y)
+∂L/∂β = 2·Xᵀ·(X·β - y) = 0
+-> XᵀX·β = Xᵀy
+-> β = (XᵀX)⁻¹·Xᵀy   (XᵀX 可逆时)
+```
+
+即决定出一组系数，使得拟合误差最小。
+
+questions： 为什么要拟合一个新的 ideal sine，而不是直接用输入信号的理想正弦？这样算出来的误差准吗？
+
+##### answer - key points:
+
+```text
+1. 为什么必须 fit，不能用标称参数：
+   - 测试源（AWG）的 A、f、phase 都有偏差
+   - 信号链（驱动放大器/滤波器/balun）会改变信号
+   - ADC 实际看到的正弦 ≠ AWG 标称
+   - error 是高斯白噪声时，最小二乘 = MLE，统计上最优
+
+2. fit 的本质是"正交投影"（不是"平均"）：
+   把信号投影到 [cos(ωn), sin(ωn), 1] 子空间
+   正交于这个子空间的成分 → 完整留在 residual
+   在这个子空间内的成分 → 被 fit 吸收
+
+3. 哪些误差会完整进 residual（不污染 fit）：
+   - 所有 harmonic（coherent 采样下与 fundamental 正交）
+   - 高斯白噪声
+   原因：X^T·error = 0，β 解不受影响
+   实验证据：单音 + 100% HD2，fit_amp 偏差 < 0.05%
+
+4. 哪些误差会被 fit 吸收（fit 的盲点）：
+   - AM（边带接近 fundamental，弱不正交）→ fit_amp 偏高 0.1-0.3%
+   - 频率估计偏差 → residual 出现假尖峰（§ 6.4）
+   - non-coherent → harmonic 微量泄漏进 fit
+
+5. fit 盲点正是 by_value / by_phase 存在的动机
+   它们不依赖 fit，专门看 AM/PM 失真
+
+6. 判断 fit 是否被污染：
+   - fit_freq 偏离 coherent bin > 0.01 bin → 警惕
+   - residual 在 fundamental 附近有尖峰 → 频率估计不准
+   - rmse 远超预期噪声底 → 有大结构没被 fit 解释
+
+7. 详细推导见 stage_03 § 3.5（正交投影）和 § 3.5.5（实验）
+```
+
+### 3.最小二乘（频率未知 --> 进行参数拟合和迭代）
+
+实际测试中 f 可能不准确（测试源有偏差）、或完全未知
+（真实芯片测量）。这时要同时拟合 (A, B, C, f) 四个参数——但频率 f 出现在 cos 和
+sin 的**内部**，不再是线性参数：
+
+```text
+ideal_sine[n] = A·cos(2πfn) + B·sin(2πfn) + C
+                     ↑ f 在三角函数里面
+```
+**不能直接套线性最小二乘**
+
+#### 3.1 用FFT找初始频率估计
+
+对 y[n] 做 FFT，找到最大 bin 对应的频率 f0 作为初始估计。
+--> 对于主频非相干，代码使用**parabolic interpolation**
+
+```python
+if 0 < k < len(spec) - 1:
+    r = 1 if spec[k + 1] > spec[k - 1] else -1
+    delta = r * spec[k + r] / (spec[k] + spec[k + r])
+    k += delta
+```
+
+直觉：如果真实峰在 bin k 和 k+1 之间，那 spec[k+1] > spec[k-1]，峰更靠近 k+1。
+用三个点 `(k-1, k, k+1)` 的幅度拟合一条抛物线，顶点的 x 坐标就是 sub-bin 估计。
+
+**纠正**：实际代码（fit_sine_4param.py 第 123-126 行）是**两点简化版**，不是标准三点抛物线：
+
+```text
+标准三点 log-domain 抛物线：
+    α = log|spec[k-1]|,  β = log|spec[k]|,  γ = log|spec[k+1]|
+    δ = 0.5·(α - γ) / (α - 2β + γ)
+    精度: ~0.01-0.1 bin
+
+本库简化两点版：
+    r = sign(spec[k+1] - spec[k-1])
+    δ = r·spec[k+r] / (spec[k] + spec[k+r])
+    精度: ~0.1-0.3 bin（比标准版差）
+```
+
+本库用简化版是合理的：因为后续有 Taylor 迭代修正，初始估计精度不影响最终结果。
+
+questions：插值的精度和 FFT bin 数量、信号幅度、噪声水平有关吗？parabolic interpolation 的原理是什么？为什么选择 parabolic 而不是其他曲线？
+
+##### answer - key points:
+
+```text
+1. parabolic interpolation 是什么：
+   FFT 找最大 bin k 后，真实峰通常不在整数 bin 上（落在 k 和 k±1 之间）
+   parabolic = 用 k 附近的几个 spec 值拟合一条抛物线，顶点位置就是 sub-bin 精度的频率
+   把精度从 1 bin 提到 ~0.1 bin（三点版可到 ~0.01 bin）
+
+2. 为什么数学上是抛物线（核心原理）：
+   rectangular window 的频域响应是 Dirichlet kernel: sin(Nω/2)/sin(ω/2)
+   对 log|W_R| 在主瓣峰值 ω≈0 附近做 Taylor 展开:
+       log|W_R(e^jω)| ≈ log(N) - (N²-1)·ω²/24
+   这是 ω² 的一阶展开，就是抛物线
+   -> 所以主瓣附近三个相邻 bin 在 dB 域共线于抛物线，顶点即真实峰
+
+3. 为什么只适用于 rectangular window（不是其它曲线也不是其它 window）：
+   其它 window（Hann/Blackman）的主瓣形状变了，log 域不再是抛物线
+   本库 _estimate_frequency_fft 对原始数据做 FFT（不加分析窗）
+   -> 用 rectangular 主瓣的抛物线性质是数学匹配，不是任意选择
+
+4. 本库实现是简化版，不是标准三点抛物线：
+   标准版（三点 log-domain）: δ = 0.5·(α-γ)/(α-2β+γ)，精度 ~0.01-0.1 bin
+   本库版（两点线性）:        δ = r·spec[k+r]/(spec[k]+spec[k+r])，精度 ~0.1-0.3 bin
+   差别：标准版用 dB 域三个点，本库版用线性域两个点
+   合理性：parabolic 只是初始估计，后续 Taylor 迭代修正初始误差
+
+5. 精度的主要影响因素：
+   - N 越大，绝对精度（Hz）越好（bin 宽 = Fs/N）
+   - SNR > 20-30 dB 才可靠；SNR 低时 noise 扰动 spec[k±1] 相对大小，可能给错方向
+   - 和信号幅度理想情况无关（主瓣形状只取决于频率）
+
+6. parabolic 是 Taylor 迭代收敛的必要前置（不是可选优化）：
+   Taylor 展开要求 Δf << 1/(2πN)
+   FFT 直接找 bin 的精度是 1/N，对 N=8192 是 1.2e-4，不满足条件
+   parabolic 把精度提到 ~0.1/N = 1.2e-5，刚好满足
+   -> 没有这步，Taylor 迭代会发散
+
+7. 详细推导见 stage_03 § 3.6
+```
+
+#### 3.2 迭代优化：把频率误差当做线性参数处理（sin(δf) ≈ δf）
+
+一阶 Taylor 展开，近似条件是 `2π·Δf·n` 在整个 n ∈ [0, N) 范围内都很小，即
+`Δf << 1/(2πN)`。这正是 § 3.1 parabolic 插值的必要性来源——必须先把初始估计
+精度提到 ~0.1/N，Taylor 迭代才能收敛：
+
+```text
+cos(2π(f_i + Δf)n) ≈ cos(2πf_i·n) - 2π·Δf·n·sin(2πf_i·n)
+sin(2π(f_i + Δf)n) ≈ sin(2πf_i·n) + 2π·Δf·n·cos(2πf_i·n)
+```
+
+代入 `ideal_sine = A·cos + B·sin + C` 并整理，只保留 Δf 的一阶项：
+
+```text
+ideal_sine(n; A, B, C, Δf)
+≈ A·cos(2πf_i·n) + B·sin(2πf_i·n) + C
+  + Δf·2π·n·[-A·sin(2πf_i·n) + B·cos(2πf_i·n)]
+```
+
+最后一项的 `[-A·sin + B·cos]` 用上一次迭代的 A、B 代入，就是一个已知的向量。所以
+`(A, B, C, Δf)` 又变回了**线性参数**，可以套最小二乘：
+
+```text
+X = [cos(2πf_i·n), sin(2πf_i·n), 1, 2π·n·(-A_old·sin + B_old·cos)]
+β = [A, B, C, Δf]ᵀ
+更新频率：
+f_{i+1} = f_i + Δf
+```
+如果`Δf`很小，说明已经收敛。
+
+questions：`Δf`的tolerance如何设置？如果`Δf`不小，说明还需要迭代，如何判断收敛？
+
+##### answer - key points:
+
+```text
+1. tolerance 是什么：
+   迭代终止的阈值。每次迭代算出频率修正量 Δf，
+   如果 |Δf| < tolerance，认为已经收敛，停止迭代
+   代码默认 tolerance = 1e-9（normalized frequency，cycle/sample）
+
+2. tolerance = 1e-9 的物理含义：
+   换算绝对频率 = tolerance × Fs
+   对 Fs=100MHz: 0.1 Hz，对几乎所有 ADC 测试都够
+   注意是 |Δf| 绝对值，不是相对值
+   对低频信号宽松，对接近 Nyquist 的信号严苛
+
+3. 收敛判据（满足任一即停止）：
+   a) |Δf| < tolerance → 成功收敛
+   b) 达到 max_iterations → 触发 RuntimeWarning "did not converge"
+
+4. 没收敛的常见原因（按发生频率排序）：
+   - max_iterations 太小（默认=1，non-coherent 或高噪声需要 3-5）
+   - 信号不是单音（有强 harmonic 或多主频 → 用 fit_sine_harmonics）
+   - 数据太短（N 小 → FFT 分辨率粗 → 初始估计偏差大）
+
+5. max_iterations 选择建议：
+   1   → coherent + SNR > 40dB + N ≥ 1024（默认，仿真/理想数据）
+   3-5 → non-coherent + SNR 20-40dB（真实芯片测量）
+   10+ → 极低 SNR + 精密校准（IEEE 1057 标准测试）
+
+6. 判断迭代是否健康的办法：
+   看 delta_freq 序列应该指数下降（1e-3 → 1e-5 → 1e-7 → 1e-9）
+   震荡或下降慢 → 需要更多迭代或换方法
+
+7. 详细推导见 stage_03 § 3.7
+```
+
+## 4.PDF：误差的幅度分布（probability density function）
+
+**核心思路**：不同的类型的error在幅度分布上有不同的特征，分析PDF可以帮助我们区分噪声、失真、memory effect等问题。
+
+**thermal noise → Gaussian**
+
+thermal noise 是大量独立随机事件叠加的结果（电阻里电子的热运动）。中心极限定理
+保证：大量独立同分布随机变量之和趋向高斯分布。所以 thermal noise 的幅度分布：
+
+```text
+p(e) = (1/(σ·√(2π))) · exp(-e²/(2σ²))
+```
+
+**quantization noise → 近似 Uniform**
+
+Stage 01 已经推导过：如果输入足够丰富、不超量程、量化误差和输入不相关，量化误差
+近似均匀分布：
+
+```text
+e ~ Uniform(-LSB/2, +LSB/2)
+p(e) = 1/LSB,  -LSB/2 ≤ e ≤ +LSB/2
+```
+
+**harmonic distortion → 有结构的 PDF**
+
+如果 error 含有 `cos(2π·k·f·n)` 成分（k 次谐波），error 的瞬时值会在谐波波峰
+附近停留更久，PDF 会呈现**双峰**或**马鞍形**。阶数越高、幅度越大，结构越明显。
+
+**glitch / burst noise → heavy tail**
+
+偶发的大幅误差（比如 0.1% 概率出现 10σ 的尖峰）会让 PDF 出现长尾。高斯分布的
+4σ 概率是 0.006%，如果实测 4σ 以上的样本明显多，基本就是 glitch。
+
+### 4.2 KDE：从离散样本估计连续PDF
+
+error 是一堆离散样本 `e[0], e[1], ..., e[N-1]`。要估连续 PDF，最简单的是直方图，
+但直方图对 bin 宽度敏感、不光滑。`analyze_error_pdf` 用 **KDE（kernel density
+estimation，核密度估计）**：
+
+```text
+对每个样本 e[i]，以它为中心放一个宽度 h 的高斯核
+把所有 N 个高斯核叠加，再除以 N
+得到连续的 PDF 估计
+
+利用 silverman 规则选择 bandwidth h：
+h = 1.06 * σ * N^(-1/5)
+```
+
+questions：上面只是讲了不同噪声的分布特征，从真正的噪声数据e[n]中如何算出PDF？给出详细推导过程。
+
+questions：高斯核的定义是什么？为什么选择高斯核？
+
+### 4.3 KL divergence（KL散度）：分析PDF与高斯分布的差异
+
+```text
+KL(p || q) = Σ p(x) · log(p(x) / q(x)) · dx
+```
+
+其中 `p` 是实测 PDF（KDE 估计），`q` 是同均值/同方差的高斯分布。直观含义：
+
+```text
+KL = 0       p 和 q 完全相同
+KL 小        p 接近高斯，random noise 主导
+KL 大        p 明显偏离高斯，有 deterministic 结构或 heavy tail
+```
+--> error 单位比较统一为LSB，lsb = full_scare / 2**resolution_bits。err_lsb = err / lsb。这样不同分辨率的 ADC 测试结果可以直接比较。
+
+### 4.4 PDF 看图判据
+
+| error PDF 形状 | 可能含义 | 对应 KL |
+|---|---|---|
+| Gaussian（零均值、对称、单峰）| thermal noise 主导 | 小 |
+| Uniform（平顶、有界）| 理想量化噪声主导 | 中等 |
+| 双峰 / 马鞍形 | 含低阶 harmonic | 大 |
+| Heavy tail（4σ 以上异常多）| glitch / burst noise | 大 |
+| 不对称（skewed）| offset / 奇偶不对称 | 中等 |
+| Multi-modal（多峰）| code missing / deterministic | 大 |
+
+--> 用看图是不靠谱的，这时需要使用ACF（autocorrelation function）来判断误差杨门间有没有Memory
+
+## 5. ACF的数学定义
+
+```text
+R[k] = E[e[n] · e[n+k]]
+```
+
+直觉：把 error 序列平移 k 个样本，和平移前的逐点相乘，再取平均。
+
+- 如果 e[n] 和 e[n+k] 独立，乘积的期望是 0
+- 如果 e[n] 和 e[n+k] 倾向同号（正相关），R[k] > 0
+- 如果倾向反号（负相关），R[k] < 0
+
+### 5.1 ACF 看图判据
+
+| ACF 形状 | 可能含义 |
+|---|---|
+| R[0]=1, 其它 lag 全 ≈ 0 | 白噪声主导（理想）|
+| 小 lag 上明显 > 0，指数衰减 | memory effect（settling / reference droop）|
+| 某个固定 lag 周期出现峰 | 周期性干扰（clock feedthrough / 电源耦合）|
+| 负值明显（R[k]<0）| 交替结构（比如奇偶不对称、over-correction）|
+| 噪声水平高、看不出结构 | 数据太短或随机噪声过大，需要更多样本 |
+
+6. error spectrum
+
+读完 § 5 ACF 再读这一节，自然会问：ACF 已经衡量了"时间结构"，error spectrum 又
+衡量"频率结构"，**两者是不是重合？** 答案是：数学上对偶，工程上互补，不可互相
+替代。这个关系背后的核心是 **Wiener-Khinchin 定理**。
+
+对零均值广义平稳随机过程 `e[n]`，Wiener-Khinchin 定理：
+
+```text
+S_e(ω) = Σ_k R[k] · exp(-jωk)              (ACF 的 DTFT = 功率谱)
+R[k]   = (1/2π) ∫ S_e(ω) · exp(jωk) dω     (功率谱的逆 DTFT = ACF)
+
+其中:
+    R[k]   = 自相关函数（§ 5）
+    S_e(ω) = 功率谱密度（PSD）
+```
+
+**分工 1：ACF 看时间结构，spectrum 看频率结构**
+
+```text
+要回答的问题              ACF 更直接        spectrum 更直接
+----------------------------------------------------------
+相邻样本有没有 memory?      ✓ (小 lag)         ✗
+memory 的衰减时间常数?     ✓ (指数衰减)       ✗
+有没有固定频率干扰?         △ (周期峰)         ✓ (尖峰)
+干扰的精确频率?            ✗ (要算)           ✓ (直接读)
+多个 spur 各自频率?        ✗                  ✓
+低频 drift / 1/f?          △ (长 lag)         ✓
+```
+
+### 6.1 error spectrum 看什么
+
+```text
+平坦的 noise floor
+    -> error 是宽带随机噪声（thermal / quantization）
+    -> 对应 PDF Gaussian、ACF white
+
+固定频率尖峰（spur）
+    -> error 含有确定性周期成分
+    -> 可能是 harmonic（2f, 3f, ...）
+    -> 可能是外部干扰（电源、时钟、数字耦合）
+    -> 频率位置是关键诊断线索
+
+谐波系列（fundamental 整数倍）
+    -> nonlinearity（CDAC mismatch / settling / clipping）
+    -> 在 error spectrum 里看，因为 fundamental 已减掉
+
+低频抬升
+    -> drift / slow memory effect
+    -> 1/f noise（如果 ADC 或前端有贡献）
+
+"裙边"（fundamental 频率附近抬起）
+    -> jitter 主导（Stage 02 jitter 节推导过这个形状）
+    -> 或 fit_sine_4param 频率估计略有偏差
+```
+
+## 8. 电路问题分类与诊断流程（实验 2 的 15 case 按 4 类归纳）
+
+按物理机制分 4 类，每类的 residual 特征有共性。详细推导见 stage_03 § "电路需要理解什么"。
+
+### 8.1 四类分类表
+
+```text
+类别           case                          KL       sigma     最敏感工具
+--------------------------------------------------------------------
+1 随机噪声     Thermal Noise                  0.0002   0.75      PDF（基准）
+（不可校准）   Quantization                   0.12     1.17      PDF（平顶）
+               Jitter                         0.05     1.77      spectrum 裙边
+
+2 静态非线性   Static HD2 (-80dBc)            0.13     0.15      spectrum / by_value
+（可校准）     Static HD3 (-70dBc)            0.26     0.46      spectrum / by_value
+               Clipping                       0.72     0.11      PDF（边缘堆积）
+
+3 动态/记忆    Memory Effect                  0.03     0.71      ACF（小 lag 相关）
+（和前状态相关）Incomplete Settling            0.04     0.09      ACF / by_value
+               Reference Error                0.23     0.68      ACF / by_value
+
+4 调制/干扰    AM Noise                       0.05     0.72      by_phase
+（乘性或周期） AM Tone (5%)                   0.06     48.8      spectrum spur
+               RA Gain Error                  0.09     4.76      by_value（斜坡）
+               RA Dynamic Gain                0.08     14.1      spectrum / by_value
+               Drift                          0.21     9.87      时域图（包络）
+               Glitch                         1.69     17.1      PDF（长尾）
+```
+
+### 8.2 每类的核心机制和特征
+
+```text
+类别 1 随机噪声（加性随机，stochastic）
+  机制: thermal=CLT求和→Gaussian；quant=舍入几何→Uniform；jitter=斜率×δt→近Gaussian
+  共性: PDF 是基准/可识别形状，ACF 白噪声，spectrum 平坦
+  盲点: jitter 在 PDF 看不出，要 spectrum 裙边或扫频率
+
+类别 2 静态非线性（deterministic，e=f(vin)）
+  机制: 多项式 y=x+k2x²+k3x³ → 产生 HD2/HD3；饱和 → clipping
+  共性: spectrum 有 harmonic spur，PDF 有结构（双峰/边缘堆积）
+  特征: sigma 小但 KL 可能大（弱 harmonic、clipping）
+        HD3 KL > HD2（奇阶在 fundamental 有分量，扰动更强）
+        clipping 产生奇阶谐波系列（方波化）
+
+类别 3 动态/记忆（e=f(vin, history)，相邻样本相关）
+  机制: 电容残留(memory)、RC充不满(settling)、ref droop累积(reference)
+  共性: PDF 近 Gaussian（KL 小）→ PDF 盲点
+        ACF 小 lag 上 R[k] > 0，指数衰减 ← 招牌特征
+       settling sigma 最小但 ACF 有结构，单看 sigma 会漏诊
+
+类别 4 调制/干扰（乘性或外部周期）
+  机制: AM=m(t)·sin(ωt)；RA gain error=(G-1)·x_lsb；drift=非平稳；glitch=瞬态
+  共性: fit+PDF 双盲点（AM 边带被 fit 吸收，sigma 大但 PDF 正常）
+        spectrum 看 AM Tone spur / drift 低频 / glitch 全频段
+        by_value 看 RA gain error 斜坡
+        by_phase 看 AM 失真
+        glitch 是 PDF 招牌（KL=1.69 最大，长尾极敏感）
+```
+
+### 8.3 综合诊断流程（4 步决策树）
+
+```text
+第 1 步: 看 PDF 的 KL
+  KL < 0.01   → 随机噪声主导（类别 1）
+                 看 spectrum 区分 thermal/jitter/quant
+  KL 0.01-0.1 → 弱结构（memory/AM/RA）
+                 PDF 盲点，必须看 ACF/by_value/by_phase
+  KL > 0.1    → 明显非高斯
+                 看 PDF 形状: 双峰=harmonic, 长尾=glitch, 边缘=clipping
+
+第 2 步: 看 ACF
+  白噪声 (R[k≠0]≈0) → 确认随机噪声
+  小 lag 相关       → memory/settling/reference（类别 3）
+  周期峰           → harmonic 或 AM Tone
+
+第 3 步: 看 error spectrum
+  平坦             → 随机噪声
+  fundamental 裙边 → jitter
+  整数倍 spur      → harmonic
+  非 harmonic spur → AM Tone / 外部干扰
+  低频抬升         → drift / memory
+  全频段抬升       → glitch（瞬态）
+
+第 4 步: 看 by_value / by_phase（fit 盲点的补救）
+  by_value 斜坡    → RA gain error / settling
+  by_phase 结构    → AM / PM 失真
+```
+
+### 8.4 核心规律
+
+```text
+sigma 大 ≠ PDF 异常
+  AM Tone sigma=48.8 但 KL=0.065（瞬时分布在大量样本平均后接近 Gaussian）
+
+sigma 小 ≠ PDF 正常
+  Clipping sigma=0.11 但 KL=0.72（只影响边缘样本但形状严重偏离）
+
+KL 是"PDF 偏离 Gaussian"的客观指标，和 sigma 独立
+  对 heavy tail（glitch）极敏感: KL=1.69
+  对边缘堆积（clipping）敏感: KL=0.72
+  对弱 harmonic（HD2 -80dBc）敏感: KL=0.13（比 thermal 大 650 倍）
+
+没有任何单一工具能诊断所有问题
+  PDF 强于:    heavy tail / 边缘堆积 / 明显 harmonic
+  ACF 强于:    memory / settling / 短程相关
+  spectrum 强于: 频率定位 (spur / jitter裙边 / AM边带)
+  by_value/by_phase 强于: AM/PM / 幅度相关失真
+  → 三件套 + by_value/by_phase = 完整诊断工具链
+```
+
+## 9. DSP 概念：因果性 / lfilter vs filtfilt
+
+详细推导见 stage_03 § 4.2.5。
+
+### 9.1 因果性定义
+
+```text
+因果系统:   y[n] 只依赖 x[n], x[n-1], ...（现在和过去）
+非因果系统: y[n] 还依赖 x[n+1], ...（未来）
+
+物理世界必然因果（时间单向）
+非因果只在离线处理可能（整个信号已采集完，可访问"未来"）
+```
+
+### 9.2 lfilter vs filtfilt
+
+```text
+                    lfilter (因果)           filtfilt (非因果)
+-----------------------------------------------------------------
+依赖未来?           否                       是
+能实时?             能                       不能（必须全部数据）
+相位延迟?           有（相位失真）           无（零相位）
+滤波效果            幅度滤波一次             幅度滤波两次（更陡）
+适用场景            实时处理、硬件实现        离线数据分析、信号生成
+```
+
+### 9.3 filtfilt 的原理：相位抵消（非因果是代价不是目的）
+
+```text
+步骤 1: 正向 lfilter  -> 引入相位 +φ(f)
+步骤 2: 时间反转
+步骤 3: 反向 lfilter  -> 在反转轴上加 +φ(f)，换算回原轴是 -φ(f)
+步骤 4: 再反转回来
+总相位: +φ(f) + (-φ(f)) = 0  -> 零相位
+
+为什么必然非因果:
+  反向滤波处理时间反转序列
+  -> 原始信号的"未来"变成反转序列的"过去"
+  -> 输出依赖了原始信号的未来样本
+  -> 非因果
+
+最小例子: x=[1,2,3], 滤波器 y[n]=x[n]+x[n-1]
+  filtfilt 后 drift[0] = 2·x[0] + x[1]
+  -> n=0 的输出依赖了 x[1]（n=1 的"未来"）→ 非因果
+```
+
+### 9.4 在 drift 代码里的体现
+
+```text
+apply_drift 用 filtfilt（非因果）而不是 lfilter（因果）
+
+动机: 让 drift 零相位，和 signal 时域对齐干净
+代价: drift 非因果（依赖游走的未来），违反真实 drift 的物理
+
+对实验的影响:
+  - ACF≈1 是 butter 截止低（drift 变化慢）导致的，不是 filtfilt 导致的
+  - drift 变化极慢（τ≈320 samples），非因果的"提前响应"几乎看不出来
+  - 对教学够用；严格物理仿真应该改 lfilter（但会有相位延迟）
+
+经验法则:
+  实时（边来边处理）   -> 必须 lfilter
+  离线（数据已采集完） -> 可以 filtfilt 享受零相位
+```
+
+### 9.5 DSP 全景串讲（一张图）
+
+```text
+DSP 处理对象: 离散信号 x[n]
+
+三大分析工具:
+  时域:   y[n] vs n           -> fit, residual, drift 包络
+  频域:   X(k) vs f           -> FFT, spectrum, harmonic
+  统计域: PDF/ACF              -> analyze_error_pdf/autocorr
+
+两大操作:
+  分析: 从信号提取信息（不改信号）-> FFT, ACF, fit
+  滤波: 改造信号                -> lfilter, filtfilt, window
+
+系统性质:
+  线性 + 时不变 + 因果 -> 本库所有滤波器都满足前两个
+  因果性是物理约束（实时必须因果，离线可以非因果）
 ```
 

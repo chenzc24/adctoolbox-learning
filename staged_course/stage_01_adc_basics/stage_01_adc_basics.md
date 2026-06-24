@@ -571,16 +571,78 @@ signal_rms = A / sqrt(2)
 noise_rms = LSB / sqrt(12) = FS / (2^N * sqrt(12))
 ```
 
-两者相除并换成 dB，可得到常用结论：
+两者相除，把 signal_rms 和 noise_rms 都用 FS 和 N 表示：
+
+```text
+SNR_linear = signal_rms / noise_rms
+           = [FS / (2 * sqrt(2))] / [FS / (2^N * sqrt(12))]
+           = 2^N * sqrt(12) / (2 * sqrt(2))
+           = 2^N * sqrt(12/8)
+           = 2^N * sqrt(3/2)
+```
+
+注意 FS 在分子分母同时出现，约掉了——这解释了一个常被忽略的事实：
+**理想 SNR 与 full-scale 的具体电压无关，只与 bit 数 N 有关。**
+不管是 1 V 还是 5 V 满幅，12 位理想 ADC 的 SNR 都一样。
+
+换 dB：
+
+```text
+SNR_ideal_dB = 20 * log10(SNR_linear)
+             = 20 * log10(2^N * sqrt(3/2))
+             = 20 * log10(2^N)  +  20 * log10(sqrt(3/2))
+             = 20N * log10(2)   +  10 * log10(3/2)
+             = 20N * 0.301      +  10 * 0.176
+             ≈ 6.02 N           +  1.76 dB
+```
+
+这两个魔数于是都有了来源：
+
+```text
+6.02 = 20 * log10(2)
+       -> 每多 1 位，理想 SNR 提高 6.02 dB
+       -> 这是"1 位 ≈ 6 dB"口号的精确值
+
+1.76 = 10 * log10(3/2)
+       -> 来自满幅正弦功率 (FS²/8) 和量化噪声功率 (FS²/(12·2^(2N))) 的比例常数
+       -> 物理含义：满幅正弦的 RMS 比量化噪声的 RMS（扣掉 bit 数贡献后）高 1.76 dB
+```
+
+所以常用结论：
 
 ```text
 SNR_ideal = 6.02N + 1.76 dB
 ```
 
-反过来，常用 SNDR 估算有效位数：
+#### ENOB 是这条公式的反函数
+
+ENOB 不是新定义的物理量，而是把上面那条理想 SNR 公式**反过来用**：已知一个
+实测 SNDR，反问"如果这是一个理想 ADC，它等效多少位"。把 SNDR 代入理想公式，
+解 N：
 
 ```text
+SNDR = 6.02 * ENOB + 1.76
 ENOB = (SNDR - 1.76) / 6.02
+```
+
+这就是 `ENOB = (SNDR - 1.76) / 6.02` 的来历。几个要点：
+
+```text
+1. 为什么用 SNDR 而不是 SNR？
+   理想 ADC 没有 harmonic，所以 SNR = SNDR。真实 ADC 有失真，
+   用 SNDR（含噪声+失真）反解才反映"信号被多少东西拖累了"。
+   如果用 SNR 反解，会假装看不到失真，ENOB 偏高。
+
+2. ENOB 不一定等于 nominal bit 数。
+   - 理想 N 位 ADC：ENOB ≈ N（SNR_ideal 代入反解）
+   - 真实 ADC：噪声+失真 > 量化噪声 -> SNDR < SNR_ideal -> ENOB < N
+   - 过采样 ADC：如果噪声成型 + 数字滤波去掉带外噪声，
+     in-band SNDR 可能超过对应 nominal bit 的理想值 -> ENOB > N
+     （这种情况下 ENOB 衡量的是带内等效精度，不是物理位数）
+
+3. ENOB 是换算结果，不是 ADC 的固有属性。
+   一段纯软件生成的浮点正弦 + 高斯噪声，也能算出 ENOB（实验 1）。
+   它回答的是"这串数据的 SNDR 等效于几位理想 ADC"，不关心数据来自哪里。
 ```
 
 这里用 `SNDR` 而不只用 `SNR`，是因为真实 ADC 的有效位数会同时受到随机噪声和失真的影响。
