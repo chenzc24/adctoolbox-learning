@@ -55,6 +55,26 @@ Compact version  -> learner/notes.md
 If `notes.md` becomes bulky, reorganize and deduplicate it without losing the
 core information.
 
+## Corner and Optimization Log
+
+`learner/corner&optimization.md` records corner cases, subtle implementation
+boundaries, documentation correction points, and possible optimization ideas.
+
+Use it only when the maintainer explicitly asks to add or record an item there.
+An Agent may suggest adding an item, but must not silently promote ordinary
+discussion into this log.
+
+Each entry must include:
+
+- Date.
+- Code location.
+- Problem statement.
+- Principle derivation.
+
+Preserve the context that made the corner important. If later code or course
+content resolves the issue, append a status/update note under the existing
+entry instead of deleting the historical record.
+
 ## Stage Continuity
 
 Stages are connected parts of one learning path. Do not treat them as isolated
