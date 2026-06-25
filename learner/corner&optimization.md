@@ -1675,14 +1675,21 @@ except OSError as exc:
 4. 测试应避免假设 chmod 在 Windows 上能设置 Unix execute bit。
 ```
 
-### Issue 状态
+### 跟踪状态
 
-- 2026-06-24：`ISSUE-CANDIDATE / P2`
-  - 建议给作者提交 issue，前提是相关 MATLAB runner 分支/PR 仍在维护。
-  - 建议标题：`Windows: run_matlab_tests.py accepts non-executable files because os.access(X_OK) is unreliable`
+- 2026-06-24：`NOT-FILED / P2`
+  - 尚未向作者提交 issue，不标记为 `ISSUE-CANDIDATE`。
+  - 当前仅作为本地 optimization/corner 记录保留。
+  - 若后续决定提交，可使用建议标题：`Windows: run_matlab_tests.py accepts non-executable files because os.access(X_OK) is unreliable`
   - 主要范围：`matlab/tests/run_matlab_tests.py` 的 `_is_executable_file(...)` 与显式 `--matlab-executable` 校验。
-  - 提交理由：Windows 上普通存在文件会通过 `_is_executable_file`，导致 runner 尝试执行无效文件并抛 `WinError 216`，而不是返回设计好的 invalid executable exit code 2。
+- 2026-06-25：`PR-SUBMITTED / P2`
+  - GitHub PR：`#57 Fix Windows MATLAB runner executable validation`
+  - 分支：`chenzc24:codex/fix-windows-matlab-runner` -> `Arcadia-1/ADCToolbox:main`
+  - 主要修复：Windows 上不再依赖 `os.access(path, os.X_OK)` 判断 MATLAB runner executable；对 `.exe` 做 PE 签名校验，并对 `shutil.which(...)` 结果复用同一校验。
+  - 额外防御：`subprocess.run(...)` 抛出的 `OSError` 会转换为 `INVALID_MATLAB_EXECUTABLE_EXIT_CODE = 2`，避免把底层 Windows loader 异常直接暴露给用户。
+  - 验证命令：`cd python && uv run --with pytest pytest tests/unit/test_matlab_test_runner.py -q`，结果 `10 passed`。
 
 ### 处理状态
 
 - 2026-06-24：已记录 optimization。尚未修改 MATLAB runner 分支代码或测试。
+- 2026-06-25：已基于当前 `main` 提交修复 PR `#57`；尚未合并 upstream/main。

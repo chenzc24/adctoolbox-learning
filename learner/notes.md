@@ -1633,3 +1633,653 @@ DSP 处理对象: 离散信号 x[n]
   因果性是物理约束（实时必须因果，离线可以非因果）
 ```
 
+## 5. stage_04 sar_modeling
+
+### 1. SAR ADC （successive approximation register ADC）的基本数学原理
+**核心思想**：逐次逼近
+
+SAR ADC 想用一组二进制权重近似输入：
+
+```text
+vin ≈ b0·w0 + b1·w1 + ... + b(N-1)·w(N-1)
+
+其中 bi ∈ {0, 1}
+理想权重: w = [1/2, 1/4, 1/8, ..., 1/2^N]
+```
+
+逐次逼近过程（贪心搜索）：
+
+```text
+v_dac = 0
+for each bit j (从 MSB 到 LSB):
+    v_test = v_dac + w[j]
+    if vin >= v_test:
+        bit[j] = 1
+        v_dac = v_test          ← 接受这一位
+    else:
+        bit[j] = 0
+              ← 拒绝，v_dac 不变
+```
+
+### 2. 权重向量生成
+
+本库的理想权重生成方式：
+
+```text
+raw = [2^(N-1), ..., 2, 1]          例如 4-bit: [8, 4, 2, 1]
+weights = raw / (sum(raw) + raw[-1])          = [8,4,2,1] / 16
+```
+
+注意分母是 `sum(raw) + 1 LSB`，不是 `sum(raw)`。对 4-bit，是 `/16` 不是 `/15`。
+这个 +1 LSB 的来源经常让人困惑，但它有严格的几何意义。
+
+```text
+N=4, 16 个 code:
+  code 0:  重建电平 0/16 = 0.0000
+  code 1:  重建电平 1/16 = 0.0625
+  code 2:  重建电平 2/16 = 0.1250
+  ...
+  code 15: 重建电平 15/16 = 0.9375
+```
+
+注意**最高的 code (15) 对应 15/16，不是 1.0**。这是"lower-edge reconstruction"
+（Stage 01 讲过）——每个 code 用区间的下界重建。
+
+### 2.3 redundancy （冗余）
+
+
+
+## 3. mismatch —— sigma ∝ 1/sqrt(C)
+
+**核心思想**：建立相对失配模型，再乘标准高斯分布
+实际电容不是理想值：
+
+```text
+w_actual = w_nominal · (1 + error)
+```
+
+本库 `sar_apply_cap_mismatch` 的核心假设是 **unit-cap（单位电容）模型**：每个 bit 的
+电容由若干个相同的"单位电容 Cu"并联组成，每个 Cu 的容值有独立随机偏差。
+
+### 3.1 unit-cap 模型
+
+假设 bit j 由 `n[j]` 个单位电容 Cu 并联组成。理想容值 `C[j] = n[j]·Cu`。
+
+每个单位电容的容值是随机变量：
+
+```text
+Cu_i = Cu_ideal · (1 + ε_i)
+ε_i ~ N(0, σ_C²)    独立同分布，σ_C 是单位电容的相对失配
+```
+
+bit j 的总容值：
+
+```text
+C[j] = Σ_{i=1}^{n[j]} Cu_i = Cu_ideal · Σ_{i=1}^{n[j]} (1 + ε_i)
+     = n[j]·Cu_ideal · (1 + (1/n[j])·Σ ε_i)
+     = C[j]_ideal · (1 + ε̄[j])
+```
+
+其中 `ε̄[j] = (1/n[j])·Σ ε_i` 是 n[j] 个独立失配的平均。
+
+### 3.2 sigma ∝ 1/√C 的推导
+
+`ε̄[j]` 是 n[j] 个独立同分布 N(0, σ_C²) 随机变量的平均。由独立随机变量和的方差性质：
+
+```text
+Var(ε̄[j]) = Var((1/n[j])·Σ ε_i)
+          = (1/n[j]²)·Σ Var(ε_i)         （独立性让方差直接相加）
+          = (1/n[j]²)·n[j]·σ_C²
+          = σ_C² / n[j]
+
+所以:  std(ε̄[j]) = σ_C / √n[j]
+```
+
+**这就是 `sigma_relative ∝ 1/√n[j]` 的来源**——n[j] 个独立失配平均后，相对误差
+的标准差按 `1/√n[j]` 衰减。
+
+因为 `C[j] = n[j]·Cu`，所以 `n[j] = C[j]/Cu`，代入：
+
+```text
+std(ε̄[j]) = σ_C / √(C[j]/Cu) = σ_C·√(Cu/C[j])
+           ∝ 1/√C[j]
+```
+
+**物理含义**：
+```text
+MSB (n 大, C 大):  相对失配小  -> 权重更准
+LSB (n 小, C 小):  相对失配大  -> 权重更不准
+```
+
+这就是为什么 MSB 的权重通常比 LSB 准——不是因为 MSB 做得更精细，而是因为它由更多
+单位电容并联，统计平均让随机偏差按 `1/√n` 衰减。这是集成电路里"用面积换精度"
+的基本 tradeoff。
+
+### 3.3 对应到 sar_apply_cap_mismatch 代码
+
+`sar.py` 第 140-157 行：
+
+```python
+if cap_units is None:
+    cap_units = weights / np.min(weights)          # 从权重推断单位电容数
+                                                    # 例如 [8,4,2,1]/16 -> cap_units=[8,4,2,1]
+relative_sigma = sigma / np.sqrt(cap_units)         # 每个 bit 的相对失配 std
+return weights * (1.0 + relative_sigma * rng.standard_normal(len(weights)))
+```
+
+逐行：
+- `cap_units = weights / min(weights)`：把权重除以最小权重，得到每个 bit 的"单位电容
+  数"。对 `[8,4,2,1]/16`，`cap_units = [8,4,2,1]`——MSB 是 8 个 Cu，LSB 是 1 个 Cu。
+- `relative_sigma = sigma / √cap_units`：精确对应 § 3.2 的 `σ_C/√n[j]`。
+  MSB 的 relative_sigma = `σ/√8`，LSB 的 = `σ/√1 = σ`。
+- `weights * (1 + relative_sigma·N(0,1))`：每个权重独立加一个高斯扰动，
+  std 就是上面的 relative_sigma。
+
+### 3.4 mismatch 全流程：nominal vs actual 对比（详细见 stage_04 § 3.4/3.5）
+
+```text
+核心问题: mismatch 怎么从权重偏差变成 aout 失真?
+答: 不是"权重偏了"本身，而是权重偏移让 comparator 在 code 边界附近
+    做出不同决策 (bit 翻转)，进而产生周期性失真。
+```
+
+##### 全流程链（5 步）
+
+```text
+1. 电容制造偏差 (物理)
+   -> 每个 unit cap Cu 容值偏离设计值 (芯片固定, deterministic)
+
+2. sar_apply_cap_mismatch (代码建模)
+   -> actual[j] = nominal[j]·(1 + ε[j]), ε[j] ~ N(0, (σ/√n[j])²)
+   -> 注意: 不重新归一化! sum(actual) ≠ sum(nominal)
+   -> 产生增益误差 (线性, 全局缩放, 通常 < 1%)
+
+3. sar_convert (转换, 模拟域)
+   -> 用 actual 权重做贪心搜索
+   -> trial 阈值 = v_dac + actual[j], 偏离 ideal 阈值 (v_dac + nominal[j])
+   -> 当 vin 接近阈值时, bit 决策可能翻转
+   -> 这是失真的核心来源 (非线性)
+
+4. sar_reconstruct (重构, 数字域)
+   -> aout = codes @ digital_weights (nominal 或 calibrated)
+
+5. 失真 = aout_uncal - aout_ideal
+   两种成分:
+   (a) 增益误差: sum(actual) ≠ sum(nominal) 导致的全局缩放 (线性)
+   (b) bit 翻转: 阈值偏移导致的决策错误 (非线性, 产生 harmonic)
+   -> 主要矛盾是 (b)，因为 ADC 测试关心 SFDR/THD
+```
+
+##### bit 翻转的数值演示（vin=0.5, MSB 翻转）
+
+```text
+nominal = [0.5,    0.25,   0.125,  0.0625]
+actual  = [0.5027, 0.2435, 0.1283, 0.0654]   (sigma=0.05, seed=42)
+
+ideal 路径 (nominal):
+  bit0: v_test=0.5,    vin=0.5 >= 0.5    -> bit0=1, v_dac=0.5
+  后续 bit1-3 都不取 -> codes=[1,0,0,0], aout=0.5
+
+actual 路径 (actual):
+  bit0: v_test=0.5027, vin=0.5 < 0.5027  -> bit0=0  ★ MSB 翻转!
+  bit1: v_test=0.2435, vin >= 0.2435     -> bit1=1, v_dac=0.2435
+  bit2: v_test=0.3718, vin >= 0.3718     -> bit2=1, v_dac=0.3718
+  bit3: v_test=0.4372, vin >= 0.4372     -> bit3=1, v_dac=0.4372
+  codes=[0,1,1,1], aout(用nominal重构)=0.4375
+
+误差 = -0.0625 = -1 LSB
+
+关键: MSB 翻转了，但后续 bit 贪心补偿，最终只差 1 LSB
+      (二进制权重的自然冗余, 不是"差一个 MSB")
+```
+
+##### 扫描所有 code 的 error 规律
+
+```text
+error 要么是 0 (没翻转)，要么是 ±1 LSB (翻转)
+不是每个 code 都翻转，只在 actual 阈值和 ideal 错位的 code 翻
+翻转概率约 5-15% (取决于 sigma)
+
+翻转是"块状"分布:
+  code 1-3 翻, 4-7 不翻, 8-11 翻, 12-14 不翻
+  -> 因为 bit0 阈值偏 +0.0027, 让 vin ∈ [0.5, 0.5027] 时 MSB 翻转
+  -> 这个小区间影响整个 code 8-11 的决策路径
+
+transfer curve 表现为"局部压缩":
+  翻转的 code 段输出被压低, 多个 code 映射到相近 aout
+  -> DNL/INL 异常 (某些 code 宽, 某些窄)
+```
+
+##### 为什么产生 harmonic（连接 Stage 03）
+
+```text
+error 是 vin 的分段常数函数: error = g(vin), 每 code 一个固定值
+输入是正弦: vin(t) = A·sin(2πft)
+复合: e(t) = g(A·sin(2πft))
+
+vin(t) 每周期扫过 [0,A] 一次 -> 每周期经过每个 code 边界一次
+-> e(t) 每周期重复同样的"翻转 pattern"
+-> e(t) 是周期信号 (周期 = 1/f)
+-> 任何周期信号可展开为 Fourier 级数 -> 含 fundamental 整数倍 = harmonic
+
+所以 SAR mismatch 在频谱上表现为 HD2/HD3/.../
+虽然 g(vin) 是分段常数 (不是连续 cos), 但周期性保证有 harmonic
+
+harmonic 阶数和 mismatch 分布有关:
+  对称 mismatch (bit 同向偏)  -> 主要偶阶 (HD2, HD4)
+  非对称 (某些 bit 偏多偏少)  -> 含奇阶 (HD3, HD5)
+  随机 mismatch (实际 chip)   -> 同时有各阶
+```
+
+##### 和 Stage 03 多项式失真的对比
+
+```text
+Stage 03 的 HD2/HD3 case:  y = x + k2·x² + k3·x³  (连续多项式)
+SAR mismatch 失真:          error = g(vin) 分段常数
+
+两者频谱表现类似 (都产生 harmonic spur)，因为都是周期性的
+区别: 多项式失真的 harmonic 是单一干净 spur
+      SAR mismatch 的 harmonic 可能更"脏" (g 不是平滑函数)
+
+诊断工具通用:
+  spectrum 看 harmonic -> 怀疑 deterministic 非线性 (Stage 03 § 5)
+  by_value 看 g(vin) 的阶梯形状 -> 定位是哪个 bit 有问题
+```
+
+### 4. 两套权重—— nominal vs actual 的误差传递
+
+#### 4.1 两套权重的数据流
+
+```text
+转换时（模拟域）:
+  bits = sar_convert(vin, actual_weights)
+  -> comparator 用 actual_weights 决策
+  -> bits 是"在失真权重下做出的决策"
+
+重构时（数字域）:
+  aout = sar_reconstruct(bits, digital_weights)
+  -> aout = bits · digital_weights
+```
+
+三种典型情况：
+
+```text
+1. 理想 ADC:
+   actual_weights = nominal_weights
+   digital_weights = nominal_weights
+   -> aout = 理想量化输出，无失真
+
+2. 未校准 ADC:
+   actual_weights = nominal · (1 + mismatch)     ← 含失真
+   digital_weights = nominal                      ← 数字端不知道失真
+   -> aout 含 mismatch 引起的失真
+
+3. 校准后:
+   actual_weights = nominal · (1 + mismatch)     ← 失真还在（物理没变）
+   digital_weights = calibrated ≈ actual          ← 数字端用估计的 actual 重构
+   -> aout 失真被补偿
+```
+
+#### 4.2 误差传递：mismatch 怎么变成 aout 误差
+
+设 `actual[j] = nominal[j]·(1 + ε[j])`。转换时用 actual 决策得到的 bits，
+然后用 nominal 重构：
+
+```text
+aout_calibrated = Σ bits[j] · nominal[j]
+aout_ideal      = Σ bits_ideal[j] · nominal[j]    （理想 bits）
+
+误差:  e = aout_calibrated - aout_ideal
+         = Σ (bits[j] - bits_ideal[j]) · nominal[j]
+```
+
+关键：bits 和 bits_ideal 在哪里不同？**当 mismatch 让某个 bit 的 trial 阈值偏移，
+可能让 comparator 在边界附近做出不同决策**。
+
+#### 4.3 数字校准与校准的极限
+
+校准的目标是让 `digital_weights ≈ actual_weights`。如果完全相等：
+
+```text
+aout = Σ bits[j] · digital_weights[j]
+     = Σ bits[j] · actual[j]
+     = sar_convert 内部的 v_dac_final    （因为转换时就是用 actual 累积的）
+
+校准的局限：随机噪声修不了
+
+以上校准讨论的是 deterministic mismatch（每次转换相同）。但 SAR 还有两种随机噪声：
+
+```text
+comparator noise: 每次 trial 的比较器噪声，让 bit 决策随机翻转
+sampling noise:   采样时的 kT/C 噪声，进入 vin_sampled
+```
+
+这两种噪声是 stochastic——每次转换不同，不能用 digital_weights 补偿（因为
+digital_weights 是固定的，而噪声是随机的）。所以：
+
+```text
+校准能修:  capacitor mismatch（deterministic）
+校准不能修: comparator noise + sampling noise（stochastic）
+```
+
+## 5.5 电路部分
+
+### 1. SAR ADC 电路块——整体架构
+
+**电路图像**：典型 SAR ADC 包含五个块：
+
+```text
+               vin
+                │
+                ▼
+        ┌───────────────┐
+        │ sample-and-hold│  采样开关 + 保持电容
+        └───────┬───────┘
+                │ vin_sampled
+                ▼
+        ┌───────────────┐    v_dac（CDAC 输出）
+        │   comparator  │◀──────────┐
+        └───────┬───────┘           │
+                │ bit decision      │
+                ▼                   │
+        ┌───────────────┐           │
+        │  SAR logic    │───────────┤ 切换 CDAC 的 bit
+        │  （逐次控制） │           │
+        └───────┬───────┘           │
+                │ final bits        │
+                │                   │
+        ┌───────▼───────┐           │
+        │ reference     │───────────┘ Vref 供电给 CDAC
+        │   driver      │
+        └───────────────┘
+```
+
+### 2. comparator 基本结构 & comparator noise
+
+详细推导见 stage_04 § 3.1/3.2。
+
+##### comparator 的两阶段结构（preamp + latch）
+
+```text
+现代高速 comparator = preamp + latch:
+
+  vin_sampled ──┐
+                ├─ preamp (G≈5-20) ── latch (正反馈再生) ── digital out
+  v_dac ────────┘
+
+preamp: 线性放大 (vin - v_dac)，增益 G
+        -> 把 latch 的等效输入噪声/offset 压低到 σ_latch/G
+        -> input-referred noise = σ_latch / G
+        -> 这就是代码 comparator_noise_rms 的物理含义
+
+latch:  两个反相器交叉连接（正反馈）
+        任何微小输入差被指数放大到 rail-to-rail
+        -> 锁存瞬间承受的噪声被"冻结"
+        -> comparator noise 的来源
+```
+
+##### 为什么需要两阶段（tradeoff）
+
+```text
+只有 latch:      offset/噪声直接决定决策，精度差（几 mV）
+preamp + latch:  preamp 降噪（等效 σ_cmp = σ_latch/G），但 preamp 慢
+G 大 -> 噪声小但建立慢（转换速度下降）
+G 小 -> 噪声大但快
+典型 G ≈ 5-20，SAR 设计的核心 tradeoff
+```
+
+##### comparator noise 的特殊性（和 thermal noise 不同）
+
+```text
+thermal noise (加性):    aout = ideal + w        直接加，线性
+comparator noise (决策): bit 可能翻转 -> aout 偏离 ±weights[j]
+                                                ↑ 整个 bit 权重
+                         远大于 σ_cmp 本身
+
+一个错误决策让 aout 偏差 ±weights[j]，非线性行为
+这是 SAR 区别于其它架构的关键
+```
+
+##### residual 特征
+
+```text
+PDF:    近 Gaussian（KL 小）—— 随机噪声
+ACF:    近白噪声（每次 trial 独立抽取）
+spectrum: 抬高 noise floor -> SNR/ENOB 下降（不影响 SFDR）
+诊断:   SNR 差但 SFDR 正常 + PDF Gaussian -> comparator/sampling noise 主导
+校准:   不能完全消除（stochastic），靠 averaging/redundancy/降低噪声设计
+```
+
+### 3. sample-and-hold 基本结构 & sampling noise
+
+详细推导见 stage_04 § 4.1/4.2。
+
+##### S/H 的开关电容结构
+
+```text
+S/H = 开关 + 采样电容 Cs:
+
+  vin ──[switch R_on]──●── output (vin_sampled)
+                       │
+                      ─┴─ Cs
+                       │
+                      GND
+
+工作时序（两相位）:
+  φ1 闭合 (track/采样):  Cs 通过 R_on 充电到 vin，持续 T_track
+  φ1 断开 (hold/保持):   Cs 冻结电压，后续 bit trials 用这个电压
+```
+
+##### 两个关键参数（核心 tradeoff）
+
+```text
+1. 采样时间 T_track:
+   Cs 充电是 RC: v_Cs(t) = vin·(1 - exp(-t/(R_on·Cs)))
+   建立 0.5 LSB 精度需要: T_track > (N+1)·ln2·R_on·Cs ≈ 0.69·(N+1)·R_on·Cs
+   12-bit: T_track > 9·R_on·Cs
+   -> T_track 不够 = incomplete settling（Stage 03 实验 2 用过）
+   -> error 和输入幅度相关（产生 HD3）
+
+2. 采样电容 Cs:
+   Cs 大 -> kT/C 噪声小，但建立慢 + 驱动难 + 面积大
+   Cs 小 -> 噪声大，但快 + 易驱动 + 面积小
+   -> SAR 核心设计 tradeoff: 噪声 vs 速度/功耗/面积
+```
+
+##### kT/C 噪声推导
+
+```text
+RC 低通的等效噪声带宽 = 1/(4RC)
+电阻热噪声 PSD = 4kTR
+积分: v_noise² = 4kTR · 1/(4RC) = kT/C
+        v_noise_rms = √(kT/C)
+
+关键: kT/C 只取决于 T 和 C，和 R 无关！
+  R 大 -> 噪声 PSD 大，但带宽小，正好抵消
+  -> 这是采样电路的基本极限
+
+设计含义（12-bit, full-scale=1V）:
+  理想量化噪声 LSB/√12 ≈ 70 µV
+  要 sampling noise < 量化噪声: √(kT/C) < 70µV
+  -> C > kT/(70µV)² ≈ 0.8 pF
+  所以 12-bit SAR 的 Cs 至少 ~1 pF
+```
+
+##### 其它 S/H 非理想（代码不模拟）
+
+```text
+charge injection:    开关断开瞬间沟道电荷注入 Cs -> offset
+clock feedthrough:   时钟边沿通过寄生电容耦合 -> offset
+两者是 deterministic，可校准，代码归入 offset 不单独模拟
+
+代码把 S/H 拆成两个函数:
+  sar_convert 的 sampling_noise_rms  -> kT/C（随机）
+  apply_incomplete_sampling          -> 建立不足（deterministic）
+符合 Stage 03 "一种非理想一个 case"设计
+```
+
+##### residual 特征（和 thermal noise 一样）
+
+```text
+PDF:    完美 Gaussian（KL≈0）—— 纯加性高斯
+ACF:    白噪声 δ[k]
+spectrum: 平坦 noise floor
+诊断:   和 thermal noise 无法区分（都是加性高斯白噪声）
+        要区分: 改变 Cs 看 SNR 是否按 √(kT/C) 变化，或看绝对量级
+```
+
+### 4. SAR logic 基本结构
+
+详细推导见 stage_04 § 1.1。
+
+##### SAR logic = 有限状态机（FSM）
+
+SAR logic 本质是控制 trial 顺序 + 存储 bit decision 的状态机。这就是 SAR 名字里
+"Register" 的部分（Successive Approximation **Register**）。
+
+```text
+状态转移:
+  IDLE -> SAMPLE -> HOLD -> TRIAL(循环 N 次) -> DONE -> IDLE
+                              ↑
+                         每次执行 5 步:
+                         a. 切 CDAC bit j 到 Vref
+                         b. 等待 CDAC 建立
+                         c. comparator 比较
+                         d. 锁存 bit[j]
+                         e. bit=1 保留, bit=0 切回 GND
+```
+
+##### 和贪心算法的对应
+
+```text
+状态机 TRIAL 的 5 步     ↔  数学 § 1 贪心算法:
+  a. 切 bit j 到 Vref        ↔  v_test = v_dac + weights[j]
+  b. 等待建立                ↔  (代码假设瞬间建立)
+  c. comparator 比较         ↔  bit = (vin_norm >= v_test)
+  d. 锁存 bit[j]             ↔  codes[j] = bit
+  e. 保留/切回               ↔  v_dac = where(bit, v_test, v_dac)
+
+代码 sar_convert 的 for j in range(B) 就是状态机在 TRIAL 循环 N 次
+```
+
+##### 为什么 SAR logic 本身不产生失真
+
+```text
+SAR logic 是纯数字电路:
+  - 状态转移确定（FSM）
+  - bit 存储确定（寄存器）
+  - 没有 analog 噪声
+
+SAR 的失真来自它控制的"模拟块":
+  - CDAC: 电容 mismatch（§ 2）
+  - comparator: 噪声 + offset（§ 3）
+  - S/H: kT/C + settling（§ 4）
+
+所以代码 sar_convert 不模拟 SAR logic 本身——
+它的 "for 循环" 就是 SAR logic 的抽象，没有非理想参数
+```
+
+##### 实现方式
+
+```text
+方式 1: 硬连线状态机（传统 SAR）
+  D 触发器 + 逻辑门，固定 N 比特，快 + 小
+  商用 SAR ADC 多用这种
+
+方式 2: 微控制器（可编程）
+  小型 MCU 控制 trial，灵活（redundancy、可变 bit），慢 + 大
+  研究/校准型 ADC 用
+
+代码 sar_convert 用 Python for 循环 -> 对应方式 2 的抽象
+不模拟状态机时序（时钟周期、建立时间），只模拟逻辑决策
+```
+
+## 6.完整 SAR Modeling 代码
+
+详细解读见 stage_04 "完整 SAR Modeling 代码——端到端示例"。
+
+### 6.1 三种场景的完整代码框架
+
+```text
+# 1. 权重
+nominal = sar_ideal_weights(12)                       # [0.5, 0.25, ..., 1/2^12]
+actual  = sar_apply_cap_mismatch(nominal, sigma=0.005, rng)
+                                                       # sigma=0.005 = 0.5% 单位电容失配
+
+# 2. 信号
+vin = 0.45·sin(2π·Fin·t) + 0.5                        # 单音 + DC, full-scale=1.0
+
+# 3. 三种场景（两套权重的核心）
+codes_ideal  = sar_convert(vin, nominal)              # (a) ideal
+codes_actual = sar_convert(vin, actual)               # 模拟域用 actual
+
+aout_ideal = sar_reconstruct(codes_ideal,  nominal)   # (a) nominal→nominal
+aout_uncal = sar_reconstruct(codes_actual, nominal)   # (b) actual→nominal (未校准)
+aout_cal   = sar_reconstruct(codes_actual, actual)    # (c) actual→actual (校准后)
+```
+
+### 6.2 三种场景的权重流
+
+```text
+(a) ideal: vin →[convert, nominal]→ codes →[reconstruct, nominal]→ aout
+            模拟用 nominal, 数字用 nominal -> 无失真（参考基准）
+
+(b) uncal: vin →[convert, actual] → codes →[reconstruct, nominal]→ aout
+            模拟用 actual(含 mismatch), 数字用 nominal(不知道)
+            -> mismatch 暴露成 harmonic
+
+(c) cal:   vin →[convert, actual] → codes →[reconstruct, actual] → aout
+            模拟用 actual, 数字用 actual(校准估计出)
+            -> mismatch 被补偿
+
+关键: sar_convert 和 sar_reconstruct 的 weights 参数独立
+      这是"两套权重"设计的体现
+      Stage 06 校准的核心 = 估计 actual weights, 让 (b) 变成 (c)
+```
+
+### 6.3 实测结果（12-bit, sigma=0.005, Fin≈10MHz）
+
+```text
+codes shape: (8192, 12)    ← 8192 样本 × 12 bit
+翻转样本: 896/8192 (10.9%)  ← 11% 样本的 bit decision 因 mismatch 改变
+
+频谱对比:
+              SNDR        SFDR        THD         ENOB
+ideal:       73.07 dB    95.13 dB   -105.37 dB   11.85
+uncal:       72.38 dB    83.69 dB    -83.62 dB   11.73
+cal:         73.07 dB    95.85 dB   -101.94 dB   11.85
+```
+
+### 6.4 三个核心观察
+
+```text
+观察 1: 未校准时 SFDR 明显变差，SNR 几乎不变
+  ideal→uncal: SFDR 95→84 dB (恶化 11 dB), SNR 几乎不变
+  -> CDAC mismatch 产生 deterministic harmonic（影响 SFDR/THD）
+     不增加 noise floor（不影响 SNR），因为 mismatch 是 deterministic
+  诊断含义: SFDR 差但 SNR 好 -> mismatch 主导
+
+观察 2: 校准后 SFDR 恢复到接近理想
+  uncal→cal: SFDR 84→96 dB (恢复 12 dB), ENOB 11.73→11.85
+  -> 用 actual weights 重构能补偿 mismatch
+  校准本质: 用数字权重复现转换时模拟域的真实累积
+
+观察 3: 校准前后 SNR 几乎不变
+  cal 的 SNDR (73.07) ≈ ideal 的 SNDR (73.07)
+  -> SNR 由 stochastic noise 决定（量化 + sampling + comparator）
+  -> 校准只修 deterministic mismatch，不修 stochastic noise
+  -> 这是 Stage 06 校准的核心局限
+```
+
+### 6.5 三个观察的诊断含义（连接 Stage 03）
+
+```text
+SFDR 差 + SNR 好    -> mismatch 主导（deterministic, 可校准）
+SFDR 好 + SNR 差    -> comparator/sampling noise 主导（stochastic, 不可校准）
+两者都差            -> 多种非理想叠加，需逐个分析
+
+校准后:
+  SFDR 明显改善      -> 确认是 mismatch
+  SNR 不变          -> 确认 noise 是 stochastic
+这套诊断流程在 whole_workflow demo step_4 演示过
+```
