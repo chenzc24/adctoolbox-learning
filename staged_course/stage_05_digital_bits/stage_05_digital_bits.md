@@ -429,24 +429,92 @@ weight-list span
 
 真实有效位数仍要靠动态测试，比如 `analyze_spectrum` 或 `quick_sndr`。
 
+#### 这个量的意义
+
+`effres` 的主要价值是做 **weight-list sanity check**。它不看输出波形、不看噪声、不看 harmonic，
+只问一件事：
+
+```text
+这组显著数字权重的幅度跨度，大概像几 bit 的权重集合？
+```
+
+如果一个 12-bit SAR 的校准结果只给出 `effres ~= 9 bit`，这通常说明权重列表本身已经不健康，可能包括：
+
+```text
+后几位 bit 没有充分翻转；
+训练输入覆盖不足；
+bit column 高度相关，最小二乘病态；
+某些低位权重被当成 trim/noise tail 排除了；
+bit mapping、极性或归一化尺度可能有问题。
+```
+
+反过来，如果 `effres` 接近 nominal bit 数，只能说明：
+
+```text
+权重幅度 span 大致合理；
+显著权重没有明显丢失；
+校准出来的 weight list 在数量级上像预期架构。
+```
+
+它不能保证：
+
+```text
+真实 ADC ENOB 等于这个数；
+DNL/INL 合格；
+没有 missing code；
+SAR decision 对所有输入都可达；
+noise、jitter、comparator error 足够小。
+```
+
+所以它适合放在调试流程的前面：
+
+```text
+先用 effres / radix 检查权重列表有没有离谱；
+再用 overflow / bit activity 检查 bit decision 覆盖和剩余修正余量；
+最后用 spectrum / quick_sndr 看真实动态有效位数。
+```
+
+可以把它和 ENOB 区分成一句话：
+
+```text
+effres = 权重列表理论上覆盖了多少 levels；
+ENOB   = ADC 动态输出实际还能分辨多少有效 bits。
+```
+
 ### 6. residue / overflow：看剩余低位是否有修正余量
 
-对 SAR 来说，每一个 bit decision 都会留下一个剩余误差：
+先区分两个容易混淆的对象：
 
 ```text
-residue after k bits
-  = input - sum(first k accepted bit weights)
+真实 analog / reconstruction residue:
+  r_k[n] = input[n] - sum(first k accepted bit weights)
+
+suffix-code distribution:
+  z_i[n] = sum(bits from bit i to LSB) / sum(weights from bit i to LSB)
 ```
 
-如果结构是严格二进制，前面某一位做错，后面的低位总权重可能不够修回来。
+第一个需要 `input` 或 `signal`，第二个只需要 `raw_code` 和 `weight`。
+`analyze_overflow.py` 做的是第二个：**剩余 bit 段的归一化 code distribution**，
+不是直接计算真实 analog residue。
 
-冗余 SAR 的核心思想是：
+为什么这个量和 redundancy 有关？对 SAR 来说，前面某一位 trial 做错后，后续低位只能靠剩余权重补偿。
+严格二进制权重几乎没有正的 overrange margin：
 
 ```text
-让某些权重比例小于 2，给后续低位留下 correction margin。
+w[i] ~= sum(w[i+1:]) + 1 LSB
 ```
 
-ADCToolbox 的 `analyze_overflow.py` 用一种“剩余 bit 段”的方式看风险。对每个 bit 位置 `ii`：
+如果第 `i` 位错过了太多，后面低位的所有组合也可能补不回来。
+冗余 / sub-radix SAR 刻意让某些权重比例小于 2：
+
+```text
+sum(w[i+1:]) > w[i]
+```
+
+这样后续低位有额外 correction margin，可以吸收 comparator noise、settling error、
+early decision error 等造成的偏差。
+
+`analyze_overflow.py` 对每个 bit 位置 `ii` 计算：
 
 ```python
 tmp = raw_code[:, ii:] @ weight[ii:]
@@ -454,19 +522,135 @@ sum_weight = np.sum(weight[ii:])
 data_decom[:, ii] = tmp / sum_weight
 ```
 
-也就是：
+数学上写成：
 
 ```text
-从当前 bit 到 LSB 的加权和
-再除以这段剩余权重总和
+B[n, j] = raw_code[n, j]
+w[j]    = weight[j]
+
+suffix_i[n] = Σ_{j=i}^{M-1} B[n, j] * w[j]
+W_i         = Σ_{j=i}^{M-1} w[j]
+z_i[n]      = suffix_i[n] / W_i
 ```
 
-于是得到归一化 residue distribution：
+如果 `weight[ii:]` 全为正，且 bits 是 0/1，那么 `suffix_i[n]` 的理论范围就是：
 
 ```text
-data_decom[:, ii] <= 0  -> underflow side
-data_decom[:, ii] >= 1  -> overflow side
+0 <= suffix_i[n] <= W_i
 ```
+
+归一化以后：
+
+```text
+0 <= z_i[n] <= 1
+```
+
+也就是说，在这个标准正权重 SAR 情形下，`z_i[n]` **不会真正越过边界**，
+只可能等于边界。图里的边界含义是：
+
+```text
+z_i[n] ~= 0  -> 剩余 bit 段贴到下边界，几乎没有向下修正余量
+z_i[n] ~= 1  -> 剩余 bit 段贴到上边界，几乎没有向上修正余量
+```
+
+那为什么代码里还会检查：
+
+```text
+z_i[n] <= 0
+z_i[n] >= 1
+```
+
+原因是 `analyze_overflow` 并没有强制输入一定满足“正权重 + 0/1 bit”的理想条件。
+一旦权重里有负数、bit 不是 0/1 编码、或 suffix 权重和接近 0，`0` 和 `W_i`
+就不再是实际可达范围的上下界。
+
+例如：
+
+```text
+w = [1.0, -0.2]
+W = sum(w) = 0.8
+
+B = [1, 0] -> suffix = 1.0  -> z = 1.0 / 0.8  = 1.25
+B = [0, 1] -> suffix = -0.2 -> z = -0.2 / 0.8 = -0.25
+```
+
+这里不是物理电容权重真的超过了自己的和，而是因为 `W = sum(weight)` 已经不是
+“所有 bit 为 1 时的最大正边界”。对带符号权重来说，真实组合范围应该更接近：
+
+```text
+lower_bound = sum(min(w[j], 0))
+upper_bound = sum(max(w[j], 0))
+```
+
+而不是简单的 `[0, sum(w)]`。所以对标准正权重 SAR，要把 `analyze_overflow`
+主要理解成“贴边检查”；只有在带符号/异常输入下，才可能出现真正的越界数值。
+
+用一个 3-bit 的例子看会更直观。假设列顺序是 MSB -> LSB：
+
+```text
+B[n, :] = [b2, b1, b0]
+w       = [4,  2,  1]
+```
+
+那么三个 suffix distribution 分别是：
+
+```text
+i = 0: z_0[n] = (4*b2 + 2*b1 + 1*b0) / 7
+i = 1: z_1[n] = (       2*b1 + 1*b0) / 3
+i = 2: z_2[n] = (              1*b0) / 1
+```
+
+这里有一个容易混淆的点：**suffix 的单调性**和**suffix distribution 是否贴边**
+不是同一个问题。
+
+如果固定某一个样本 `n`，并且权重全为正，那么未归一化的 suffix sum 随着 `i`
+从 MSB 往 LSB 走，确实是单调不增的：
+
+```text
+suffix_i[n] = B[n, i] * w[i] + suffix_{i+1}[n]
+suffix_i[n] >= suffix_{i+1}[n]
+```
+
+因为往 LSB 走时只是把前面的非负项拿掉。
+但 `analyze_overflow` 看的不是这条单样本轨迹是否单调，而是对每一个固定的 bit 位置 `i`，
+看所有样本形成的一列分布：
+
+```text
+z_i[0], z_i[1], ..., z_i[N-1]
+```
+
+所谓“贴边”，指的是这列分布里有多少样本刚好落在该 suffix 段的可表达端点：
+
+```text
+z_i[n] = 0  -> 当前 bit 到 LSB 这一整段全为 0
+z_i[n] = 1  -> 当前 bit 到 LSB 这一整段全为 1
+```
+
+还是用上面的 3-bit 例子：
+
+```text
+i = 1: z_1[n] = (2*b1 + b0) / 3
+
+[b1, b0] = [0, 0] -> z_1 = 0
+[b1, b0] = [1, 1] -> z_1 = 1
+```
+
+这和单调性不矛盾。单调性说的是同一个样本在不同 suffix 位置之间怎么变；
+贴边说的是某一个 suffix 位置上，很多样本是否已经用到了这段剩余 code range
+的最下端或最上端。
+
+还有一个细节：归一化后的 `z_i` 本身不一定随着 `i` 单调，因为分母也在变：
+
+```text
+z_i[n]     = suffix_i[n] / W_i
+z_{i+1}[n] = suffix_{i+1}[n] / W_{i+1}
+```
+
+`suffix_i` 和 `W_i` 都随 `i` 改变，所以不能把 `z_i` 当作一条必然单调的 residue 曲线。
+最后一位尤其特殊：如果 bit 是 0/1，`z_{M-1}` 只能是 0 或 1，
+所以 LSB suffix 的“贴边”是天然的，不应单独解读成故障。
+
+`analyze_overflow` 不是把这三列完整返回，而是把每一列压缩成几个摘要统计量。
 
 函数返回：
 
@@ -477,13 +661,63 @@ ovf_percent_zero
 ovf_percent_one
 ```
 
-这些量回答的问题是：
+在正权重、且 `W_i > 0` 的常见 SAR 情形下，这些量不是额外的新概念，
+而是直接从每一列 `z_i[n]` 的分布统计出来：
 
 ```text
-在每一个 bit 位置，剩余 bit 的组合有没有贴到或越过边界？
+range_min[i] = min_n z_i[n]
+range_max[i] = max_n z_i[n]
+
+ovf_percent_zero[i] = count(z_i[n] <= 0) / N * 100%
+ovf_percent_one[i]  = count(z_i[n] >= 1) / N * 100%
 ```
 
-如果某些 bit 位置出现大量 overflow / underflow，通常说明：
+也就是说，对每一个 bit 位置 `i`，函数先得到一条 suffix distribution：
+
+```text
+z_i[0], z_i[1], ..., z_i[N-1]
+```
+
+然后问四个问题：
+
+```text
+这条分布最低到哪里？        -> range_min[i]
+这条分布最高到哪里？        -> range_max[i]
+有多少样本贴到下边界 0？    -> ovf_percent_zero[i]
+有多少样本贴到上边界 1？    -> ovf_percent_one[i]
+```
+
+这里的 `ovf_percent_zero/one` 名字有一点历史包袱。代码用的是：
+
+```text
+z_i[n] <= 0
+z_i[n] >= 1
+```
+
+所以在标准正权重 SAR 情形下，它统计的是：
+
+```text
+贴到下边界或上边界的样本比例
+```
+
+在带符号/异常权重情形下，它也会把真正越界的样本算进去：
+
+```text
+z_i[n] < 0 或 z_i[n] > 1
+```
+
+这也是为什么在很低位的 suffix 上，特别是最后一位，很多样本天然会等于 0 或 1。
+这本身不一定说明 ADC 已经坏了；它说明这个 suffix 段已经没有进一步的内部余量。
+越靠前的 bit 位置如果也大量贴边，才更值得警惕，因为那意味着后续 bit 段很早就用满了可表达范围。
+
+因此这些返回量回答的问题是：
+
+```text
+在每一个 bit 位置，从当前 bit 到 LSB 的 suffix code 是否经常贴到边界？
+后续 bit 是否还有足够 margin 来吸收前面 decision 的误差？
+```
+
+如果某些 bit 位置出现大量贴边样本，或在非标准权重下出现越界样本，通常说明：
 
 ```text
 输入范围太激进；
@@ -492,12 +726,186 @@ ovf_percent_one
 前面 bit decision 的错误已经超过后续可修正范围。
 ```
 
-### 7. residual scatter：看不同 bit stage 的残差结构
+#### `analyze_overflow.py` 代码流程展开
 
-`plot_residual_scatter.py` 做的是 partial-sum residual：
+函数入口：
+
+```python
+def analyze_overflow(raw_code, weight, ofb=None, create_plot=True, ax=None, title=None):
+```
+
+输入约定是：
 
 ```text
-res_k[n] = signal[n] - bits[n, :k] @ weights[:k]
+raw_code.shape == (N, M)    # N 个样本，M 个 bit，列顺序默认 MSB -> LSB
+weight.shape   == (M,)      # 每一列 bit 对应一个重构权重
+```
+
+代码先做基本整理：
+
+```python
+raw_code = np.asarray(raw_code)
+weight = np.asarray(weight)
+
+if raw_code.ndim == 1:
+    raw_code = raw_code.reshape(-1, 1)
+
+N, M = raw_code.shape
+
+if len(weight) != M:
+    raise ValueError(...)
+```
+
+这一步保证：
+
+```text
+每一列 bit 都有一个对应 weight；
+后面可以做 raw_code[:, ii:] @ weight[ii:]。
+```
+
+接着分配中间矩阵和返回数组：
+
+```python
+data_decom = np.zeros((N, M))
+range_min = np.zeros(M)
+range_max = np.zeros(M)
+ovf_percent_zero = np.zeros(M)
+ovf_percent_one = np.zeros(M)
+```
+
+其中：
+
+```text
+data_decom[:, i] 保存 z_i[n]，也就是第 i 个 suffix 的归一化分布；
+range_min/max 和 ovf_percent_* 是对 data_decom 每一列做统计。
+```
+
+核心循环是：
+
+```python
+for ii in range(M):
+    tmp = raw_code[:, ii:] @ weight[ii:]
+    sum_weight = np.sum(weight[ii:])
+    data_decom[:, ii] = tmp / sum_weight
+    range_min[ii] = np.min(tmp) / sum_weight
+    range_max[ii] = np.max(tmp) / sum_weight
+    ovf_percent_zero[ii] = np.sum(data_decom[:, ii] <= 0) / N * 100
+    ovf_percent_one[ii] = np.sum(data_decom[:, ii] >= 1) / N * 100
+```
+
+逐行解释：
+
+```text
+raw_code[:, ii:]
+  取从当前 bit 到 LSB 的所有列。
+
+weight[ii:]
+  取同一段剩余权重。
+
+tmp
+  每个样本的 suffix weighted sum。
+
+sum_weight
+  这个 suffix 段所有权重全为 1 时的最大可表示和。
+
+tmp / sum_weight
+  把 suffix weighted sum 归一化到 0..1 区间附近。
+
+range_min/range_max
+  只记录这个 suffix 分布的包络线。
+
+ovf_percent_zero/one
+  记录落到下/上边界的样本比例。
+```
+
+这段代码里 `range_min[ii] = np.min(tmp) / sum_weight` 的写法隐含了一个前提：
+
+```text
+sum_weight > 0
+```
+
+也就是常见 SAR 权重都是正的、剩余权重总和也是正的。此时：
+
+```text
+min(tmp) / sum_weight == min(tmp / sum_weight)
+max(tmp) / sum_weight == max(tmp / sum_weight)
+```
+
+如果某个 suffix 的权重和为负，`min/max` 的方向会翻转；如果权重和接近 0，
+归一化会被数值放大。这类情况下，`analyze_overflow` 仍会按代码执行，
+但 `0..1 margin` 的物理解释就不再稳固。
+
+所以 plot 里的红色包络线不是某个单样本轨迹，而是：
+
+```text
+每个 bit suffix distribution 的 min/max envelope。
+```
+
+`ofb` 参数只用于**选择哪一个 bit 位置的边界样本在图中高亮**：
+
+```python
+if ofb is None:
+    ofb = M
+
+ovf_zero = data_decom[:, M - ofb] <= 0
+ovf_one = data_decom[:, M - ofb] >= 1
+non_ovf = ~(ovf_zero | ovf_one)
+```
+
+这里沿用了 MATLAB 的 bit 编号习惯：
+
+```text
+ofb = M -> Python index 0，通常对应最左边/MSB suffix；
+ofb = 1 -> Python index M-1，通常对应最右边/LSB suffix。
+```
+
+注意一个容易误读的点：
+
+```text
+ovf_percent_zero/one 是每个 bit 位置独立统计的返回值；
+但图中蓝/红/黄散点的颜色，是根据指定 ofb 那一列的 boundary mask 来给所有列着色。
+```
+
+也就是说，返回数组回答的是：
+
+```text
+每个 bit 位置各自有多少边界样本？
+```
+
+而图中颜色还额外回答：
+
+```text
+在指定 ofb 位置贴到边界的那些样本，
+或者在非标准权重下越过边界的那些样本，
+它们在其它 suffix 位置上的分布轨迹长什么样？
+```
+
+这就是为什么 `ofb` 不改变 `range_min/range_max/ovf_percent_*` 的计算逻辑，
+但会改变图里哪些点被标成红色或黄色。
+
+边界条件也要记住：
+
+```text
+1. `analyze_overflow` 没有输入 `signal`，所以不是 vin - partial_sum 的真实 residue。
+2. 如果权重有负数，或 `sum(weight[ii:])` 接近 0，`0..1` 的 margin 解释会变弱。
+3. 它最适合 MSB-to-LSB、正权重、SAR / redundant SAR 风格的 bit matrix。
+4. 它是 redundancy margin diagnostic，不是 DNL/INL 或 missing-code 证明。
+```
+
+### 7. residual scatter：看不同 bit stage 的残差结构
+
+`plot_residual_scatter.py` 才是真正用 `signal` 做 partial-sum residual 的工具。
+它的问题是：
+
+```text
+减掉前 k 个 bit 的重构贡献后，还剩下什么误差？
+这个中间误差和最终误差之间有没有结构关系？
+```
+
+数学定义：
+
+```text
+r_k[n] = signal[n] - Σ_{j=0}^{k-1} bits[n, j] * weights[j]
 ```
 
 当 `k=0`：
@@ -512,26 +920,63 @@ res_0 = signal
 res_M = signal - full reconstruction
 ```
 
-它把不同阶段的残差互相画 scatter，例如：
+代码对应：
+
+```python
+if x_bit == 0:
+    res_x = signal.copy()
+else:
+    res_x = signal - bits[:, :x_bit] @ weights[:x_bit]
+
+if y_bit == 0:
+    res_y = signal.copy()
+else:
+    res_y = signal - bits[:, :y_bit] @ weights[:y_bit]
+```
+
+然后它把不同阶段的 residual 互相画 scatter，例如：
 
 ```text
 res after bit 1 vs res after all bits
 res after bit 2 vs res after all bits
 ```
 
-这类图可以看：
+这类图可以看出：
 
 ```text
-残差是否随某一阶段形成结构；
-某些 bit stage 是否出现非线性模式；
-冗余结构是否把前面残差压回可修正范围。
+某个 bit stage 之后的残差是否仍然带有结构；
+最终误差是否和早期 partial residual 强相关；
+某些 stage 是否出现分叉、条纹、弯曲等非线性模式；
+冗余结构是否把早期残差压回较小范围。
 ```
 
-它不是 Stage 03 的 sine residual 图，而是更贴近 bit-stage 的 residual。
+它和 Stage 03 的 sine residual 不同：
+
+```text
+Stage 03 residual:
+  measured waveform - best-fit sine
+  重点是 analog error 相对单音参考的结构。
+
+Stage 05 partial residual:
+  signal - partial bit reconstruction
+  重点是 bit-stage decision / weight 对误差演化的影响。
+```
+
+使用时要满足一个重要条件：
+
+```text
+signal 和 weights 必须在同一尺度。
+```
+
+如果 `signal` 是 ADC 电压尺度，而 `weights` 是 `calibrate_weight_sine` 的 solver/unit-sine 尺度，
+scatter 的 residual 轴就没有直接物理意义。需要先确认或重缩放权重。
 
 ### 8. ENOB sweep：逐步增加 bit 子集看贡献
 
-`analyze_enob_sweep.py` 的核心流程是：
+`analyze_enob_sweep.py` 看的是：**在同一组全量校准权重下，只使用前 n 个 bit 时，动态性能如何变化**。
+它不是每个 bit 数都重新校准一次。
+
+核心流程：
 
 ```text
 1. 先用所有 bits 跑一次 calibrate_weight_sine，得到 weights_all。
@@ -547,6 +992,7 @@ res after bit 2 vs res after all bits
 ```python
 result = calibrate_weight_sine(bits, freq=freq, harmonic_order=harmonic_order)
 weights_all = result["weight"]
+freq = result["refined_frequency"]
 
 for n_bits in range(1, m_bits + 1):
     bits_subset = bits[:, :n_bits]
@@ -555,17 +1001,18 @@ for n_bits in range(1, m_bits + 1):
     spectrum_result = analyze_spectrum(calibrated_signal, ...)
 ```
 
-注意：
+数学上：
 
 ```text
-它不是每个 bit 数都重新校准一次；
-它是先全量校准，再看使用前 n 个 bit 重构时性能如何变化。
+w_all = Calibrate(B[:, :M])
+y_n[n] = Σ_{j=0}^{n-1} B[n, j] * w_all[j]
+ENOB_n = SpectrumENOB(y_n)
 ```
 
-所以 ENOB sweep 的正确解释是：
+所以 ENOB sweep 的正确解释不是“第 n 位单独有多少 ENOB”，而是：
 
 ```text
-这些 bit 在当前校准权重下，对最终动态性能的边际贡献如何。
+在当前 bit 顺序和当前全量校准权重下，prefix bit subset 对动态性能的贡献如何。
 ```
 
 常见形态：
@@ -577,15 +1024,76 @@ for n_bits in range(1, m_bits + 1):
 | 增加低位反而下降 | 低位主要是噪声、权重估计差、或输入未充分激励 |
 | 某一位加入后突变 | 该 bit 权重/活动/决策可能异常 |
 
-### 9. bit matrix 和可观测性
-
-Stage 06 会把校准写成最小二乘：
+读图时要注意三个边界：
 
 ```text
-B @ w ≈ sine
+1. bit 顺序必须有意义。
+   代码用的是 `bits[:, :n_bits]`，默认列顺序是 MSB -> LSB。
+   如果 bit matrix 被重排，prefix sweep 就不再等价于“逐步增加低位”。
+
+2. 它默认用 `analyze_spectrum(calibrated_signal, ...)`，没有传 `max_scale_range`。
+   因此更适合比较 ENOB/SNDR 这类比值指标；
+   绝对 dBFS signal power / noise floor 不应直接和固定满量程测试混用。
+
+3. 对强 redundancy、负权重、trim bit、乱序校准权重，
+   “前 n 个 bit”不一定就是“最高 n 个有效贡献”。
+   这时需要结合 radix、activity、overflow 和 bit mapping 一起看。
 ```
 
-这里的 `B` 就是 Stage 05 的 bit matrix。
+### 9. bit matrix 和可观测性
+
+Stage 06 的校准可以看成一个线性回归问题。简化形式是：
+
+```text
+B @ w + c ≈ sine
+```
+
+其中：
+
+```text
+B: bit matrix, shape = (N samples, M bits)
+w: bit weights, shape = (M,)
+c: DC offset
+```
+
+真实 `calibrate_weight_sine` 还会加入 sine basis、harmonic basis、rank-deficiency patch、
+column conditioning 等处理，但核心仍然是：**用 bit matrix 的列去解释一个已知或估计频率的正弦**。
+
+这时 `B` 的列是否“可观测”非常关键。
+用线性代数语言说，这就是最小二乘设计矩阵的 **rank deficiency / ill-conditioning** 问题。
+严格一点，真正求解时看的不是裸的 `B`，而是包含 bit columns、DC offset、harmonic basis
+等列的完整设计矩阵：
+
+```text
+A x ≈ b
+```
+
+在 `calibrate_weight_sine` 里，`A` 大致由这些列拼起来：
+
+```text
+A = [effective bit columns, offset columns, harmonic basis columns, ...]
+```
+
+如果 `A` 的列线性相关，就出现 rank deficiency：
+
+```text
+rank(A) < number_of_columns(A)
+```
+
+如果列没有完全相关、但接近相关，就不是严格奇异，而是病态：
+
+```text
+condition_number(A) 很大
+```
+
+对应到正规方程视角就是：
+
+```text
+A.T @ A
+```
+
+会奇异或接近奇异。实际代码用 `lstsq`，不需要显式求逆 `A.T @ A`，
+但不可辨识和数值敏感的问题仍然存在。
 
 如果某两列总是相同：
 
@@ -606,6 +1114,25 @@ w_j 变大
 ```
 
 因为它们在所有样本里总是一起出现。
+数学上，这意味着设计矩阵有线性相关列：
+
+```text
+rank(B) < M
+```
+
+如果考虑 DC offset 和 harmonic basis，更严格的说法是：
+
+```text
+rank(A) < number_of_columns(A)
+```
+
+最小二乘只能识别组合：
+
+```text
+B[:, i] * (w_i + w_j)
+```
+
+不能唯一分配给 `w_i` 和 `w_j`。
 
 如果某一列恒定：
 
@@ -613,7 +1140,8 @@ w_j 变大
 B[:, i] 全是 0 或全是 1
 ```
 
-那这一位没有提供 AC 信息。它可能是：
+那这一位没有提供 AC 信息。由于模型里还有 DC offset，这一列等价于或接近等价于 offset column，
+所以在完整设计矩阵 `A` 里也是线性相关或近似线性相关。它可能是：
 
 ```text
 dead bit；
@@ -623,10 +1151,91 @@ dead bit；
 或该 bit 本身被架构约束住。
 ```
 
-所以 Stage 05 的根本意义是：
+如果两列不完全相同但高度相关：
 
 ```text
-在做校准之前，检查 bit matrix 是否真的含有足够独立信息。
+corr(B[:, i], B[:, j]) ~= 1
+```
+
+校准也会变得病态。此时不是完全不可解，而是权重估计对噪声、输入窗口、harmonic basis
+和数值误差非常敏感。表现可能是：
+
+```text
+权重正负乱跳；
+某些低位权重异常大或异常小；
+ENOB sweep 某一位加入后突变；
+radix 图出现随机跳变；
+calibrated_signal 比值指标看似改善，但权重本身不稳定。
+```
+
+因此要把“可观测性”分成两类看。
+
+严格的矩阵可解性检查是线性代数问题，应该直接看设计矩阵：
+
+```text
+rank(A)
+singular values of A
+condition_number(A)
+column correlation / near dependency
+```
+
+其中 `A` 至少要包括：
+
+```text
+bit columns + DC offset column
+```
+
+如果要完全对应 `calibrate_weight_sine`，还要包括当前频率下的 harmonic basis。
+只有这些量才能严格回答：
+
+```text
+这个 least-squares 问题是否满秩？
+参数是否唯一可辨识？
+数值条件是否足够好？
+```
+
+ADCToolbox 的校准代码本身也体现了这个判断：`_patch_rank_deficiency`
+会对 `[bits, ones]` 做 `matrix_rank` 检查，并把恒定列或线性相关列合并/丢弃。
+这比看图更接近真正的“可解性”判断。
+
+Stage 05 里的这些工具不能严格证明矩阵可解，它们更像是围绕 bit matrix 的
+**症状检查 / sanity check**：
+
+```text
+bit activity:
+  直接相关。
+  能发现恒定列、几乎不翻转的列、输入覆盖不足。
+  但它不能发现所有列相关问题。
+
+weight radix / effres:
+  后验诊断。
+  它看的是校准/给定权重是否像预期架构，不证明原始矩阵满秩。
+  如果权重异常，可能提示病态拟合或 bit mapping 问题。
+
+overflow:
+  架构/输入范围诊断。
+  它看 suffix code 是否经常贴边，说明 correction margin 是否吃紧。
+  它基本不直接回答矩阵 rank。
+
+residual scatter:
+  后验结构诊断。
+  它看 partial residual 和 final residual 是否存在 stage-wise 结构。
+  它能提示某些 bit stage 没被模型解释好，但不是 rank test。
+
+ENOB sweep:
+  后验性能诊断。
+  它看使用前 n 个 bit 后动态性能如何变化。
+  它能提示某些 bit 加入后有异常贡献，但也不是可解性证明。
+```
+
+所以更准确的说法是：
+
+```text
+rank / SVD / condition number:
+  回答 Stage 06 的 least-squares 是否数学上可辨识、数值上稳定。
+
+Stage 05 的 activity/radix/overflow/residual/ENOB sweep:
+  帮助解释为什么它可能不可辨识、为什么会病态、或者结果为什么不符合架构直觉。
 ```
 
 ## 电路需要理解什么
@@ -974,6 +1583,28 @@ E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\04_digital_deb
 控制台 first four bit activities 和 weight_effres_bits。
 ```
 
+本次运行的典型输出是：
+
+```text
+sar_ideal                      ENOB = 11.98 bits
+sar_mismatch_nominal_weights   ENOB = 11.60 bits
+sar_after_sine_calibration     ENOB = 11.62 bits
+
+calibrated weight-list effective resolution = 12.01 bits
+first four bit activities = [50.0, 49.99, 50.01, 49.96]
+```
+
+读法是：
+
+```text
+bit activity 接近 50%，说明前几位在当前正弦输入下翻转均衡；
+effres 接近 12 bit，说明校准权重 span 没有明显丢 bit；
+校准后 ENOB 只小幅提升，说明这个 case 的主要收益不是 SNDR 大幅恢复；
+如果 SFDR 提升更明显，通常表示 deterministic spur 被校准压低了。
+```
+
+这个实验的作用是把 Stage 05 放回完整链路里看，不是单独证明 bit matrix 可解。
+
 ## 实验 2：bit activity
 
 运行官方示例：
@@ -998,6 +1629,25 @@ uv run python src\adctoolbox\examples\05_debug_digital\exp_d11_bit_activity.py
 如果输入 amplitude 太小，低位 activity 会如何？
 如果输入 clipping，高位 activity 会如何？
 ```
+
+本次运行结果：
+
+```text
+ideal                   activity = 50.0% - 50.0%
++1% DC Offset           activity = 50.3% - 53.3%
+-1% DC Offset           activity = 46.7% - 49.7%
+Poor contact in Bit-11  activity = 45.0% - 50.0%
+```
+
+这个实验说明：
+
+```text
+bit activity 是单列边缘统计；
+它能发现恒定列、弱翻转列、输入 DC 偏置、某位活动异常；
+它不能发现所有列相关问题，也不能证明 least-squares 满秩。
+```
+
+所以 activity 是便宜的体检项。它和可解性有关，但不是完整的 rank / SVD / condition number 检查。
 
 ## 实验 3：ENOB sweep
 
@@ -1025,6 +1675,28 @@ uv run python src\adctoolbox\examples\05_debug_digital\exp_d12_sweep_bit_enob.py
 是不是 spectrum 设置导致指标不敏感。
 ```
 
+本次运行结果：
+
+```text
+Binary ADC with Thermal Noise:
+  Max_ENOB = 11.20 bit @ 12 bits
+  Final_ENOB = 11.20 bit
+
+Binary ADC with Thermal Noise + LSB random:
+  Max_ENOB = 10.69 bit @ 11 bits
+  Final_ENOB = 10.69 bit
+```
+
+解释：
+
+```text
+第一组继续用到 12 bits，说明低位仍提供有效信息；
+第二组最佳点停在 11 bits，说明最后一位主要进入随机扰动/噪声主导；
+这不是“第 n 位单独的 ENOB”，而是 prefix bit subset 的重构性能。
+```
+
+ENOB sweep 是后验性能曲线。它能提示某些低位贡献很小或有负贡献，但不能证明矩阵可解。
+
 ## 实验 4：weight radix
 
 运行：
@@ -1049,6 +1721,28 @@ effres 和 nominal bit 数是否接近。
 radix 图是权重形状图，不是频谱图。
 ```
 
+本次运行结果：
+
+```text
+Strict Binary Weights:
+  EffRes = 12.00 bit
+  Average Radix = 2.0000
+
+Sub-Radix-2 Weights:
+  EffRes = 12.34 bit
+  Average Radix = 1.8196
+```
+
+读法：
+
+```text
+radix ~= 2 表示权重比例接近严格二进制；
+radix < 2 表示 sub-radix / redundancy，后续低位相对更有修正空间；
+effres 只说明显著权重 span，不等价于真实 ENOB。
+```
+
+如果 radix 或 effres 已经明显离谱，后面校准/频谱结果就要更谨慎地读。
+
 ## 实验 5：overflow check
 
 运行：
@@ -1066,6 +1760,69 @@ residue distribution 是否贴近 0 或 1；
 冗余结构是否比严格二进制更有余量。
 ```
 
+先注意一个重要边界：这张图画的是 `analyze_overflow` 的 suffix-code distribution，
+不是直接的 analog residue。
+
+```text
+z_i[n] = (raw_code[:, i:] @ weight[i:]) / sum(weight[i:])
+```
+
+在正权重、0/1 bit 的标准 SAR 情形下，`z_i[n]` 理论上不会真正越过 `[0, 1]`，
+所以图里的百分比主要应理解为：
+
+```text
+贴到下边界 0 的样本比例；
+贴到上边界 1 的样本比例。
+```
+
+本次运行的关键数值：
+
+```text
+Binary ADC, Normal Range:
+  MSB_range = [0.010, 0.990]
+
+Binary ADC, Large Signal:
+  MSB_range = [0.000, 1.000]
+  MSB 贴下边界约 13.7%
+  MSB 贴上边界约 13.7%
+
+Sub-Radix with Redundancy:
+  MSB_range = [0.010, 0.990]
+  前几个高位 suffix 没有明显贴边
+
+Sub-Radix, Insufficient Redundancy:
+  MSB_range = [0.010, 0.990]
+  当前参数下没有形成非常强的贴边反例
+```
+
+读图规律：
+
+```text
+第一幅 vs 第二幅：
+  对照成立。large signal 把 MSB suffix 推到 [0, 1] 两端，边界占用明显增加。
+
+第三幅 vs 第四幅：
+  对照不够清晰。两者输入幅度相同，只改了一个 cap，当前 suffix 图没有强烈显示
+  “redundancy 足够”和“redundancy 不足”的差异。
+```
+
+因此实验 5 的谨慎结论是：
+
+```text
+analyze_overflow 能显示 suffix code 是否贴边；
+第一/第二幅能说明输入范围变大后边界占用增加；
+第三/第四幅目前更像 demo 设计不够锋利，而不是核心函数计算错误。
+```
+
+如果要让第三/第四幅更适合教学，应当：
+
+```text
+标注目标 redundancy bit 附近的 range_min / range_max；
+设置 ofb 到目标 bit，而不是只看默认 MSB mask；
+增大输入幅度，或加入 comparator offset / decision error；
+必要时改画真实 partial analog residue，而不是 suffix-code distribution。
+```
+
 ## 实验 6：SAR mismatch Monte Carlo
 
 运行：
@@ -1079,7 +1836,7 @@ uv run python src\adctoolbox\examples\05_debug_digital\exp_d16_sar_unit_cap_mism
 
 ```text
 strict binary vs radix ~1.8 redundancy
-unit-cap mismatch sigma sweep
+unit-cap-scaled mismatch sigma sweep
 32 次 Monte Carlo
 before / after foreground sine calibration
 ```
@@ -1091,6 +1848,55 @@ before / after foreground sine calibration
 看 redundancy 在 mismatch 下是否更稳；
 看校准前后差异是否符合 deterministic mismatch 的预期。
 ```
+
+图的读法：
+
+```text
+横轴：unit-cap mismatch sigma，从 0% 到 10%。
+纵轴：quick_sndr 得到的 ENOB。
+每个 sigma 点跑 32 次 Monte Carlo。
+曲线：32 次结果的 median ENOB。
+深色阴影：p10 到 p90。
+浅色阴影：min 到 max。
+```
+
+四条曲线分别是：
+
+```text
+蓝色虚线：Strict binary, before cal
+蓝色实线：Strict binary, after cal
+红色虚线：Radix ~1.8, before cal
+红色实线：Radix ~1.8, after cal
+```
+
+核心规律：
+
+```text
+before cal:
+  两条虚线都随 mismatch sigma 快速下降。
+  原因是转换由 actual mismatched weights 决定，但重构仍用 nominal weights。
+
+after cal:
+  两条实线都明显高于虚线，说明 foreground sine calibration 学到了实际权重。
+
+strict binary after cal:
+  大 mismatch 下仍逐渐下降，阴影变宽。
+  说明权重校准能救很多 deterministic mismatch，但严格二进制缺少 correction margin。
+
+radix ~1.8 after cal:
+  基本贴近 16 bit，分布也窄。
+  说明 redundancy + calibration 对 unit-cap mismatch 更稳。
+```
+
+这张图不是说 sub-radix 未校准就天然高 ENOB。它真正说明的是：
+
+```text
+unit-cap mismatch 会严重破坏未校准 SAR；
+foreground sine calibration 能恢复大部分 deterministic weight error；
+sub-radix redundancy 让校准后的性能对 mismatch 更稳健。
+```
+
+阴影带来自 Monte Carlo 随机 realization。阴影越宽，说明不同随机 mismatch 芯片之间的性能差异越大。
 
 ## 容易混淆的点
 

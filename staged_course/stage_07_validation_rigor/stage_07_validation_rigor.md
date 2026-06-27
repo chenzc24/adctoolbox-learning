@@ -298,7 +298,7 @@ SNDR/SNR/SFDR/THD/residual/bit diagnostics 用来解释。
 
 ### 5. Monte Carlo 看分布，不看单次漂亮 seed
 
-如果误差来自随机 mismatch，例如 unit-cap mismatch，那么单次 seed 只代表一颗“随机芯片”。
+如果误差来自随机 mismatch，例如 unit-cap-scaled mismatch，那么单次 seed 只代表一颗“随机芯片”。
 
 工程上更关心：
 
@@ -616,7 +616,8 @@ rng = np.random.default_rng(seed)
 actual_weights = sar_apply_cap_mismatch(nominal_weights, sigma=sigma, rng=rng)
 ```
 
-这代表同一颗随机芯片。
+这代表同一颗行为模型里的随机芯片。这里的 `actual_weights` 是仿真真值；真实芯片上
+通常只能通过校准或测试间接估计数字重构权重。
 
 ### Step 2：生成训练输入
 
@@ -679,6 +680,8 @@ before:
 
 after:
   校准权重重构。
+  注意校准权重的绝对尺度由拟合归一化决定；比较频谱指标通常没问题，
+  但若要和 oracle waveform 逐点比较，应先确认或统一权重尺度。
 
 oracle:
   仿真里知道 actual_weights 时的“上限参考”。

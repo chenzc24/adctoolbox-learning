@@ -1693,3 +1693,291 @@ except OSError as exc:
 
 - 2026-06-24：已记录 optimization。尚未修改 MATLAB runner 分支代码或测试。
 - 2026-06-25：已基于当前 `main` 提交修复 PR `#57`；尚未合并 upstream/main。
+
+## 2026-06-25: `calibrate_weight_sine` 输出尺度与 dBFS 满量程尺度混用风险
+
+### 代码位置
+
+- `python/src/adctoolbox/calibration/calibrate_weight_sine.py`
+  - `calibrate_weight_sine(...)`
+  - `norm_factor = sqrt(1 + coeffs[idx_quadrature]**2)`
+  - `_recover_columns_for_conditioning(..., norm_factor=norm_factor, ...)`
+- `python/src/adctoolbox/calibration/_post_process.py`
+  - `sig_k = weights @ bit_segments[k].T`
+  - 返回字段：`weight`, `offset`, `calibrated_signal`, `ideal`, `error`
+- `python/src/adctoolbox/spectrum/_prepare_fft_input.py`
+  - `max_scale_range`
+  - `peak_amplitude = (range_max - range_min) / 2`
+  - `data_normalized = data_dc_removed / peak_amplitude`
+- 相关官方示例：
+  - `python/src/adctoolbox/examples/05_debug_digital/exp_d02_cal_weight_sine.py`
+  - `python/src/adctoolbox/examples/05_debug_digital/exp_d03_redundancy_comparison.py`
+  - `python/src/adctoolbox/examples/05_debug_digital/exp_d17_sar_msb_error_binary_vs_repeat_calibration.py`
+  - `python/src/adctoolbox/toolset/generate_dout_dashboard.py`
+- 本地触发上下文：
+  - `learning/adctoolbox-learning/demos/sar_adc_model_study.py`
+  - Stage 04 SAR modeling demo 中，将 `calibrate_weight_sine()["calibrated_signal"]`
+    直接传给 `analyze_spectrum(..., max_scale_range=(-0.5, 0.5))`。
+
+### 问题陈述
+
+在 Stage 04 SAR demo 中，校准前后频谱指标出现了一个看似矛盾的现象：
+
+```text
+校准后图上的 noise floor 明显抬高约 6 dB
+但 SNR / SNDR / ENOB 几乎不变
+并且 calibrated 分支显示 Sig = +6.02 dBFS
+```
+
+对 ADC 满量程语义来说，`Sig > 0 dBFS` 是强烈异常信号。若输入数据被明确声明为
+`max_scale_range=(-0.5, 0.5)`，那么满量程正弦应接近 `0 dBFS`，低于满量程的正弦应为负 dBFS。
+校准输出出现 `+6.02 dBFS`，说明传入 spectrum analyzer 的波形不在同一 full-scale 尺度上。
+
+实测保存数据：
+
+```text
+ideal / nonideal / oracle aout RMS ~= 0.3465
+calibrated_aout RMS              ~= 0.7071
+scale                            ~= 2.0408 = +6.20 dB
+```
+
+其中 `2.0408 ~= 1 / 0.49`，对应 demo 的输入正弦幅度 `input_amplitude=0.49`。
+因此根本现象是：
+
+```text
+calibrated_signal 在单位正弦 / calibration solver 尺度上
+而 SAR 输出和 dBFS 分析使用的是 ADC voltage/full-scale 尺度
+```
+
+当 `calibrated_signal` 被直接传给：
+
+```python
+analyze_spectrum(calibrated_signal, max_scale_range=(-0.5, 0.5))
+```
+
+spectrum analyzer 会把其解释成超过满量程的 ADC voltage waveform，于是得到：
+
+```text
+Sig = +6.02 dBFS
+Noise Floor 同步上移约 6 dB
+SNR/SNDR 基本不变，因为信号和噪声被同一比例整体缩放
+```
+
+这不是 SAR 模型或频谱公式本身错误，而是 `calibrate_weight_sine` 输出尺度与
+`analyze_spectrum` dBFS 参考尺度之间缺少显式桥接。
+
+### 作者意图判断
+
+从现有官方示例可以反推出作者并非完全忽略该尺度问题。例如：
+
+```python
+# calibrate_weight_sine returns weights that sum to ~2.0 (differential signal)
+# Normalize to match the single-ended weights (sum ~1.0)
+weights_calibrated_norm = weights_calibrated / 2.0
+```
+
+以及：
+
+```python
+# calibrate_weight_sine returns differential-scale weights for this
+# single-ended normalized SAR setup.
+return np.asarray(result["weight"], dtype=float) / 2.0
+```
+
+这说明作者意图大概率是：
+
+```text
+calibrate_weight_sine 返回相对权重 / 差分尺度 / 校准求解器尺度的结果；
+调用者需要根据自己的 ADC 架构、single-ended/differential 约定和 full-scale 定义再做归一化。
+```
+
+因此不能简单判定为“校准算法错”。更准确的判断是：
+
+```text
+作者意图：合理
+核心算法：无明显错误
+API 契约：不够显式
+返回字段命名：容易让用户误以为 calibrated_signal 已经是 ADC voltage/full-scale 尺度
+示例一致性：部分示例知道要归一化权重，但仍有直接分析 calibrated_signal 的用法
+防误用能力：偏弱
+```
+
+### 原理推导
+
+`calibrate_weight_sine(bits, freq=...)` 只接收：
+
+```text
+bits: raw bit columns
+freq: normalized Fin/Fs
+nominal_weights: optional, mainly for rank-deficiency patch
+```
+
+它没有接收：
+
+```text
+input amplitude
+ADC full-scale range
+single-ended / differential voltage convention
+SAR quant_range
+```
+
+因此该函数从数学上无法唯一知道“真实 ADC voltage 尺度”。
+它能求的是一组让 bit columns 拟合单位正弦基函数的权重尺度。
+
+简化看，校准问题形如：
+
+```text
+bits @ w + offset ~= unit_sine + harmonic terms
+```
+
+如果真实训练信号是：
+
+```text
+vin = A * sin(...) + DC
+```
+
+而 solver 内部参考是单位正弦，那么求出来的 `w` 和 `calibrated_signal=bits@w`
+天然会包含一个约 `1/A` 的尺度因子。对 `A=0.49`，该因子约为：
+
+```text
+1 / 0.49 = 2.0408
+20*log10(2.0408) = 6.20 dB
+```
+
+这解释了为什么校准后 dBFS signal power 会从约 `-0.18 dBFS` 变成 `+6.02 dBFS`。
+
+另一方面，`analyze_spectrum` 的 `max_scale_range` 行为是：
+
+```text
+给定 max_scale_range=(-0.5, 0.5)
+peak_amplitude = 0.5
+data_normalized = data / 0.5
+```
+
+它不会 clamp，也不会默认判断“ADC 不应超过满量程”。因此若用户传入峰值接近 `1.0` 的
+`calibrated_signal`，analyzer 报 `+6 dBFS` 在数学上是自洽的：
+
+```text
+20*log10(1.0 / 0.5) = +6.02 dB
+```
+
+### 当前判断
+
+这是真实问题，但不是 P0/P1 级别的核心算法错误。
+
+建议定性为：
+
+```text
+ISSUE-CANDIDATE / P2
+类型：API robustness / documentation / example consistency
+影响：容易造成 dBFS 绝对尺度、noise floor、NSD 误读
+不影响：校准相对权重趋势、SFDR/SNDR 比值类指标的基本结论
+```
+
+严重性来源：
+
+```text
+1. `calibrated_signal` 名称暗示它是校准后的信号，但没有说明其尺度不是 ADC voltage scale。
+2. 比值指标 SNR/SNDR/SFDR 可能仍然“看起来对”，掩盖了绝对 dBFS 尺度错误。
+3. 一旦用户关注 noise floor / NSD / signal power，结果会产生误导。
+4. 官方示例中已有注释承认 differential-scale 归一化问题，说明这不是纯理论担忧。
+```
+
+非严重性来源：
+
+```text
+1. `calibrate_weight_sine` 没有 full-scale / amplitude 输入，从数学上不可能自动恢复唯一电压尺度。
+2. `analyze_spectrum` 报 `+dBFS` 可以被解释为合法 overrange diagnostic。
+3. 熟悉 calibration scale 的用户可以手动归一化权重或信号。
+4. 不建议为了防止误用而破坏现有 API 返回值行为。
+```
+
+### 后续优化方向
+
+文档 / docstring 优先：
+
+```text
+1. 在 `calibrate_weight_sine` docstring 的 Returns 中明确：
+   `weight` 和 `calibrated_signal` are returned in calibration/solver scale.
+   They are not guaranteed to be in ADC voltage or dBFS full-scale units.
+
+2. 明确说明：
+   如果要与 `analyze_spectrum(..., max_scale_range=...)` 一起使用，
+   调用者必须先把权重或信号缩放到同一 full-scale convention。
+
+3. 在 user guide / api quickref 中加入：
+   calibration scale vs ADC full-scale scale
+```
+
+代码层面保持向后兼容：
+
+```text
+1. 增加 helper：
+   scale_calibrated_weights(weights, target_weights=...)
+   或 normalize_calibration_to_nominal(result, nominal_weights, mode=...)
+
+2. `calibrate_weight_sine` 返回 metadata：
+   scale_convention = "solver_unit_sine"
+   norm_factor
+   maybe effective_fundamental_amplitude
+
+3. 新增可选参数，而不是改变默认返回行为：
+   output_scale="solver" | "nominal_sum" | "full_scale"
+   其中默认保留 "solver" 以避免破坏已有用户。
+
+4. `analyze_spectrum` 在显式 `max_scale_range` 下检测到：
+   max(abs(data - mean(data))) > peak_amplitude * (1 + tol)
+   时给出 `UserWarning`：
+   input exceeds declared full-scale; dBFS signal power may be positive.
+   不建议直接抛错，因为 overrange 本身可能是用户想观察的 clipping / stress case。
+```
+
+示例修复：
+
+```text
+1. 所有使用 `calibrate_weight_sine()["calibrated_signal"]` 后接 spectrum 的示例，
+   应显式说明是否在 auto-scale 模式下分析，还是已经缩放到 ADC full-scale。
+
+2. 如果示例要展示 dBFS / noise floor / NSD，必须使用一致的 `max_scale_range`。
+
+3. 如果示例只展示相对 SNDR/SFDR 改善，可以使用 auto-scale，但应避免解读绝对 dBFS。
+```
+
+测试建议：
+
+```text
+1. 增加 `calibrate_weight_sine` 文档行为测试：
+   对半满量程 sine，返回的 calibrated_signal 可与单位正弦尺度一致；
+   测试中明确这是 solver scale，而不是 ADC voltage scale。
+
+2. 增加 example-level regression：
+   如果示例声称使用固定 full-scale dBFS，则 assert sig_pwr_dbfs <= 0 + tolerance。
+
+3. 增加 `analyze_spectrum` warning 测试：
+   显式 max_scale_range 下传入超 full-scale 正弦，应产生 warning 且 sig_pwr_dbfs > 0。
+```
+
+### 处理状态
+
+- 2026-06-25：本地 Stage 04 学习 demo 已修正展示尺度：
+
+```python
+calibrated_weights = np.asarray(cal["weight"], dtype=float) * cfg.input_amplitude
+calibrated_aout = np.asarray(cal["calibrated_signal"][0], dtype=float) * cfg.input_amplitude
+```
+
+修正后：
+
+```text
+calibrated_aout Sig = -0.18 dBFS
+Noise Floor ~= -72.68 dBFS
+SNR/SNDR/SFDR 与 actual-weight oracle 对齐
+```
+
+- 2026-06-25：尚未修改 ADCToolbox 主代码库的 `calibrate_weight_sine` docstring、helper、
+  官方 examples 或 `analyze_spectrum` warning 行为。
+- 2026-06-25：尚未向作者提交 GitHub issue。若后续提交，建议标题：
+
+```text
+Clarify calibrate_weight_sine output scale and warn on dBFS full-scale mismatch
+```

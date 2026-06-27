@@ -837,7 +837,7 @@ signal: 1D ndarray, shape = (N,)
 bits:   2D ndarray, shape = (N_samples, N_bits), MSB first
 weights: 1D ndarray, shape = (N_bits,)
 metrics: dict, contains snr_dbc/sndr_dbc/sfdr_dbc/enob/...
-calibration result: dict, contains weight/calibrated_signal/error/refined_frequency
+calibration result: dict, contains weight plus calibrated_signal/error lists and refined_frequency
 ```
 
 最关键的软件边界：

@@ -198,7 +198,7 @@ def step_4_sar_and_calibration(fin_bin: int) -> tuple[list[dict], dict]:
         harmonic_order=3,
         verbose=0,
     )
-    calibrated_aout = centered(np.asarray(cal["calibrated_signal"], dtype=float))
+    calibrated_aout = centered(np.asarray(cal["calibrated_signal"][0], dtype=float))
 
     fig, axes = plt.subplots(1, 3, figsize=(17, 4.8), constrained_layout=True)
     ideal_metrics = run_spectrum(ideal_aout, axes[0], "Ideal SAR Output")

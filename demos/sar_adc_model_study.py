@@ -225,7 +225,8 @@ def main() -> None:
         harmonic_order=3,
         verbose=0,
     )
-    calibrated_aout = np.asarray(cal["calibrated_signal"], dtype=float)
+    calibrated_weights = np.asarray(cal["weight"], dtype=float) * cfg.input_amplitude
+    calibrated_aout = np.asarray(cal["calibrated_signal"][0], dtype=float) * cfg.input_amplitude
     calibrated_aout = calibrated_aout - np.mean(calibrated_aout)
 
     # Actual-weight reconstruction is an oracle reference. Real silicon would
@@ -272,7 +273,7 @@ def main() -> None:
         actual_weight_aout=actual_weight_aout,
         nominal_weights=nominal_weights,
         actual_weights=actual_weights,
-        calibrated_weights=cal["weight"],
+        calibrated_weights=calibrated_weights,
         fs=cfg.fs,
         fin=fin,
     )

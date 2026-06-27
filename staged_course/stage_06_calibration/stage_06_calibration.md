@@ -540,7 +540,7 @@ bits_effective = bits * (10.0 ** (-bit_scales))
 求解后再恢复：
 
 ```python
-w_physical_eff = w_normalized * (10.0 ** (-bit_scales))
+w_recovered_eff = w_normalized * (10.0 ** (-bit_scales))
 ```
 
 这属于数值线性代数里的 conditioning。物理直觉是：
@@ -576,12 +576,15 @@ offset:
 calibrated_signal:
   用校准权重对 bits 重构出的信号。
   它不是 ADC 重新采样得到的信号。
+  返回值是 list；单个 capture 时使用 cal["calibrated_signal"][0]。
 
 ideal:
   拟合模型重构出来的 reference sine / harmonic model。
+  返回值同样是 list。
 
 error:
   calibrated_signal 去掉 offset 后与 ideal 的差。
+  返回值同样是 list。
 
 refined_frequency:
   最终使用或估计出的 normalized frequency。
@@ -593,7 +596,7 @@ snr_db / enob:
 实际验证时，不要只看返回的 `enob`。更稳的做法是：
 
 ```python
-calibrated = cal["calibrated_signal"]
+calibrated = cal["calibrated_signal"][0]
 metrics = analyze_spectrum(calibrated, ...)
 ```
 
@@ -683,7 +686,8 @@ actual_weights = sar_apply_cap_mismatch(nominal_weights, sigma=0.004, rng=rng)
 bits = sar_convert(vin, actual_weights)
 ```
 
-这里的 `actual_weights` 是模拟转换时 CDAC 的真实权重。
+这里的 `actual_weights` 是行为仿真里用于模拟转换的 actual analog weights；它是仿真真值，
+不等于真实芯片上可直接观测到的物理电容答案。
 
 数字重构时：
 
@@ -811,7 +815,7 @@ cal = calibrate_weight_sine(
 )
 
 weights_calibrated = cal["weight"]
-signal_calibrated = cal["calibrated_signal"]
+signal_calibrated = cal["calibrated_signal"][0]  # single capture
 ```
 
 如果只有最小实验：
@@ -925,7 +929,7 @@ Strict binary
 Radix ~1.8 redundant SAR
 ```
 
-并对 unit-cap mismatch sigma 做 sweep。每个 sigma 下跑 32 次 Monte Carlo。
+并对 unit-cap-scaled mismatch sigma 做 sweep。每个 sigma 下跑 32 次 Monte Carlo。
 
 观察重点：
 
@@ -1063,7 +1067,8 @@ bit activity / radix / overflow
 - `calibrated_signal` 是用校准权重重构出的信号，不是 ADC 重新采样得到的信号。
 - `freq` 必须是 normalized `Fin/Fs`，不是 Hz。
 - `harmonic_order` 不是“校准几次谐波”，而是在拟合模型里显式允许若干 harmonic basis。
-- 校准结果接近 `actual_weights` 是仿真里的好现象；真实芯片上通常不知道 `actual_weights`。
+- 校准结果和 `actual_weights` 同尺度接近是仿真里的好现象；真实芯片上通常不知道
+  `actual_weights`，而且校准权重的绝对尺度还取决于输入/输出归一化约定。
 - 如果输入幅度太小，某些 bit 没有充分翻转，对应权重很难估。
 - 如果 bit matrix rank deficient，样本再多也不一定能独立估计所有权重。
 - 如果随机噪声已经主导，权重校准不会让 SNR 大幅提升。

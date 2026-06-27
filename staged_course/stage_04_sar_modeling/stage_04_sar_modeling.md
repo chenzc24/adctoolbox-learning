@@ -101,7 +101,7 @@ for each bit j (从 MSB 到 LSB):
 ```
 
 这个算法的直觉是"从大到小贪心"——先试最大的 weight，能接受就接受，不能就跳过。
-为什么这样的贪心策略能保证收敛到最优近似？关键在二进制权重的**超增性**。
+为什么这样的贪心策略能保证收敛到一个确定的 lower-edge code？关键在二进制权重的**超增性**。
 
 #### 1.1 贪心收敛的数学证明
 
@@ -146,11 +146,14 @@ for each bit j (从 MSB 到 LSB):
 处理完 LSB（bit N-1）后，`S[N] = 0`，残差 `r ∈ [0, 1 LSB)`（1 LSB 是归一化留出的
 溢出空间）。证毕。
 
-#### 1.2 贪心的最优性
+#### 1.2 贪心得到的是 lower-edge code，不是 round-to-nearest
 
-超增性还保证了贪心给出的是**唯一最优**的 N-bit 近似——每一步的决策由 vin 唯一
-确定，没有选择余地。如果权重不是超增的（比如 § 数学 6 的 redundancy 用非二进制
-权重），贪心可能不是最优，需要更复杂的解码。
+超增性保证贪心给出的是**唯一的 lower-edge SAR code**：最终 `v_dac <= vin`，
+且残差 `vin - v_dac < 1 LSB`。这对应本库的 lower-edge reconstruction 约定。
+
+注意它不是 round-to-nearest 的"绝对误差最小"近似。比如 4-bit 时 `vin=0.04`
+会输出 0，而不是更接近的 `1/16`。如果权重不是超增的（比如 redundancy 用非二进制
+权重），同一输入可能有多种可达表示，raw SAR trial 和最终数字解码也需要分开讨论。
 
 #### 1.3 对应到 sar_convert 代码
 
@@ -339,9 +342,9 @@ redundancy 和校准是**互补**的两种手段：
 ```text
 redundancy: 转换时提供纠错空间（硬件，多一位 trial）
             -> 主要对付 comparator noise（随机误判）
-            -> 对 deterministic mismatch 无效
+            -> 不能估计/消除 deterministic mismatch spur，但能提供 overrange margin
 
-校准:       重构时用正确权重（数字，估计 actual_weights）
+校准:       重构时用正确权重（数字，估计同尺度重构权重）
             -> 主要对付 CDAC mismatch（deterministic）
             -> 对 comparator noise 无效
 ```
@@ -373,12 +376,16 @@ return w / (w.sum() + w[-1])                              # / (sum + 1 LSB)
 w_actual = w_nominal · (1 + error)
 ```
 
-本库 `sar_apply_cap_mismatch` 的核心假设是 **unit-cap（单位电容）模型**：每个 bit 的
-电容由若干个相同的"单位电容 Cu"并联组成，每个 Cu 的容值有独立随机偏差。
+本库 `sar_apply_cap_mismatch` 采用的是 **unit-cap-scaled independent weight-error
+model**：用单位电容统计推导每个 bit 的相对失配标准差，再把这个失配独立乘到
+每个 bit weight 上。它抓住 `sigma ∝ 1/√C` 这个趋势，但不是完整的 CDAC 电容网络
+求解器。
 
-这一节从概率论推导 `sigma ∝ 1/√C`，并对应到代码。
+完整 unit-cap CDAC 会先随机生成每个单位电容，再由 `C_bit / C_total` 求权重；这样会
+引入 dummy cap、总电容分母、bridge/parasitic 等造成的相关性。本库这个 helper 不模拟
+这些相关性，也不重新归一化。下面先推导 `sigma ∝ 1/√C`，再说明代码对应到哪一层近似。
 
-#### 3.1 unit-cap 模型
+#### 3.1 unit-cap 统计推导
 
 假设 bit j 由 `n[j]` 个单位电容 Cu 并联组成。理想容值 `C[j] = n[j]·Cu`。
 
@@ -455,6 +462,10 @@ return weights * (1.0 + relative_sigma * rng.standard_normal(len(weights)))
 所以 `sigma` 参数是**单位电容的相对失配**，不是每个 bit 的失配。一个 `sigma=0.01`
 意味着 1% 的单位电容相对失配；MSB（8 个 Cu）的实际相对失配只有 `0.01/√8 ≈ 0.35%`。
 
+**模型边界**：这里的 `actual_weights` 是行为级"实际模拟权重"，不是从一颗完整 CDAC
+电容网络严格解出来的物理权重。真实 CDAC 的所有 bit weight 会共享同一个总电容分母，
+因此不同 bit 的误差会相关；本 helper 为了简单和可控，把各 bit 的相对误差独立化。
+
 #### 3.4 全流程演示：nominal vs actual 的数值对比
 
 § 3.3 讲了 mismatch 怎么加到权重上。但真正的失真不是"权重偏了"本身，而是**权重
@@ -494,10 +505,10 @@ actual 路径 (用 actual):
 **关键现象**：MSB 翻转了（bit0 从 1→0），但后续 bit "捡回"了大部分——bit1+bit2+bit3
 用 actual 权重凑出 0.4372，接近理想的 0.5。最终 aout=0.4375，误差只有 -0.0625 = -1 LSB。
 
-**为什么只差 1 LSB 而不是整个 MSB**：因为二进制权重有"自然冗余"——后续位加起来
-（actual 的 bit1+2+3 = 0.4372）接近 MSB 偏差（actual bit0 = 0.5027）。这是 § 2.3
-讲的 redundancy 思想的自然体现：即使没有显式 redundant bit，超增性让后续位部分补回
-MSB 错误。差别是显式 redundancy 能完全补回，纯二进制只能部分补回。
+**为什么只差 1 LSB 而不是整个 MSB**：MSB 错判后，SAR 仍会在错误起点上继续做
+lower-edge 搜索；后续 bit 能把 `v_dac` 推到 0.4372，接近但低于 0.5。这不是严格意义
+上的 redundancy，因为普通二进制权重没有正的 overrange margin，早期错判并不能被完全
+修正。显式 redundancy 的区别是它让后续权重总和超过当前权重，提供真正的纠错余量。
 
 ##### 扫描所有 vin：翻转是"块状"分布
 
@@ -687,9 +698,13 @@ digital reconstruction weights:  数字端用来重构 aout 的权重
 
 3. 校准后:
    actual_weights = nominal · (1 + mismatch)     ← 失真还在（物理没变）
-   digital_weights = calibrated ≈ actual          ← 数字端用估计的 actual 重构
+   digital_weights ≈ actual                       ← 数字端用同尺度权重重构
    -> aout 失真被补偿
 ```
+
+这里的 `digital_weights ≈ actual` 指的是与 `sar_reconstruct` 同一归一化尺度的权重。
+`calibrate_weight_sine` 返回的 `weight` 由正弦拟合归一化决定，在单端 SAR 例子中常常
+只和 actual weights 成比例，不能不经缩放就当作 `sar_reconstruct` 的 normalized weights。
 
 #### 4.2 误差传递：mismatch 怎么变成 aout 误差
 
@@ -697,10 +712,10 @@ digital reconstruction weights:  数字端用来重构 aout 的权重
 然后用 nominal 重构：
 
 ```text
-aout_calibrated = Σ bits[j] · nominal[j]
+aout_uncalibrated = Σ bits[j] · nominal[j]
 aout_ideal      = Σ bits_ideal[j] · nominal[j]    （理想 bits）
 
-误差:  e = aout_calibrated - aout_ideal
+误差:  e = aout_uncalibrated - aout_ideal
          = Σ (bits[j] - bits_ideal[j]) · nominal[j]
 ```
 
@@ -736,9 +751,10 @@ aout = Σ bits[j] · digital_weights[j]
 所以 aout = 转换时的实际 v_dac，和 vin 的差只剩量化误差（< 1 LSB）。
 ```
 
-**校准的本质**：用数字权重"复现"转换时模拟域的真实累积，从而消除 mismatch 引起的
-决策偏差。这就是为什么 `calibrate_weight_sine` 要估计 actual_weights——
-它通过观察 aout 对正弦输入的响应，反推每个 bit 的实际权重。
+**校准的本质**：用数字权重"复现"转换时模拟域的真实累积，从而补偿 mismatch 引起的
+重构误差。理想情况下，数字重构权重和 actual analog weights 同尺度一致。实际使用
+`calibrate_weight_sine` 时，要注意它返回的权重尺度由拟合参考正弦决定，可能需要先按
+`sum(nominal_weights)` 或满量程约定重新缩放，再和 `sar_reconstruct` 的权重比较。
 
 #### 4.4 校准的局限：随机噪声修不了
 
@@ -1072,7 +1088,7 @@ latch 是一个**正反馈**电路——两个反相器交叉连接，任何微�
 for j in range(B):
     v_test = v_dac + weights[j]
     noise = comparator_noise_norm * rng.standard_normal(vin_norm.shape)
-                                  # 每个 bit 独立抽取一个噪声（不是每个样本！）
+                                  # 每个样本、每个 bit trial 都独立抽取噪声
     bit = (vin_norm + noise >= v_test).astype(np.int8)
 ```
 
@@ -1084,9 +1100,9 @@ for j in range(B):
 
 ```text
 对样本 n 的 bit j:
-  bit[n,j] = 1 if (vin[n] + w_cmp[j] >= v_test[n,j]) else 0
+  bit[n,j] = 1 if (vin[n] + w_cmp[n,j] >= v_test[n,j]) else 0
   
-  其中 w_cmp[j] ~ N(0, σ_cmp²)  独立抽取
+  其中 w_cmp[n,j] ~ N(0, σ_cmp²)  对每个样本和 bit trial 独立抽取
 ```
 
 **误差机制**：当 `|vin[n] - v_test[n,j]| < 3·σ_cmp` 时，bit decision 可能翻转。
@@ -1114,7 +1130,7 @@ spectrum: 抬高 noise floor（随机 bit 翻转是宽带噪声）
 **诊断意义**：comparator noise 主要影响 SNR（不是 SFDR）。如果测出 SNR 差但
 SFDR 正常，且 PDF 接近 Gaussian，基本就是 comparator/sampling noise 主导。
 这种噪声是 stochastic，**校准不能完全消除**——只能靠 averaging、降低噪声设计、
-或用 redundancy（§ 数学 6）容忍。
+或用 redundancy（§ 数学 2.3）容忍。
 
 ### 4. Sampling noise——kT/C 噪声
 
@@ -1368,7 +1384,7 @@ nominal = sar_ideal_weights(N_BITS)
 rng = np.random.default_rng(42)              # 固定 seed 锁定一个"chip"
 actual = sar_apply_cap_mismatch(nominal, sigma=0.005, rng=rng)
 # sigma=0.005 = 0.5% 单位电容相对失配（真实量级）
-# actual 是这个 chip 的真实物理权重（deterministic，每次转换相同）
+# actual 是这一颗行为模型 chip 的实际模拟权重（deterministic，每次转换相同）
 
 # === 3. 生成输入信号 ===
 Fs = 100e6; N = 8192
@@ -1437,8 +1453,9 @@ uncal -> cal:
   ENOB: 11.73 -> 11.85     (恢复 0.12 bit) ← 接近理想 11.85
 ```
 
-这验证了 § 数学 4.3 的校准原理：**用 actual weights 重构（`sar_reconstruct(codes,
-actual)`）能补偿 mismatch**。校准的本质是"用数字权重复现转换时模拟域的真实累积"。
+这验证了 § 数学 4.3 的校准原理：**用同尺度的 actual weights 重构（`sar_reconstruct(codes,
+actual)`）能补偿 mismatch**。这里的 `actual` 是 oracle 参考；真实校准算法估计出来的
+权重可能只和它成比例，使用前要确认归一化尺度。
 
 **观察 3：校准前后 SNR 几乎不变（0.7 dB）**
 
@@ -1462,13 +1479,13 @@ SNR 主要由量化噪声 + sampling noise + comparator noise 决定，这些是
                   → mismatch 暴露成 harmonic
 
 场景 c (cal):      vin →[sar_convert, actual] → codes →[sar_reconstruct, actual] → aout
-                  模拟域用 actual, 数字域用 actual（校准估计出 actual）
+                  模拟域用 actual, 数字域用同尺度 actual（oracle 或校准后缩放）
                   → mismatch 被补偿
 ```
 
 **关键**：`sar_convert` 和 `sar_reconstruct` 的 weights 参数是独立的——这正是
-"两套权重"设计的体现。Stage 06 校准的核心任务就是**估计 actual weights**，让
-场景 b 变成场景 c。
+"两套权重"设计的体现。Stage 06 校准的核心任务是估计一组可用于数字重构的权重；
+如果要把它解释成 actual weights，需要先确认它和 SAR normalized weights 在同一尺度上。
 
 ### 和 whole_workflow demo step_4 的关系
 
@@ -1590,6 +1607,10 @@ v_dac = where(bit, v_test, v_dac)
 - mismatch 会先影响 bit decision，再影响数字重构；校准只能修正可由数字权重补偿的部分。
 - comparator noise 是每次比较时的随机扰动，不是一个固定权重误差。
 - `cap_mismatch_sigma=0.002` 表示相对失配量级，不是 ENOB 直接下降 0.002 bit。
+- `sar_apply_cap_mismatch` 是 unit-cap 缩放的独立权重误差模型，不是完整 CDAC 电容网络求解器。
+- `calibrate_weight_sine()["weight"]` 可能和 SAR normalized weights 只差一个比例因子；做电压重构前要确认尺度。
+- `convert_cap_to_weight` 返回的是 CDAC 电容网络权重（LSB→MSB，分母来自实际电容网络），不能直接当作
+  `sar_convert` 的 SAR trial weights（MSB→LSB，通常采用 ADC code grid 的 +1 LSB 约定）。
 
 ## 阶段检查问题
 

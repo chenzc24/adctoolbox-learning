@@ -162,9 +162,9 @@ freq: Fin / Fs
 
 - `weight`
 - `offset`
-- `calibrated_signal`
+- `calibrated_signal`（list；单个 capture 时取 `[0]`）
 - `refined_frequency`
-- `error`
+- `error`（list；单个 capture 时取 `[0]`）
 
 ## `dout/`
 
