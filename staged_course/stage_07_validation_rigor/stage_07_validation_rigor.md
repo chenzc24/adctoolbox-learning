@@ -40,6 +40,29 @@ ENOB 变好了，所以可信。
 
 这一步会把你从“会跑校准 demo”推进到“能评价校准结论”。
 
+### Stage 06 交给 Stage 07 的检查清单
+
+Stage 06 已经把校准模型讲清楚了，但每一个模型假设都要在 Stage 07 变成验证项：
+
+| Stage 06 学到的点 | Stage 07 要验证什么 |
+|---|---|
+| `calibrated_signal = bits @ calibrated_weights` | 这组 weights 是否能泛化到独立 capture |
+| `harmonic_order>1` 带有 source/test-chain nuisance 假设 | 比较 `H=1` 与 `H=3` 的 normalized weight delta 和验证指标 |
+| bit matrix 可能 rank deficient | 校准前检查 bit activity、constant columns、merged columns、rank patch metadata |
+| 静默 bit 会被恢复为 0，当前实现还缺 warning | 不把静默位的 0 权重解释成真实物理权重为 0 |
+| column scaling 对纯 0/1 SAR bits 基本是 no-op | 不把 scaling 当作解决列相关性或冗余 SAR 病态的手段 |
+| `calibrate_weight_sine` 有尺度/极性约定 | 比较频谱时保持 dBFS/full-scale 标尺一致 |
+| 训练集 residual 变小 | 必须在不同频率、幅度、相位或噪声 realization 上复测 |
+
+所以 Stage 07 的核心不是多跑几张图，而是把 Stage 06 的结论拆成：
+
+```text
+哪些是训练目标；
+哪些是验证指标；
+哪些是假设；
+哪些是风险报警。
+```
+
 ## 本阶段目标
 
 学完本阶段，你应该能解释：
@@ -52,6 +75,7 @@ ENOB 变好了，所以可信。
 - ADCToolbox 的行为级 SAR 模型有哪些边界。
 - 测试条件为什么是指标的一部分。
 - 校准如何影响 FOM，以及为什么校准本身也有代价。
+- 如何把 `harmonic_order`、rank patch、bit activity 和尺度约定纳入校准可信度检查。
 - 什么时候可以相信结果，什么时候只能把它当学习或算法原型。
 
 ## 对应孙老师课件主线
@@ -94,6 +118,9 @@ Stage 07 把“算法结果”放回测试、电路和系统约束里审查。
 | SNR、SNDR、SFDR、THD 是否一起报告 | 判断改善来自噪声还是失真 |
 | residual 或 error spectrum 是否检查 | 防止指标好看但误差有结构 |
 | bit activity / radix / overflow 是否检查 | 防止 raw bits 或权重本身不合理 |
+| `H=1` 与 `H=3` 权重是否差很多 | 判断 harmonic nuisance 假设是否显著影响 weights |
+| rank patch 是否发生，是否有静默 bit | 防止把不可观测 bit 的返回值误当成物理权重 |
+| dBFS/full-scale 标尺是否一致 | 防止把尺度错误误判成校准改善或恶化 |
 | noise/mismatch seed 是否说明 | 保证仿真可复现 |
 | 测试源和时钟是否足够干净 | 防止测到的是 test bench 限制 |
 | 模型假设是否写清楚 | 防止把行为模型误当成真实芯片结论 |

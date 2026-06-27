@@ -323,15 +323,31 @@ err2 = norm(A2 @ coeffs2 - b2)
 
 因为实际输入相位可能让某个 basis 更适合固定为 unity。dual basis 可以避免单一相位约定导致数值条件不好。
 
-### 5. harmonic_order 的意义
+### 5. `harmonic_order` 的意义和边界
 
-真实 ADC 输出不一定只有 fundamental。CDAC mismatch、静态非线性、参考动态误差等会产生 harmonic：
+真实 ADC 输出不一定只有 fundamental。CDAC mismatch、静态非线性、参考动态误差、输入源失真等
+都可能产生 harmonic：
 
 ```text
 2Fin, 3Fin, 4Fin, ...
 ```
 
-如果校准模型只允许 fundamental，而真实数据里有明显 harmonic，那么最小二乘可能会试图用 `weights` 去解释这些 harmonic。这样会污染权重估计。
+这里最容易误解的一点是：频谱里看到 H2/H3，并不能只凭单个 sine capture 判断它来自哪里。
+它可能来自：
+
+```text
+输入源 / 测试链路 harmonic；
+ADC analog nonlinearity；
+CDAC mismatch / bit-weight error；
+settling / comparator / code-dependent error。
+```
+
+所以 `harmonic_order` 不是“校准几次谐波”，也不是“越高越好”。它是在选择一个建模假设：
+
+```text
+这些 harmonic 更像 source/test-chain nuisance，
+还是更应该由 bit weights 去解释？
+```
 
 完整版本构造 harmonic basis：
 
@@ -354,22 +370,111 @@ harmonic_order=3
 1Fin, 2Fin, 3Fin
 ```
 
-其中 fundamental 用来固定尺度，额外 harmonic 作为 nuisance basis，帮助把谐波成分从权重估计里分离出去。
-
-所以 `harmonic_order` 不是“把谐波校准掉几次”的意思，而是：
+其中 fundamental 用来固定尺度；额外 H2/H3 作为 nuisance basis 进入最小二乘。最终输出仍然是：
 
 ```text
-在拟合模型里显式允许若干 harmonic，让它们不要错误污染 bit weights。
+calibrated_signal = bits @ calibrated_weights
 ```
 
-常见理解：
+而不是：
+
+```text
+bits @ calibrated_weights + fitted_harmonics
+```
+
+也就是说，harmonic 不会直接叠加到校准输出中；但它会改变求出来的 `weights`。
+
+从线性代数角度看，加入 harmonic nuisance 近似等价于把 H2/H3/... 子空间从误差里投影掉：
+
+```text
+min_w || P_perp(Z) · (B @ w + reference) ||^2
+
+Z = offset + companion fundamental basis + harmonic nuisance basis
+```
+
+这样有两面性。
+
+如果 harmonic 主要来自输入源 / 测试链路：
+
+```text
+harmonic_order=1:
+  可能把源 harmonic 错误吸收到 weights。
+
+harmonic_order=3:
+  可以把 H2/H3 当作 nuisance，保护 weight estimate。
+```
+
+如果 harmonic 主要来自 ADC / CDAC mismatch：
 
 ```text
 harmonic_order = 1:
-  只建 fundamental，不额外吸收高次谐波。
+  更适合作为纯 mismatch 仿真、干净测试源、或敏感性 baseline。
 
 harmonic_order = 3:
-  允许 2nd/3rd harmonic 进入拟合模型，降低它们对 weight estimation 的污染。
+  可能把一部分本该约束 weights 的 mismatch harmonic 当作 nuisance 投影掉。
+```
+
+所以更准确的使用建议是：
+
+```text
+H=1:
+  用于纯 mismatch 研究、仿真 demo、source 已知干净的情况，
+  或作为 harmonic sensitivity 的 control/baseline。
+
+H>=3:
+  用于训练源可能含 harmonic 污染时的 robust weight estimation，
+  但必须承认它带有 source/test-chain nuisance 假设。
+```
+
+实际工程里不要指望库从单个 sine capture 自动判断 H3 到底来自源还是 ADC。更诚实的目标是：
+
+```text
+当 harmonic attribution 歧义大到会影响 weights 时，把风险量化出来。
+```
+
+一个直接的诊断思路是分别跑：
+
+```python
+cal_h1 = calibrate_weight_sine(bits, freq=freq, harmonic_order=1)
+cal_h3 = calibrate_weight_sine(bits, freq=freq, harmonic_order=3)
+```
+
+然后比较归一化后的权重差异：
+
+```text
+normalized_weight_delta = ||normalize(w_H1) - normalize(w_H3)|| / ||normalize(w_H1)||
+```
+
+这里的 `normalize` 应先处理整体尺度和 polarity；对带 trim / 负权重的结构，最好使用
+best-fit scale 或 `sum(abs(w))` 类的归一化，而不是机械地按 `sum(w)`。
+
+如果 `H=1` 与 `H=3` 的权重差异很大，结论不是“某个 harmonic 一定来自源”，而是：
+
+```text
+这个 capture 的 harmonic attribution 已经会影响 weight estimate。
+```
+
+更严谨的训练方式是 multi-capture + per-capture harmonic nuisance：
+
+```python
+cal = calibrate_weight_sine(
+    [bits_f1, bits_f2, bits_f3, bits_f4],
+    freq=[f1, f2, f3, f4],
+    harmonic_order=3,
+)
+```
+
+这里 `weights` 在多个 capture 间共享，而每个 capture 有自己的 harmonic basis。这样比“只做
+multi-capture 但仍然 `harmonic_order=1`”更干净：
+
+```text
+multi-capture + H=1:
+  可以缓解源 harmonic 污染，因为不同 frequency 下污染方向不完全一致；
+  但模型仍缺少 harmonic 自由度，污染不会自动消失。
+
+multi-capture + H>=3:
+  shared weights 解释跨 capture 稳定的 bit-weight 结构；
+  per-capture harmonic nuisance 吸收每条记录自己的 source/test-chain harmonic。
 ```
 
 ### 6. freq 必须是 normalized `Fin/Fs`
@@ -525,28 +630,378 @@ weights_recovered[bit_to_col_map < 0] = 0.0
 
 这不是凭空创造信息，而是在信息不足时做一个有工程先验的分配。
 
-### 9. column scaling：数值条件不是小事
+---
 
-bit columns 的尺度可能差很多，尤其经过 rank patch 后，某些 effective columns 可能不是简单 0/1。
+#### 第 8 节补充：恢复公式的真实写法、merge 顺序、以及两个实现隐患
 
-`_scale_columns_for_conditioning.py` 会按数量级缩放列：
+上面的主线是对的：Case A/B/C + nominal ratio 分配，在可辨识性意义上合理。
+但有几个实现细节和隐患，光读主线容易漏掉。这一节把它们补全。
+
+**1. 恢复公式的真实写法（上面简化了）**
+
+第 620 行写的是简化版：
 
 ```python
+weights_recovered = w_effective[bit_to_col_map] * bit_weight_ratios
+```
+
+源码实际是（`_patch_rank_deficiency.py` 的 `_recover_rank_deficiency`）：
+
+```python
+weights_recovered = w_effective[np.maximum(bit_to_col_map, 0)]
+weights_recovered = weights_recovered * bit_weight_ratios
+weights_recovered[bit_to_col_map < 0] = 0.0
+```
+
+那个 `np.maximum(bit_to_col_map, 0)` 不是装饰：被 drop 的 bit 在 `bit_to_col_map`
+里是 `-1`，直接拿去索引会触发 `IndexError`。`np.maximum(..., 0)` 把 -1 钳到 0，
+先取到一个占位值，再由 `bit_weight_ratios`（被 drop 的 bit ratio=0）和最后一行的
+强制清零把它归零。照着简化版写代码会踩坑。
+
+**2. Case C 的 merge 依赖 bit 列顺序**
+
+patch 是按 bit 顺序逐列处理的：第一个被 keep 的列成为 "founding bit"，
+后面所有和它相关的列都并到它身上，ratio 按
+`nominal_weights[bit_idx] / nominal_weights[founding_bit_idx]` 算。
+
+这意味着 founding bit 选谁、分母是谁，取决于列的输入顺序。对二进制 SAR 影响不大，
+但对 radix≠2 冗余 SAR，同一组相关列如果排列不同，分配结果会不同。这是一个隐含假设：
+调用方需要保证 bit 列顺序（MSB 在前）的一致性。
+
+**3. 隐患 A（静默错误）：部分 bit 不翻 → weight 被强制设 0**
+
+当输入幅度太小，某些低位从不翻转，这些列在 Case A 被判为 constant、drop，
+恢复时被强制 `weight=0`：
+
+```python
+weights_recovered[bit_to_col_map < 0] = 0.0
+```
+
+实测：4-bit SAR，幅度只够激励高位，低位信息不足被 merge：
+
+```text
+calibrated weights = [0.5333, 0.2667, 0.1333, 0.0667]
+```
+
+数学上可辩护（静默 bit 对动态信号贡献 0），但工程上危险：用户拿到一组看似
+"校准成功"的权重，没有任何告警，重建却是错的。这比崩溃更糟，因为崩溃至少让人
+知道有问题。
+
+**4. 隐患 B（确定 bug）：全秩亏 → IndexError 崩溃**
+
+当输入导致所有 bit 列都 constant（比如平 DC 输入，或幅度太小一个 bit 都不翻），
+所有列被 drop，`bits_effective` 变成 0 列。然后 `_recover_rank_deficiency`
+在空数组上索引：
+
+```text
+IndexError: index 0 is out of bounds for axis 0 with size 0
+```
+
+实测：平 DC 输入（toggle counts `[4096, 0, 0, 0]`）直接崩溃，没有有意义的错误
+提示。建议在 `_patch_rank_deficiency` 末尾加 guard：
+
+```python
+if bits_effective.shape[1] == 0:
+    raise ValueError(
+        "No independent bit columns found; input has insufficient bit activity. "
+        "Increase input amplitude so all bits toggle."
+    )
+```
+
+**5. 实测：真正的 rank deficiency 能被正确处理**
+
+主线逻辑是对的。构造一个确定的 rank deficiency（复制一列，`col8 == col4`），
+Case C 正确识别并合并：
+
+```text
+[DEBUG] Bit [8] is dependent. Merging into effective column [4] with weight ratio 1.0000.
+w[4]=0.03132  w[8]=0.03132  ratio=1.0000  (joint sum 恢复正确)
+```
+
+所以问题不在主线算法，而在边界 case 的健壮性：静默 weight=0 应该 warning，
+全秩亏应该 raise 有意义的错误。
+
+### 9. column scaling：给最小二乘换一个更舒服的坐标系
+
+先不要从 ADC 想起。先看一个最普通的最小二乘问题：
+
+```text
+y ≈ A @ w
+```
+
+如果 `A` 的某些列数值很大，另一些列数值很小，例如：
+
+```text
+col1 ≈ 1,000,000
+col2 ≈ 0.001
+```
+
+数学上，精确实数运算仍然能解。但计算机用的是有限精度浮点数，列尺度差太大时，
+最小二乘求解会更容易受舍入误差影响。column scaling 的直觉就是：
+
+```text
+先把每一列缩放到差不多的数量级；
+让求解器在更好的数值坐标系里解问题；
+解完以后，再把缩放补回原来的权重尺度。
+```
+
+#### 9.1 最小数学模型
+
+假设只看 bit matrix 部分：
+
+```text
+y ≈ B @ w
+```
+
+对每一列做缩放：
+
+```text
+B_scaled[:, j] = B[:, j] * scale[j]
+```
+
+写成矩阵就是：
+
+```text
+B_scaled = B @ D
+D = diag(scale[j])
+```
+
+求解器实际解的是：
+
+```text
+y ≈ B_scaled @ alpha
+  = B @ D @ alpha
+```
+
+而原始模型是：
+
+```text
+y ≈ B @ w
+```
+
+所以两者对应关系是：
+
+```text
+w = D @ alpha
+```
+
+也就是：
+
+```text
+列乘了多少，最后权重要按同样关系补回去。
+```
+
+这一步不是改变 ADC 物理模型，而是换一个数值坐标系来求同一个线性问题。
+
+#### 9.2 ADCToolbox 的实际代码
+
+`_scale_columns_for_conditioning.py` 做的是 10 进制数量级缩放：
+
+```python
+col_extremes = np.vstack([np.max(bits, axis=0), np.min(bits, axis=0)])
 max_vals = np.max(np.abs(col_extremes), axis=0)
+
 bit_scales = np.floor(np.log10(max_vals + 1e-15))
+
+near_zero_bits = (max_vals <= 1e-15)
+bit_scales[near_zero_bits] = 0
+
 bits_effective = bits * (10.0 ** (-bit_scales))
 ```
 
-求解后再恢复：
-
-```python
-w_recovered_eff = w_normalized * (10.0 ** (-bit_scales))
-```
-
-这属于数值线性代数里的 conditioning。物理直觉是：
+含义是：
 
 ```text
-不要让某些列因为数值尺度太大或太小，在最小二乘中造成病态求解。
+看每一列最大绝对值大约是 10 的几次方；
+把这一列乘 10^(-bit_scale)，拉回到 O(1) 附近。
+```
+
+例子：
+
+```text
+max = 1000  -> bit_scale = 3   -> 这一列乘 10^-3
+max = 0.01  -> bit_scale = -2  -> 这一列乘 10^2
+max = 1     -> bit_scale = 0   -> 不动
+max = 0     -> near-zero guard -> bit_scale 设回 0
+```
+
+求解后，`_recover_columns_for_conditioning.py` 再恢复：
+
+```python
+w_raw = coeffs[:bit_width_effective]
+w_normalized = w_raw / norm_factor
+w_physical_eff = w_normalized * (10.0 ** (-bit_scales))
+```
+
+为什么恢复也是乘 `10^(-bit_scales)`？因为前面列已经乘过：
+
+```text
+scale = 10^(-bit_scales)
+```
+
+求解器得到的是 scaled 坐标下的 `alpha`，原始权重是：
+
+```text
+w = scale * alpha
+```
+
+所以代码乘回同一个 `10^(-bit_scales)`。
+
+#### 9.3 放到 SAR ADC 里怎么理解
+
+SAR 的 raw output 是 bit decisions。bit matrix 长这样：
+
+```text
+sample   bit0  bit1  bit2  bit3
+0        1     0     1     1
+1        0     1     1     0
+2        1     1     0     0
+...
+```
+
+数字重构是：
+
+```text
+aout[n] = bit0[n] * w0 + bit1[n] * w1 + bit2[n] * w2 + ...
+```
+
+这里要特别小心一个常见误解：
+
+```text
+MSB 大、LSB 小，体现在 weights 里；
+不体现在 bit columns 的数值大小里。
+```
+
+无论 MSB 还是 LSB，普通 SAR bit column 本身都只是：
+
+```text
+0 或 1
+```
+
+所以对纯 0/1 的 SAR bit matrix：
+
+```text
+max(abs(B[:, j])) = 1
+bit_scales[j] = floor(log10(1)) = 0
+B_scaled = B
+```
+
+也就是说，在普通 SAR 校准里，column scaling 通常是 no-op：
+
+```text
+它不会解决 16-bit SAR 的权重跨度问题；
+因为 1/2, 1/4, ..., 1/32768 的跨度在 weights 里，
+不在 bits 的列值里。
+```
+
+#### 9.4 它什么时候会真的动手
+
+它主要是给 rank patch 之后的 effective columns 做防御。
+
+上一节讲过，Case C 会把 dependent column 合并到已有 effective column：
+
+```python
+bits_effective[:, col_idx] += col * bit_weight_ratios[bit_idx]
+```
+
+合并后，effective column 不一定还是简单 0/1。它可能变成：
+
+```text
+0 或 2
+0 或 3
+0 或 12
+```
+
+如果最大值跨过 10 的数量级，比如 `max=12`：
+
+```text
+bit_scale = floor(log10(12)) = 1
+这一列乘 10^-1
+```
+
+这样可以避免某个合并列比其他列大一个数量级以上。
+
+但要注意，这个实现是 coarse decade scaling：
+
+```text
+max = 3.9 -> bit_scale = 0 -> 不缩放
+max = 9.9 -> bit_scale = 0 -> 不缩放
+max = 10  -> bit_scale = 1 -> 缩放
+```
+
+所以它不是精细归一化，也不是每次 rank patch 后都一定明显生效。
+
+#### 9.5 它解决什么，不解决什么
+
+column scaling 能缓解的是：
+
+```text
+列尺度悬殊
+```
+
+也就是某些列的长度比其他列大很多或小很多。
+
+但它不能解决：
+
+```text
+列之间高度相关；
+bit column 不翻转；
+bit matrix rank deficient；
+输入没有充分激励低位；
+冗余 SAR 因 sub-radix / repeated weight 造成的近相关性。
+```
+
+原因是：scaling 只改变列的长度，不改变列的方向。如果两列几乎平行：
+
+```text
+B[:, i] ≈ B[:, j]
+```
+
+把其中一列乘 10，也不会让它产生新的独立信息。
+
+可以这样记：
+
+```text
+列太大/太小       -> scaling 可能有用
+列太像/不可区分    -> scaling 治不了
+列不翻            -> scaling 治不了
+```
+
+所以对 radix≠2 的冗余 SAR，如果条件数爆炸主要来自列相关性，column scaling
+不会让这个病态消失。真正要看的仍然是：
+
+```text
+rank / singular values；
+bit activity；
+输入幅度和覆盖范围；
+冗余结构；
+训练 capture 和验证 capture 是否独立。
+```
+
+#### 9.6 最终意义
+
+在本库里，column scaling 的准确定位是：
+
+```text
+低成本的数值防御；
+对普通 0/1 SAR bit matrix 基本是 no-op；
+对 rank-patch 后出现明显数量级差异的 effective columns 可能有帮助；
+不负责解决 SAR 校准的主要可辨识性问题。
+```
+
+因此不要把它理解成：
+
+```text
+解决 SAR 条件数问题的关键技巧
+```
+
+更应该理解成：
+
+```text
+如果 patched design matrix 某些列真的大很多或小很多，
+它帮最小二乘求解器把列尺度拉回可控范围；
+如果主要问题是 rank / correlation / excitation，
+它不会创造新信息。
 ```
 
 ### 10. 输出结果应该如何理解
@@ -804,18 +1259,42 @@ from adctoolbox import calibrate_weight_sine
 from adctoolbox.calibration import calibrate_weight_sine_lite
 ```
 
-典型调用：
+典型调用要先明确你要验证什么。
+
+如果是纯 mismatch 仿真、测试源已知干净，或想做 harmonic sensitivity baseline：
 
 ```python
-cal = calibrate_weight_sine(
+cal_h1 = calibrate_weight_sine(
+    bits,
+    freq=fin_bin / n_samples,
+    nominal_weights=nominal_weights,
+    harmonic_order=1,
+)
+
+weights_calibrated = cal_h1["weight"]
+signal_calibrated = cal_h1["calibrated_signal"][0]  # single capture
+```
+
+如果训练源可能带 H2/H3，且你希望把这些看作 source/test-chain nuisance：
+
+```python
+cal_h3 = calibrate_weight_sine(
     bits,
     freq=fin_bin / n_samples,
     nominal_weights=nominal_weights,
     harmonic_order=3,
 )
+```
 
-weights_calibrated = cal["weight"]
-signal_calibrated = cal["calibrated_signal"][0]  # single capture
+如果有多条 capture，更推荐共享 weights、每条 capture 使用独立 harmonic nuisance：
+
+```python
+cal_multi = calibrate_weight_sine(
+    [bits_f1, bits_f2, bits_f3],
+    freq=[f1, f2, f3],
+    nominal_weights=nominal_weights,
+    harmonic_order=3,
+)
 ```
 
 如果只有最小实验：
@@ -831,8 +1310,8 @@ weights = calibrate_weight_sine_lite(bits, freq=fin_bin / n_samples)
 ```text
 1. 检查 freq 是否在 normalized Nyquist 范围内。
 2. _prepare_input：把 bits 整理成统一格式，建立 nominal_weights。
-3. _patch_rank_deficiency：处理恒定列和线性相关列。
-4. _scale_columns_for_conditioning：改善最小二乘数值条件。
+3. _patch_rank_deficiency：处理恒定列和线性相关列（注意全秩亏崩溃、静默 weight=0 两个隐患）。
+4. _scale_columns_for_conditioning：对 rank-patch 后的非 0/1 列做防御性尺度归一化（对纯 0/1 bits 是 no-op）。
 5. _estimate_frequencies：如果需要，估计输入频率。
 6. _lstsq_solver：在已知或搜索频率下求最小二乘解。
 7. _post_process：恢复权重、重构信号、计算 error / ENOB。
@@ -1067,13 +1546,21 @@ bit activity / radix / overflow
 - `calibrated_signal` 是用校准权重重构出的信号，不是 ADC 重新采样得到的信号。
 - `freq` 必须是 normalized `Fin/Fs`，不是 Hz。
 - `harmonic_order` 不是“校准几次谐波”，而是在拟合模型里显式允许若干 harmonic basis。
+- `harmonic_order>1` 带有 source/test-chain nuisance 假设；它可以保护权重不被源谐波污染，
+  也可能削弱 mismatch harmonic 对权重的约束。
+- 单个 sine capture 不能自动分辨 H2/H3 来自源还是 ADC；更实际的做法是比较 `H=1`
+  和 `H=3` 的权重差异，判断 harmonic attribution 歧义是否已经影响 weights。
+- multi-capture 本身只能缓解来源混淆；更干净的是 multi-capture + 每个 capture 独立
+  harmonic nuisance + shared weights。
 - 校准结果和 `actual_weights` 同尺度接近是仿真里的好现象；真实芯片上通常不知道
   `actual_weights`，而且校准权重的绝对尺度还取决于输入/输出归一化约定。
 - 如果输入幅度太小，某些 bit 没有充分翻转，对应权重很难估。
 - 如果 bit matrix rank deficient，样本再多也不一定能独立估计所有权重。
+- **bit 不充分翻转时，`_patch_rank_deficiency` 会把静默列 drop 并把对应权重设 0（静默错误，无告警）；如果所有列都静默（如平 DC 输入），会直接 IndexError 崩溃。** 见第 8 节隐患 A/B。
 - 如果随机噪声已经主导，权重校准不会让 SNR 大幅提升。
 - 如果只在训练 capture 上验证，很容易把 overfitting 当成校准成功。
 - `nominal_weights` 在 rank deficiency 修补时会影响权重分配，不只是装饰参数。
+- `column scaling` 对纯 bits 矩阵是 no-op（bits 恒为 0/1）；它治不了 radix 冗余 SAR 的相关性病态，只是 rank-patch 重 merge 后的防御性处理。见第 9 节补充。
 - `calibrate_weight_sine` 的内部 `snr_db/enob` 是拟合摘要；最终工程结论仍应靠独立 spectrum/residual 验证。
 
 ## 进入 Stage 07 前要带走什么
@@ -1117,10 +1604,12 @@ Sine-based calibration 是用最小二乘从 raw bits 中估计 digital weights�
 3. `actual_analog_weights` 和 `digital_reconstruction_weights` 有什么区别？
 4. 为什么 `freq=Fin/Fs`，而不是 `freq=Fin`？
 5. `calibrate_weight_sine_lite` 为什么要固定一个 fundamental basis coefficient 为 1？
-6. `harmonic_order` 的意义是什么？
+6. `harmonic_order` 的意义是什么？为什么它不是“越高越好”？
 7. 为什么 capacitor mismatch 适合校准，而 thermal noise 不适合逐次校准？
 8. 什么情况下 bit matrix 会 rank deficient？
-9. `_patch_rank_deficiency` 为什么要用 nominal weight ratio 把 dependent bit 分回去？
+9. `_patch_rank_deficiency` 为什么要用 nominal weight ratio 把 dependent bit 分回去？全秩亏或部分 bit 静默时分别会发生什么？
 10. 为什么训练数据上 ENOB 变好不等于校准结论可信？
+11. 为什么 multi-capture + per-capture harmonic nuisance 比单纯 multi-capture 更干净？
+12. `_scale_columns_for_conditioning` 对纯 bits 矩阵为什么是 no-op？它治得了 radix 冗余 SAR 的条件数爆炸吗，为什么？
 
 这些问题如果能讲清楚，就可以进入 Stage 07：从“会校准”进入“会判断校准是否可信”。

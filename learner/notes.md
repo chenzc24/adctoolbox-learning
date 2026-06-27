@@ -2914,3 +2914,400 @@ rank / SVD / condition number:
 Stage 05 diagnostics:
   帮助解释为什么它可能不可辨识、为什么会病态、或为什么结果不符合架构直觉。
 ```
+
+## 7. stage_06 Sine-based ADC 位权重校准
+
+### 本阶段学习目标
+- ADC 位权重校准要解决什么问题。
+- 为什么 sine input 可以用于估计 bit weights。
+- `calibrate_weight_sine` 的输入、输出和整体数学逻辑。
+- 为什么 `freq` 必须是 normalized `Fin/Fs`，而不是 Hz。
+- `harmonic_order` 在校准模型里扮演什么角色。
+- 为什么 rank deficiency 会让某些权重不可独立估计。
+- 为什么校准通常改善 SFDR/THD，但不一定显著改善随机噪声导致的 SNR。
+- 如何用 spectrum、residual 和独立测试数据验证校准效果。
+
+### 7.1 重构模型
+
+对 bit matrix：
+
+```text
+B.shape == (N, M)
+```
+
+数字重构：
+
+```text
+y = B @ w + c
+```
+
+其中：
+
+```text
+B -> 已知，来自 ADC raw bits
+w -> 未知或不准，是待估计 bit weights
+c -> DC offset
+```
+
+如果输入是单音正弦，理想输出可以写成：
+
+```text
+s[n] = A*cos(2πf n) + D*sin(2πf n) + C
+```
+
+### 7.2 最小模型
+
+### 3. `calibrate_weight_sine_lite` 的最小模型
+
+最小版本 `calibrate_weight_sine_lite.py` 假设频率已知，构造：
+
+```python
+t = np.arange(n_samples)
+phase = 2.0 * np.pi * freq * t
+cos_basis = np.cos(phase)
+sin_basis = np.sin(phase)
+
+offset_col = np.ones((n_samples, 1))
+A = np.column_stack([bits, offset_col, sin_basis])
+b = -cos_basis
+coeffs, _, _, _ = lstsq(A, b)
+```
+
+这等价于求：
+
+```text
+bits @ w_raw + offset + sin_coeff * sin(2πf n) ≈ -cos(2πf n)
+```
+
+为什么把 `cos` 放到右边？
+
+因为 sine 的整体幅度未知。如果把 `cos` 和 `sin` 两个 fundamental 系数都放进未知量，同时又让 `w` 也自由缩放，就会出现尺度不唯一：
+
+```text
+把 w、cos coefficient、sin coefficient 同时乘一个常数，
+相对误差形式可能仍然难以唯一固定。
+```
+
+lite 版本用一个约定固定尺度：
+
+```text
+假设 cos fundamental coefficient = 1
+```
+
+然后求出其他系数。最后用 fundamental 幅度归一化：
+
+```python
+norm_factor = np.sqrt(1.0 + sin_coeff**2)
+weights = weights_raw / norm_factor
+```
+
+直觉是：
+
+```text
+cos coefficient 固定为 1，sin coefficient 由最小二乘求出；
+fundamental 的真实幅度是 sqrt(1^2 + sin_coeff^2)；
+weights 要除以这个幅度，回到归一化后的物理权重尺度。
+```
+
+最后还有 polarity correction：
+
+```python
+if np.sum(weights) < 0:
+    weights = -weights
+```
+
+因为最小二乘本身可能给出整体符号相反的等价解。对 SAR 权重来说，我们通常希望权重总和为正。
+
+### 7.3 完整模型
+
+#### （1） 不只固定`cos=1`
+
+也就是：
+
+```python
+A1 = column_stack([bits, offsets, cos_basis[:, 1:], sin_basis])
+b1 = -cos_basis[:, 0]
+
+A2 = column_stack([bits, offsets, sin_basis[:, 1:], cos_basis])
+b2 = -sin_basis[:, 0]
+```
+
+然后比较 residual：
+
+```python
+err1 = norm(A1 @ coeffs1 - b1)
+err2 = norm(A2 @ coeffs2 - b2)
+```
+
+选择误差更小的一边。
+
+#### （2）支持harmonic_order
+
+真实 ADC 输出不一定只有 fundamental。CDAC mismatch、静态非线性、参考动态误差等会产生 harmonic：
+
+```text
+2Fin, 3Fin, 4Fin, ...
+```
+
+如果校准模型只允许 fundamental，而真实数据里有明显 harmonic，那么最小二乘可能会试图用 `weights` 去解释这些 harmonic。这样会污染权重估计。
+
+完整版本构造 harmonic basis：
+
+```python
+harmonics = np.arange(1, harmonic_order + 1)
+phase = 2.0 * np.pi * freq * outer(t, harmonics)
+cos_basis = cos(phase)
+sin_basis = sin(phase)
+```
+
+#### （3） freq 必须是 normalized frequency：
+
+`calibrate_weight_sine` 的 `freq` 参数不是 Hz，而是：
+
+```text
+freq = Fin / Fs
+```
+
+Nyquist 范围是：
+
+```text
+0 <= freq <= 0.5
+```
+
+代码里有明确保护：
+
+```python
+if np.any(_freq_check > 0.5):
+    raise ValueError("freq must be normalized Fin/Fs ...")
+```
+
+#### （4） 频率估计和 frequency search
+
+如果 `freq=None`，完整版本会尝试估计频率：
+
+```python
+freq_array = _estimate_frequencies(bits_stacked, segment_lengths, freq, verbose)
+```
+
+估计时会先用一部分 bit 按二进制假设重构出一个粗略信号：
+
+```python
+assumed_weights = 2 ** np.arange(n_use - 1, -1, -1)
+sig = current_segment[:, indices] @ assumed_weights
+f_est = estimate_frequency(sig)
+```
+
+然后如果需要，会进入 frequency refinement：
+
+```python
+_solve_weights_searching_freq(...)
+```
+
+这个过程迭代做：
+
+```text
+1. 用当前频率求最小二乘权重。
+2. 计算 residual 对频率的导数。
+3. 更新频率。
+4. 重复直到 relerr 足够小或达到 max_iter。
+```
+
+### 7.4 rank deficiency
+
+**核心思想**：从秩的角度讨论矩阵的解
+
+如果 rank 不够，就逐列修补：
+
+```text
+Case A: constant column -> dead bit, drop
+Case B: independent column -> keep
+Case C: dependent column -> merge into existing effective column
+```
+
+对 dependent column，代码用 nominal weights 的比例来分配：
+
+```python
+bit_weight_ratios[bit_idx] = nominal_weights[bit_idx] / nominal_weights[founding_bit_idx]
+bits_effective[:, col_idx] += col * bit_weight_ratios[bit_idx]
+```
+
+求解完成后，再恢复回原 bit 空间：
+
+```python
+weights_recovered = w_effective[bit_to_col_map] * bit_weight_ratios
+weights_recovered[bit_to_col_map < 0] = 0.0
+```
+
+物理意义是：
+
+```text
+如果数据只能看见两个 bit 的组合，就先估计组合总权重；
+再按 nominal ratio 分回每个 bit。
+```
+
+### 7.5 column scaling：给最小二乘换一个更舒服的坐标系
+
+column scaling 的基本数学意义是：
+
+```text
+如果设计矩阵 A 的某些列很大、某些列很小，
+先把列缩放到相近数量级；
+让 least-squares 在更好的数值坐标系里求解；
+求完再把权重恢复回原坐标。
+```
+
+对：
+
+```text
+y ≈ B @ w
+```
+
+若：
+
+```text
+B_scaled = B @ D
+```
+
+求解器解的是：
+
+```text
+y ≈ B_scaled @ alpha = B @ D @ alpha
+```
+
+所以原坐标权重是：
+
+```text
+w = D @ alpha
+```
+
+源码里 `D` 是 10 进制数量级缩放：
+
+```python
+max_vals = np.max(np.abs(col_extremes), axis=0)
+bit_scales = np.floor(np.log10(max_vals + 1e-15))
+bits_effective = bits * (10.0 ** (-bit_scales))
+```
+
+求解后恢复：
+
+```python
+w_recovered_eff = w_normalized * (10.0 ** (-bit_scales))
+```
+
+放到 SAR ADC 里，要记住：
+
+```text
+MSB/LSB 的大小在 weights 里；
+bit columns 本身通常只是 0/1。
+```
+
+所以普通 SAR bits：
+
+```text
+max(abs(B[:, j])) = 1
+bit_scales[j] = 0
+B_scaled = B
+```
+
+也就是说：
+
+```text
+column scaling 对纯 0/1 SAR bit matrix 基本是 no-op。
+它不会解决 16-bit 权重跨度问题，因为权重跨度不在 bits 列值里。
+```
+
+它真正可能有用的地方，是 rank patch 之后：
+
+```text
+Case C merge 后，effective column 可能不再是 0/1；
+如果某个合并列到达 10、100 这种数量级，
+decade scaling 会把它拉回 O(1)。
+```
+
+但它不能解决：
+
+```text
+列高度相关；
+bit 不翻转；
+rank deficiency；
+输入激励不足；
+radix 冗余 SAR 的相关性病态。
+```
+
+原因很简单：
+
+```text
+scaling 只改列长度，不改列方向。
+两列几乎一样时，把一列乘 10 也不会创造新信息。
+```
+
+一句话：
+
+```text
+column scaling 是低成本数值防御；
+对普通 SAR 0/1 bits 大多不出手；
+真正要关注的是 rank、bit activity、列相关性和训练输入覆盖。
+```
+
+### 7.6 输出结果应该如何理解
+
+`calibrate_weight_sine` 返回 dictionary，常见字段：
+
+```text
+weight
+offset
+calibrated_signal
+ideal
+error
+refined_frequency
+snr_db
+enob
+```
+
+其中：
+
+```text
+weight:
+  校准得到的 digital reconstruction weights。
+
+offset:
+  拟合出的 DC offset。
+
+calibrated_signal:
+  用校准权重对 bits 重构出的信号。
+  它不是 ADC 重新采样得到的信号。
+  返回值是 list；单个 capture 时使用 cal["calibrated_signal"][0]。
+
+ideal:
+  拟合模型重构出来的 reference sine / harmonic model。
+  返回值同样是 list。
+
+error:
+  calibrated_signal 去掉 offset 后与 ideal 的差。
+  返回值同样是 list。
+
+refined_frequency:
+  最终使用或估计出的 normalized frequency。
+
+snr_db / enob:
+  基于内部拟合误差计算的性能摘要。
+```
+
+实际验证时，不要只看返回的 `enob`。更稳的做法是：
+
+```python
+calibrated = cal["calibrated_signal"][0]
+metrics = analyze_spectrum(calibrated, ...)
+```
+
+然后和校准前比较：
+
+```text
+SNDR
+SNR
+SFDR
+THD
+ENOB
+harmonics
+noise floor
+```

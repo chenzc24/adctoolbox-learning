@@ -1981,3 +1981,1072 @@ SNR/SNDR/SFDR 与 actual-weight oracle 对齐
 ```text
 Clarify calibrate_weight_sine output scale and warn on dBFS full-scale mismatch
 ```
+
+## 2026-06-27: `calibrate_weight_sine` dual-basis 分支选择的严谨性与可审计性
+
+### 问题级别
+
+```text
+TYPE: NUMERICAL-METHOD / ESTIMATOR-RIGOR / DIAGNOSTICS
+SEVERITY: P3 by current evidence
+STATUS: document and instrument first; do not replace default solver yet
+```
+
+这不是一个当前已经证明会严重影响性能的 bug，而是一个数学表述和可审计性问题。
+
+### 背景
+
+`calibrate_weight_sine_lite.py` 用一个最小模型固定 fundamental 的一个 basis coefficient：
+
+```text
+bits @ w + offset + sin_coeff * sin(2πfn) ≈ -cos(2πfn)
+```
+
+也就是隐含：
+
+```text
+cos fundamental coefficient = 1
+```
+
+完整版本 `_lstsq_solver.py` 做得更稳一些，会尝试两个分支：
+
+```text
+Assumption 1:
+  cosine fundamental is unity
+
+Assumption 2:
+  sine fundamental is unity
+```
+
+代码结构是：
+
+```python
+A1 = np.column_stack([A_common, *extra_cols, cos_basis[:, 1:], sin_basis])
+b1 = -cos_basis[:, 0]
+coeffs1, _, _, _ = lstsq(A1, b1)
+err1 = np.linalg.norm(A1 @ coeffs1 - b1)
+
+A2 = np.column_stack([A_common, *extra_cols, sin_basis[:, 1:], cos_basis])
+b2 = -sin_basis[:, 0]
+coeffs2, _, _, _ = lstsq(A2, b2)
+err2 = np.linalg.norm(A2 @ coeffs2 - b2)
+```
+
+然后选择：
+
+```text
+err1 < err2 -> use branch 1
+else        -> use branch 2
+```
+
+### 严谨性问题
+
+这个做法工程上能跑，但它没有严格对应一个清楚的全局约束最小二乘问题。
+
+更自然的数学问题应该是：
+
+```text
+minimize || M x + F f ||
+subject to ||f|| = 1
+
+M = [bit columns, offset columns, higher-harmonic basis, ...]
+F = [cos_fundamental, sin_fundamental]
+f = [a, b]
+```
+
+也就是说：
+
+```text
+fundamental phase is free;
+fundamental amplitude is fixed to 1;
+weights / offsets / harmonic coefficients are solved consistently.
+```
+
+当前 dual-basis 则是两个 gauge-fixed 子问题：
+
+```text
+branch 1: fix a = 1, solve b and x
+branch 2: fix b = 1, solve a and x
+```
+
+问题在于：
+
+```text
+err1 和 err2 是两个不同 gauge 下的 raw residual；
+直接比较 raw residual 不等价于求解 ||f||=1 约束下的全局最优；
+branch choice 也没有暴露 rank、singular values、condition number 或 normalized residual。
+```
+
+因此它更准确地说是：
+
+```text
+pragmatic gauge-fixing heuristic
+```
+
+而不是：
+
+```text
+strict constrained least-squares estimator
+```
+
+### polarity correction 的相关观察
+
+`calibrate_weight_sine_lite.py` 只返回 weights，并做：
+
+```python
+if np.sum(weights) < 0:
+    weights = -weights
+```
+
+这不是把每个权重取绝对值，而是整体 polarity convention。
+数学上，负权重本身可以是合法最小二乘结果；整体负号更多反映参考正弦方向和
+SAR 重构方向的约定不一致。
+
+但从正交投影视角看，如果只翻 `weights` 而不同时翻完整 coefficient vector / reference，
+它就不再是原始 `A @ coeffs ≈ b` 的同一个最小二乘解。
+
+完整版本 `_post_process.py` 更自洽，会一起翻：
+
+```text
+weights
+dc_offset
+calibrated_signals
+reference_sines
+residual_errors
+```
+
+所以 lite 版本应被理解为：
+
+```text
+return normalized physical weights with positive overall SAR polarity
+```
+
+而不是：
+
+```text
+return the exact coefficient vector of the original LS projection
+```
+
+### 小型数值审计
+
+为判断这是否值得立即改算法，做了一个本地审计：
+
+```text
+12-bit SAR
+N = 4096
+coherent sine training / testing
+unit-cap mismatch sigma: 0% -> 10%
+phase sweep
+branch comparison:
+  current raw-residual dual-basis selection
+  err / norm_factor branch selection
+  constrained phase solve:
+    min ||M x + F f||, subject to ||f|| = 1
+```
+
+典型结果：
+
+```text
+raw residual choice vs err/norm_factor choice:
+  某些理想场景下会有约 12% branch-choice difference；
+  但归一化后的 weights / ENOB 基本相同，差异接近数值零。
+
+current dual-basis vs constrained phase solve:
+  在常规 mismatch sweep 下，ENOB 差异通常 ~1e-12 到 1e-6 bit 量级。
+
+加入少量人工 bit flip 后:
+  典型最大 ENOB 差异约 1e-3 到 2e-3 bit。
+```
+
+因此当前证据显示：
+
+```text
+这个严谨性问题真实存在；
+但在典型 SAR sine calibration 场景下，它不是主要误差来源。
+```
+
+更大的误差来源更可能是：
+
+```text
+bit matrix rank / conditioning；
+训练长度不足；
+频率估计误差；
+harmonic_order 设置；
+输入没有充分激励；
+随机噪声 / comparator noise；
+calibration 输出尺度被误用。
+```
+
+### 为什么暂不建议直接替换默认算法
+
+```text
+1. 当前 dual-basis 行为对已有 examples 和用户代码是稳定依赖。
+2. 审计结果显示典型 ENOB 差异极小，不足以支持破坏兼容性的默认替换。
+3. 更严格的 constrained-phase solver 需要补 API、测试和性能验证。
+4. 当前最大问题是不可审计，而不是已知严重性能错误。
+```
+
+### 建议优化路径
+
+优先级 1：增加 diagnostics，不改默认结果。
+
+```text
+Return or optionally expose:
+  basis_choice
+  err1, err2
+  norm_factor1, norm_factor2
+  normalized_err1 = err1 / norm_factor1
+  normalized_err2 = err2 / norm_factor2
+  rank(A1), rank(A2)
+  condition_number(A1), condition_number(A2)
+  singular_values(A1), singular_values(A2) when requested
+  polarity
+```
+
+优先级 2：文档说明方法边界。
+
+```text
+dual basis is a pragmatic gauge-fixing heuristic;
+it tries cos=1 and sin=1 charts and picks the smaller residual;
+it is not a formal global constrained least-squares derivation.
+```
+
+优先级 3：增加可选严格模式。
+
+```text
+method="dual_basis"         # default, backward compatible
+method="constrained_phase"  # solve min ||M x + F f||, ||f||=1
+```
+
+可选严格模式的核心：
+
+```text
+For fixed f:
+  x*(f) = argmin_x ||M x + F f||
+
+Eliminate x:
+  minimize ||P_perp_M F f||
+  subject to ||f|| = 1
+
+This is a small eigen/SVD problem in the 2-D fundamental subspace.
+```
+
+### 建议测试
+
+```text
+1. Branch-selection stability test:
+   verify raw residual choice, normalized residual choice, and constrained_phase
+   produce nearly identical weights on clean coherent SAR cases.
+
+2. Stress tests:
+   phase sweep, low amplitude, bit flip, comparator noise, high harmonic_order,
+   near-rank-deficient bit matrices.
+
+3. Diagnostics tests:
+   ensure err/norm/rank/condition metadata is returned and finite.
+
+4. Regression tolerance:
+   current dual-basis vs constrained_phase ENOB difference should normally be < 1e-3 bit
+   on documented examples, unless the example is intentionally pathological.
+```
+
+### 处理状态
+
+```text
+2026-06-27:
+  记录问题和本地数值审计结论。
+  暂不建议直接替换默认 solver。
+  建议先补 diagnostics 和文档边界。
+```
+
+## 2026-06-27: `calibrate_weight_sine` harmonic nuisance 的物理归因与可辨识性风险
+
+### 问题一句话
+
+`calibrate_weight_sine(harmonic_order > 1)` 会把 H2/H3/... 作为 nuisance basis
+加入 sine-based weight calibration。这个设计有合理用途：它可以避免输入源 / 测试链路
+harmonic 污染 bit weights；但它也可能把 ADC / CDAC mismatch 产生的 harmonic
+误当成 nuisance 投影掉。
+
+因此 `harmonic_order` 不是“越高越高级”的校准精度旋钮，而是一个带有物理假设的建模选项。
+
+### 当前实现的真实行为
+
+当前求解器在 `_lstsq_solver.py` 中构造 dual-basis least-squares：
+
+```python
+A1 = np.column_stack([A_common, *extra_cols, cos_basis[:, 1:], sin_basis])
+b1 = -cos_basis[:, 0]
+
+A2 = np.column_stack([A_common, *extra_cols, sin_basis[:, 1:], cos_basis])
+b2 = -sin_basis[:, 0]
+```
+
+当 `harmonic_order > 1` 时，H2/H3/... 的 cosine/sine basis 会进入设计矩阵，
+并参与权重估计。
+
+但最终输出不是：
+
+```text
+bits @ weight + fitted_harmonics
+```
+
+而仍然是：
+
+```text
+calibrated_signal = bits @ weight
+```
+
+对应 `_post_process.py`：
+
+```python
+sig_k = weights @ bit_segments[k].T
+```
+
+所以当前实现没有把 harmonic 直接叠加到校准输出里；真正的问题在于：
+
+```text
+harmonic basis 会改变 weight 的估计。
+```
+
+数学上，它近似等价于把某些 harmonic 子空间从误差里投影掉：
+
+```text
+min_w || P_perp(Z) · (B @ w + reference) ||^2
+```
+
+其中：
+
+```text
+B: bit matrix
+w: bit weights
+Z: offset + companion fundamental basis + H2/H3/... harmonic nuisance basis
+P_perp(Z): 对 nuisance 子空间的正交补投影
+```
+
+### 根本限制：单个 sine capture 无法唯一归因
+
+只看一条单音数据时，频谱中的 H2/H3 不能唯一判断来自：
+
+```text
+输入源 / 测试链路 harmonic；
+ADC analog nonlinearity；
+CDAC mismatch / bit-weight error；
+settling / comparator / code-dependent error。
+```
+
+这些成分在单个 capture 里可以同频、同相、同窗口位置出现。
+所以算法无法仅凭一条记录自动知道某个 harmonic 应该：
+
+```text
+由 bit weight 修正；
+还是作为 source/test-chain nuisance 排除。
+```
+
+这不是简单换一个 least-squares 分支就能彻底解决的问题，而是观测模型的可辨识性问题。
+
+更精确地说，即使使用 multi-capture，也不能从纯数据中完全证明 harmonic 的物理来源。
+multi-capture 能增加约束、缓解混淆，但除非加入额外先验，例如 source 已知纯净、
+ADC mismatch 模型已知、或每个 capture 显式建 source harmonic nuisance，否则算法仍不能直接输出：
+
+```text
+这个 H3 来自 source；
+那个 H3 来自 ADC mismatch。
+```
+
+更可落地的目标是：
+
+```text
+当 harmonic attribution 的歧义已经影响 weights 时，把风险量化出来并报警。
+```
+
+### 风险两面性
+
+如果 harmonic 主要来自输入源：
+
+```text
+harmonic_order=1 可能把源 harmonic 错误吸收到 weights；
+harmonic_order=3 可以保护 weight estimate。
+```
+
+如果 harmonic 主要来自 ADC / CDAC mismatch：
+
+```text
+harmonic_order=3 可能削弱 mismatch error 对 weights 的约束；
+过高 harmonic_order 会进一步增加过拟合和病态风险。
+```
+
+所以不能把 `harmonic_order > 1` 简单描述为普遍更优；它是在选择一种归因假设：
+
+```text
+observed harmonic is more like nuisance than weight error.
+```
+
+### 本地实验依据
+
+新增可复现实验脚本：
+
+```text
+demos/harmonic_nuisance_calibration_study.py
+```
+
+运行方式：
+
+```bash
+cd E:/ADCToolbox/python
+uv run python ../learning/adctoolbox-learning/demos/harmonic_nuisance_calibration_study.py
+```
+
+输出：
+
+```text
+outputs/harmonic_nuisance_calibration_study/results.csv
+outputs/harmonic_nuisance_calibration_study/summary.json
+```
+
+实验分三类：
+
+```text
+1. 普通随机 unit-cap mismatch Monte Carlo。
+2. 构造 harmonic-subspace 权重误差方向。
+3. 训练输入源带外部 H3 污染，验证输入保持 clean sine。
+```
+
+主要观察：
+
+```text
+普通随机 unit-cap mismatch：
+  H=1 与 H=3 在验证 tone 上几乎相同；
+  H=31 开始出现可观测性 / 过拟合风险。
+
+构造 harmonic-subspace 权重误差：
+  H=3 会使 THD 和 weight error 变差；
+  高阶 harmonic_order 风险更明显。
+
+训练输入带外部 H3：
+  H=1 会严重污染权重；
+  H=3 能恢复接近 clean-source 的验证性能。
+```
+
+补充多 capture 观察：
+
+```text
+single capture, -60 dBc source H3:
+  H=1  -> ENOB 约 10.3, weight error 约 5.9e-4
+  H=3  -> ENOB 约 16.0, weight error 约 3.2e-7
+
+multi-capture, 4 个不同 bin, 每条 capture 都带 -60 dBc source H3:
+  H=1  -> ENOB 约 14.3, weight error 约 2.4e-5
+  H=3  -> ENOB 约 16.0, weight error 约 3.1e-7
+```
+
+这个结果说明：
+
+```text
+multi-capture + H=1 可以缓解 source harmonic 污染；
+multi-capture + H=1 不能消除模型缺失造成的系统性偏差；
+multi-capture + per-capture harmonic nuisance 才是更干净的建模。
+```
+
+典型外部 H3 结果：
+
+```text
+训练源含 -60 dBc H3，验证源为 clean sine，sigma=1% cap mismatch：
+
+H=1:
+  validation SFDR ~= 67.8 dB
+  weight_shape_error ~= 9e-4
+
+H=3:
+  validation SFDR ~= 98.2 dB
+  weight_shape_error ~= 1.4e-5
+```
+
+这说明 `harmonic_order=3` 的合理用途很强：它可以防止不纯净训练源污染权重。
+但也说明它必须被解释为 source/test-chain nuisance 假设，而不是无条件的 mismatch calibration 增强。
+
+### 对现有 demo / 文档的影响
+
+如果 demo 目标是证明：
+
+```text
+数字权重校准修复 CDAC mismatch 导致的 SFDR degradation
+```
+
+更干净的设置应优先使用：
+
+```text
+harmonic_order=1
+```
+
+如果 demo 目标是证明：
+
+```text
+校准器在输入源含 harmonic 污染时仍能稳健估计 weights
+```
+
+则可以使用：
+
+```text
+harmonic_order=3
+```
+
+但需要明确说明 harmonic basis 的物理假设：
+
+```text
+这些 harmonic 被视作 source/test-chain nuisance，而不是待校准的 ADC mismatch error。
+```
+
+不建议用 `harmonic_order=3` 的单图直接强宣称：
+
+```text
+数字校准修复了 mismatch harmonic。
+```
+
+因为这会混淆：
+
+```text
+weight calibration
+source harmonic rejection
+ADC harmonic attribution
+```
+
+### 建议优化路径
+
+#### 1. 文档和 demo 分流
+
+明确两类使用场景：
+
+```text
+harmonic_order=1:
+  用于纯 mismatch 仿真、source 已知干净的测试、
+  或作为 harmonic sensitivity 的 control/baseline。
+
+harmonic_order>1:
+  用于存在输入源 harmonic 污染时的 robust calibration。
+  但必须明确它带有 source/test-chain nuisance 假设。
+```
+
+#### 2. 增加诊断输出
+
+建议 `calibrate_weight_sine` 返回或可选返回：
+
+```text
+basis_choice
+solver residual
+rank / condition number
+estimated harmonic coefficients
+harmonic projection ratio
+H=1 vs H=3 normalized weight delta
+H=1 vs H=3 validation metric delta
+```
+
+其中 `harmonic projection ratio` 可以定义为：
+
+```text
+在去掉 DC / fundamental 后，
+B 的列空间或 nominal mismatch error 有多少能量落进 H2/H3/... nuisance 子空间。
+```
+
+这个量不能证明真实来源，但可以提示：
+
+```text
+weight estimate may be sensitive to harmonic nuisance assumptions.
+```
+
+`H=1 vs H=3 normalized weight delta` 是更直接的歧义报警器。计算前应先处理整体尺度
+和 polarity，例如使用 best-fit scale、`sum(abs(w))` 归一化，或架构相关的归一化规则：
+
+```text
+delta_w = || normalize(w_H1) - normalize(w_H3) || / || normalize(w_H1) ||
+```
+
+这个量的含义不是：
+
+```text
+判断 H3 到底来自 source 还是 mismatch。
+```
+
+而是：
+
+```text
+判断 harmonic nuisance 假设是否已经显著改变 weight estimate。
+```
+
+#### 3. 增加 warning
+
+当出现以下情况时建议提示用户：
+
+```text
+H=1 和 H=3 权重差异过大；
+H=1 和 H=3 validation SFDR / THD 差异过大；
+bit matrix 与 harmonic subspace 高度重合；
+condition number 过高；
+harmonic_order 过高且样本数 / bit excitation 不足。
+```
+
+warning 文案不应说“算法失败”，而应说：
+
+```text
+harmonic attribution ambiguity may be affecting the weight estimate.
+```
+
+#### 4. 推荐 multi-capture + per-capture harmonic nuisance
+
+更严谨的路径不是指望单个 sine capture 自动分辨 harmonic 来源，而是使用多数据集，
+并给每条 capture 独立 harmonic nuisance：
+
+```text
+多个 frequency；
+多个 amplitude；
+多个 phase；
+shared weights；
+每个 capture 独立 source harmonic nuisance。
+```
+
+直觉：
+
+```text
+真实 bit weights 应跨 capture 共享；
+输入源 harmonic / 测试链路误差可能随频率、幅度、相位或设备状态变化；
+每条 capture 的 harmonic nuisance 吸收本条记录自己的源/测试链路 harmonic。
+```
+
+需要明确区分：
+
+```text
+multi-capture + H=1:
+  可以缓解污染，因为不同 frequency 下 source harmonic 对 shared weights 的拉扯方向不同；
+  但模型仍缺少 harmonic 自由度，系统性偏差不会自动消失。
+
+multi-capture + H>=3:
+  shared weights 解释跨 capture 稳定的 bit-weight structure；
+  per-capture harmonic nuisance 解释每条记录自己的 H2/H3/...；
+  这是更干净的建模。
+```
+
+当前 `_solve_weights_with_known_freq` 已经为 list-of-captures 构造 per-dataset harmonic basis，
+所以这条优化首先是文档和推荐路径问题，不一定需要先改 solver。
+
+#### 5. API 层面显式化 policy
+
+未来可以考虑把 `harmonic_order` 包在更明确的 policy 之下：
+
+```python
+harmonic_policy="none"              # 不加入高阶 harmonic
+harmonic_policy="source_nuisance"   # 假设 harmonic 多来自输入源 / 测试链路
+harmonic_policy="diagnostic_compare"# 同时跑 H=1 / H=3 并报告差异
+```
+
+保留原参数以兼容旧代码，但文档上避免暗示：
+
+```text
+larger harmonic_order is generally better.
+```
+
+### 建议优先级
+
+```text
+P2: 文档 / demo correctness。
+P2: 如果用于严肃 ADC 校准结论或论文级实验，需要 validation / diagnostics。
+P3: solver API enhancement。
+P3: warning diagnostics。
+P3: harmonic_policy 可以作为 v2 API 方向，先不要破坏现有 `harmonic_order`。
+```
+
+这不是立刻破坏默认功能的 bug；它是一个真实的可辨识性和可解释性问题。
+当前实现工程上有用，但应暴露假设、补诊断，并在教学材料中分清用途。
+
+### 非目标
+
+```text
+不要声称算法能从单个 sine capture 自动分辨 harmonic 来源。
+不要声称 multi-capture 本身能完全分辨 harmonic 来源。
+不要简单删除 harmonic basis。
+不要把 harmonic_order>1 描述成普遍更优。
+不要用 harmonic_order=3 的 mismatch demo 图单独证明 mismatch harmonic 已被权重校准修复。
+```
+
+### 处理状态
+
+```text
+2026-06-27:
+  记录 harmonic nuisance 的物理归因风险。
+  已新增可复现实验脚本 harmonic_nuisance_calibration_study.py。
+  已修正 Stage 06 笔记：H=1 作为 baseline / 纯 mismatch 研究，H>=3 作为 source-nuisance 假设。
+  已修正 multi-capture 表述：单纯 multi-capture 只能缓解，multi-capture + per-capture harmonic nuisance 才更干净。
+  暂不建议直接删除 harmonic basis 或替换默认 solver。
+  建议优先补文档、demo 分流、diagnostics、warning 和 multi-capture 推荐路径。
+```
+
+## 2026-06-27: rank-deficiency patch 的全秩亏崩溃与静默不可观测 bit 风险
+
+### 问题一句话
+
+`calibrate_weight_sine` 的 rank-deficiency patch 主体思路是合理的：
+
+```text
+Case A: constant column -> no AC information, drop
+Case B: independent column -> keep
+Case C: dependent column -> merge into existing effective column by nominal ratio
+```
+
+但当前实现有两个用户可见问题：
+
+```text
+1. 所有 bit columns 都不可观测时，会抛底层 IndexError，而不是明确说明校准不可辨识。
+2. 部分 bit columns 不翻转时，恢复权重会静默置 0，缺少 warning / metadata。
+```
+
+第一个是确定 bug；第二个数学上可解释，但工程上危险。
+
+### 相关源码
+
+主流程：
+
+```text
+python/src/adctoolbox/calibration/calibrate_weight_sine.py
+```
+
+调用顺序：
+
+```python
+patched_input = _patch_rank_deficiency(bits_stacked, nominal_weights, verbose)
+bits_stacked_effective = patched_input["bits_effective"]
+bit_to_col_map = patched_input["bit_to_col_map"]
+bit_weight_ratios = patched_input["bit_weight_ratios"]
+bit_width_effective = patched_input["bit_width_effective"]
+
+bits_stacked_effective_scaled, bit_scales = _scale_columns_for_conditioning(...)
+...
+weights_final = _recover_rank_deficiency(...)
+```
+
+rank patch 源码：
+
+```text
+python/src/adctoolbox/calibration/_patch_rank_deficiency.py
+```
+
+核心逻辑：
+
+```python
+bits_effective = np.empty((n_samples_total, 0))
+bit_to_col_map = np.full(bit_width, -1, dtype=int)
+bit_weight_ratios = np.zeros(bit_width)
+
+for bit_idx in range(bit_width):
+    col = bits_stacked[:, bit_idx]
+
+    if np.ptp(col) < 1e-15:
+        continue
+
+    ...
+```
+
+恢复逻辑：
+
+```python
+weights_recovered = w_effective[np.maximum(bit_to_col_map, 0)]
+weights_recovered = weights_recovered * bit_weight_ratios
+weights_recovered[bit_to_col_map < 0] = 0.0
+```
+
+这里的 `np.maximum(bit_to_col_map, 0)` 本意是避免 `-1` 索引造成误用；
+但当 `w_effective` 为空时，`0` 本身也不是合法索引。
+
+### Bug 1：全秩亏时触发底层 IndexError
+
+复现条件：
+
+```text
+输入 bit matrix 的所有列都是常数；
+例如平 DC 输入、输入幅度太小、或预处理后没有任何 bit 翻转。
+```
+
+最小复现：
+
+```python
+import numpy as np
+from adctoolbox import calibrate_weight_sine
+
+bits = np.ones((64, 5), dtype=int)
+nominal = 2.0 ** np.arange(4, -1, -1)
+
+calibrate_weight_sine(
+    bits,
+    freq=1 / 64,
+    nominal_weights=nominal,
+)
+```
+
+当前行为：
+
+```text
+bits_effective.shape == (64, 0)
+bit_to_col_map == [-1, -1, -1, -1, -1]
+bit_weight_ratios == [0, 0, 0, 0, 0]
+
+IndexError: index 0 is out of bounds for axis 0 with size 0
+```
+
+traceback 位置：
+
+```text
+calibrate_weight_sine.py
+  -> _recover_rank_deficiency(...)
+
+_patch_rank_deficiency.py
+  weights_recovered = w_effective[np.maximum(bit_to_col_map, 0)]
+```
+
+这不是一个合理的用户错误提示。真正的问题应该表达为：
+
+```text
+No effective bit columns remain after rank-deficiency patching.
+The calibration problem is not identifiable because no bit column has AC activity.
+```
+
+### Bug 2 / 风险：部分静默 bit 被静默恢复为 0
+
+复现条件：
+
+```text
+只有部分 bit columns 有翻转；
+其他 bit columns 在当前 capture 内恒定。
+```
+
+当前恢复行为：
+
+```text
+bit_to_col_map:      [0, -1, -1, -1, -1]
+bit_weight_ratios:   [1,  0,  0,  0,  0]
+w_effective:         [123]
+weights_recovered:   [123, 0, 0, 0, 0]
+```
+
+从当前 capture 的 AC 拟合角度，这可以解释：
+
+```text
+constant bit 没有 AC 信息；
+它对当前动态残差没有可估计贡献。
+```
+
+但从工程使用角度，这很危险：
+
+```text
+用户可能把 0 理解成真实 physical bit weight 为 0；
+用户可能把这些 weights 用到另一个输入范围更大的 test capture；
+低位或静默位的错误会被静默带入后续重构。
+```
+
+所以这里至少需要 warning 或 metadata，而不应该只悄悄返回 0。
+
+### 当前数学逻辑仍然合理的部分
+
+对于真正的线性相关列，例如：
+
+```text
+B[:, i] == B[:, j]
+```
+
+数据确实无法区分：
+
+```text
+w_i 变大
+```
+
+和：
+
+```text
+w_j 变大
+```
+
+用 nominal ratio 分配是合理的工程先验：
+
+```python
+bit_weight_ratios[bit_idx] = nominal_weights[bit_idx] / nominal_weights[founding_bit_idx]
+bits_effective[:, col_idx] += col * bit_weight_ratios[bit_idx]
+```
+
+正确解释应该是：
+
+```text
+先估计可观测的组合权重；
+再按 nominal ratio 把组合权重分回原 bit 空间。
+```
+
+这不是凭空创造信息，而是在不可辨识情况下用架构先验做分配。
+
+### merge 顺序依赖
+
+当前 patch 是按 bit column 顺序逐列处理：
+
+```text
+第一个被 keep 的相关列成为 founding bit；
+后续 dependent columns 按 nominal_weights[bit_idx] / nominal_weights[founding_bit_idx] 合并。
+```
+
+因此输出隐含依赖输入 bit 顺序：
+
+```text
+MSB/LSB 排列不同，founding bit 可能不同；
+founding bit 不同，nominal ratio 的分母不同；
+冗余 SAR 或非二进制权重中，这可能影响分配解释。
+```
+
+这不一定是算法错误，但应该被文档和 diagnostics 暴露出来。
+
+### rank patch 与 column scaling 的耦合
+
+`calibrate_weight_sine.py` 的顺序是：
+
+```text
+1. _patch_rank_deficiency(...)
+2. _scale_columns_for_conditioning(...)
+```
+
+这很重要。Case C merge 后：
+
+```text
+effective column 不再一定是 0/1；
+它可能是多个 bit columns 按 nominal ratio 加权后的组合；
+列的数值范围可能改变。
+```
+
+因此 column scaling 不是独立小优化，而是 rank patch 后保持 least-squares 数值稳定的必要步骤之一。
+
+Stage 06 笔记中应该把这层关系讲清楚，而不是只说：
+
+```text
+某些 effective columns 可能不是简单 0/1。
+```
+
+### 建议修复
+
+#### 1. 对全秩亏加明确 guard
+
+位置：
+
+```text
+_patch_rank_deficiency(...) 末尾
+或 calibrate_weight_sine(...) 取到 bit_width_effective 后
+```
+
+建议行为：
+
+```python
+if bits_effective.shape[1] == 0:
+    raise ValueError(
+        "No effective bit columns remain after rank-deficiency patching. "
+        "All bit columns are constant in this capture, so sine-based weight "
+        "calibration is not identifiable. Increase input amplitude, check bit "
+        "ordering/preprocessing, or provide a capture with sufficient bit activity."
+    )
+```
+
+这应作为 P1/P2 修复，因为它把底层 `IndexError` 改成可理解的用户错误。
+
+#### 2. 暴露 rank patch metadata
+
+建议返回或可选返回：
+
+```text
+rank_patch_applied
+bit_width_effective
+bit_to_col_map
+bit_weight_ratios
+constant_bits
+merged_bits
+founding_bits
+rank_before
+rank_after
+```
+
+这些信息能让用户知道：
+
+```text
+哪些 bit 没有 AC 信息；
+哪些 bit 被合并；
+哪些组合权重是按 nominal ratio 分配的；
+最终权重是否可以泛化到其他 capture。
+```
+
+#### 3. 对静默 bit 置零加 warning 或 result flag
+
+当存在：
+
+```text
+np.any(bit_to_col_map < 0)
+```
+
+应提示：
+
+```text
+Some bit columns were constant in this capture and had no AC information.
+Returned weights for these bits are set to 0 for this fitted model; this does
+not imply their physical ADC weights are zero.
+```
+
+如果不想默认 print warning，也至少应该在 result 里加：
+
+```text
+rank_patch_warnings
+dropped_constant_bits
+```
+
+#### 4. 更新 Stage 06 第 8/9 节
+
+需要补充：
+
+```text
+真实源码使用 np.maximum(bit_to_col_map, 0)，随后把 dropped bits 置零；
+全秩亏时当前代码会触发 IndexError，应修成 ValueError；
+constant bit 权重置零只表示当前 capture 不可观测，不表示物理权重为 0；
+Case C merge 对 bit order / founding bit 有依赖；
+rank patch 在 scaling 之前，merge 后 effective column 的数值范围会改变；
+column scaling 是 rank-patched design matrix 的数值稳定步骤。
+```
+
+### 建议测试
+
+```text
+1. all_constant_bits_raise_value_error:
+   bits = all zeros or all ones;
+   calibrate_weight_sine should raise ValueError with "not identifiable" message.
+
+2. partially_constant_bits_metadata:
+   one active bit column, remaining constant columns;
+   result should expose dropped_constant_bits or warnings.
+
+3. duplicate_columns_merge_ratio:
+   create B[:, j] == B[:, i];
+   verify merged joint weight is stable and recovered weights follow nominal ratio.
+
+4. rank_patch_then_scaling:
+   create dependent columns with non-unit nominal ratio;
+   verify effective columns are scaled and recovered weights are finite.
+```
+
+### 建议优先级
+
+```text
+P1/P2:
+  全秩亏 IndexError -> 明确 ValueError。
+
+P2:
+  部分静默 bit 置零 -> warning / metadata。
+
+P3:
+  merge 顺序依赖、rank patch + scaling 耦合 -> 文档和 diagnostics。
+```
+
+### 处理状态
+
+```text
+2026-06-27:
+  已复现 all-constant bit matrix 导致 IndexError。
+  已确认部分 constant bit 会被恢复为 weight=0。
+  暂未修改源代码。
+  建议优先修 guard + test，再补 metadata/warning 和 Stage 06 第 8/9 节。
+```
