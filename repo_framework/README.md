@@ -128,6 +128,7 @@ uv run adctoolbox-get-examples C:\Users\90590\adctoolbox_examples
 | `07_conversions/` | 单位、SNR、NSD、FoM 转换 |
 | `08_time_interleave/` | 时间交织 ADC |
 | `09_downsample/` | 下采样和混叠 |
+| `10_oversampling/` | OSR、NTF 和噪声整形 |
 
 ## 本地学习目录
 

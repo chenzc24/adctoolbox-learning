@@ -25,7 +25,7 @@ adctoolbox-learning/
 1. `repo_framework/README.md`：先了解代码库整体结构。
 2. `repo_framework/MODULE_FUNCTION_MAP.md`：再看各模块能做什么。
 3. `repo_framework/LEARNING_PATH.md`：了解从新手到能改实验的总路线。
-4. `staged_course/overview.md`：按 8 个阶段系统学习 ADC 建模、分析、校准和验证。
+4. `staged_course/overview.md`：按 12 个阶段系统学习 ADC 建模、分析、校准、验证和进阶频谱主题。
 5. `guides/theory_to_practice_adc_learning_path.md`：按理论 + 实践路线学习。
 6. `guides/whole_workflow_guide.md`：学习完整 ADC 分析流程。
 7. `demos/whole_workflow_demo.py`：运行完整闭环。
@@ -72,6 +72,10 @@ Stage 04: SAR ADC 行为建模
 Stage 05: bit matrix 数字诊断
 Stage 06: sine-based 位权重校准
 Stage 07: 校准验证、模型边界与工程严谨性
+Stage 08: Time-Interleaved ADC 失配与校准
+Stage 09: Subsample debug output 与低速调试口 alias
+Stage 10: Oversampling、NTF 与 noise shaping
+Stage 11: 遗留 example 与知识缺口补充
 ```
 
 这条路线的目标是：先能解释模型，再能运行实验，最后能判断实验结论是否可信。

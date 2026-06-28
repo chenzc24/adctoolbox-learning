@@ -1120,7 +1120,8 @@ questions： 为什么要拟合一个新的 ideal sine，而不是直接用输�
    - non-coherent → harmonic 微量泄漏进 fit
 
 5. fit 盲点正是 by_value / by_phase 存在的动机
-   它们不依赖 fit，专门看 AM/PM 失真
+   它们分析的仍是 residual，不能恢复被 fit 吸收的同频/近同频误差；
+   价值在于把 residual 按 value/phase 维度重新组织，让 AM/PM 结构在切片里重新可见
 
 6. 判断 fit 是否被污染：
    - fit_freq 偏离 coherent bin > 0.01 bin → 警惕
@@ -4131,3 +4132,313 @@ N = 7   对非 7 因子的 M 互质
 ```
 
 避免在 binary-interleaved ADC 上用 `N = 2, 4, 8, 16` 这类因子。
+
+## 11. stage_10：Oversampling 与 Noise Shaping（过采样和噪声整形）
+
+**核心思想**：把信号带宽限定在 `0..fB`，然后利用更高采样率和NTF 把带内噪声压低。它对应的是 Sigma-Delta ADC 和 oversampled data converter 的核心直觉。
+### 本阶段目标
+
+学完本阶段，你应该能解释：
+
+- OSR 为什么定义为 `fs/(2*fB)`。
+- 只靠 oversampling 时，带内白噪声为什么改善 `10*log10(OSR)`。
+- NTF 是什么，为什么低频 notch 能压低带内量化噪声。
+- 一阶、二阶、高阶 noise shaping 在频谱斜率上有什么差异。
+- 为什么高阶不等于无条件更好。
+- `ntf_analyzer` 返回的 dB 值代表什么。
+- `apply_noise_shaping` 的教学模型和真实 Sigma-Delta loop 有什么边界。
+- 怎么用 `10_oversampling` examples 连接理论、频谱图和 API。
+
+### 11.1 主线：OSR + NTF
+
+Stage 10 和 Stage 09 的方向相反：
+
+```text
+Stage 09:
+  debug subsampling 不滤波，保留 raw artifact，但频率会 alias。
+
+Stage 10:
+  oversampling + signal-band filtering，目标是降低带内噪声。
+```
+
+OSR 定义：
+
+```text
+OSR = fs / (2*fB)
+```
+
+其中 `fB` 是真正关心的信号带宽。若量化噪声近似白噪声，噪声均匀铺在 `0..fs/2`，
+带内只吃到约 `1/OSR`：
+
+```text
+P_noise,in-band = P_noise,total / OSR
+SNR gain = 10*log10(OSR)
+```
+
+Noise shaping 进一步改变噪声形状：
+
+```text
+低频带内噪声压低；
+高频带外噪声抬高；
+后续数字低通 / decimation filter 把带外噪声丢掉。
+```
+
+它不是让噪声消失，而是：
+
+```text
+把量化噪声从有用信号带搬到不用的带外区域。
+```
+
+### 11.2 NTF 的数学直觉
+
+Sigma-Delta 的线性化模型常写成：
+
+```text
+Y(z) = STF(z) * X(z) + NTF(z) * E(z)
+```
+
+其中：
+
+```text
+STF:
+  signal transfer function，希望信号带内接近 1。
+
+NTF:
+  noise transfer function，希望信号带内很小。
+
+E:
+  quantization error。
+```
+
+教学 NTF：
+
+```text
+1st order: NTF(z) = 1 - z^-1
+2nd order: NTF(z) = (1 - z^-1)^2
+Lth order: NTF(z) = (1 - z^-1)^L
+```
+
+`NTF(z)` 乘到 `E(z)` 上，回到时域就是用 NTF 的 impulse response
+卷积误差序列。也就是说，noise shaping 不是改信号本身，而是对量化误差做滤波。
+
+一阶 NTF 在时域是差分：
+
+```text
+NTF(z) = 1 - z^-1
+h_ntf[n] = δ[n] - δ[n-1]
+e_shaped[n] = e[n] - e[n-1]
+```
+
+二阶则是二阶差分：
+
+```text
+NTF(z) = (1 - z^-1)^2 = 1 - 2z^-1 + z^-2
+e_shaped[n] = e[n] - 2e[n-1] + e[n-2]
+```
+
+低频变化慢：
+
+```text
+e[n] ≈ e[n-1]
+=> e[n] - e[n-1] ≈ 0
+```
+
+所以低频噪声被抵消。
+
+频域上：
+
+```text
+z = exp(jω)
+|1 - exp(-jω)| = 2|sin(ω/2)|
+```
+
+低频 `ω` 很小时：
+
+```text
+|NTF| ≈ ω
+```
+
+所以 DC 处有零点：
+
+```text
+ω = 0 -> |NTF| = 0
+```
+
+因此一阶 `NTF(z)=1-z^-1` 本质上就是对量化误差的高通滤波器：
+
+```text
+低频量化误差被压低；
+高频量化误差被抬高；
+高通的是 E，不是 X。
+```
+
+信号走的是 `STF`，理想情况下希望在信号带内接近 1。
+
+对 `NTF(z) = (1 - z^-1)^L`：
+
+```text
+|NTF| ≈ ω^L
+```
+
+dB 斜率：
+
+```text
+L = 1 -> 约 20 dB/decade
+L = 2 -> 约 40 dB/decade
+L = 3 -> 约 60 dB/decade
+```
+
+高阶不是无条件更好。真实电路还要考虑：
+
+```text
+loop stability；
+quantizer overload；
+integrator swing；
+finite gain / bandwidth；
+feedback DAC mismatch；
+idle tone / limit cycle；
+digital filter delay / area。
+```
+
+### 11.3 代码对应
+
+核心文件：
+
+```text
+python/src/adctoolbox/siggen/nonidealities.py
+  ADC_Signal_Generator.apply_noise_shaping
+
+python/src/adctoolbox/oversampling/ntf_analyzer.py
+  ntf_analyzer
+
+python/src/adctoolbox/spectrum/sweep_performance_vs_osr.py
+  sweep_performance_vs_osr
+```
+
+`apply_noise_shaping` 做的是教学行为模型：
+
+```text
+1. 先生成普通量化输出。
+2. quant_error_white = signal_quantized - signal。
+3. 用 (1 - z^-1)^order 的 FIR 系数滤波误差。
+4. 返回 signal + quant_error_shaped。
+```
+
+系数来自二项式展开：
+
+```text
+order 1: [1, -1]
+order 2: [1, -2, 1]
+order 3: [1, -3, 3, -1]
+```
+
+所以它演示：
+
+```text
+量化误差经过 NTF 后，频谱形状如何改变。
+```
+
+它不是完整 Sigma-Delta loop 仿真，因为没有真实闭环、积分器状态、反馈 DAC、
+stability、overload、idle tone 等。
+
+`ntf_analyzer` 做的是 NTF 形状分析：
+
+```text
+在 signal band 内积分 |NTF(f)|^2；
+和 NTF=1 的白噪声基准比较；
+返回 noise suppression dB。
+```
+
+它回答：
+
+```text
+这个 NTF 在这个 signal band 里理论上能压低多少噪声？
+```
+
+不是：
+
+```text
+某个真实 ADC 的 SNDR 是多少？
+```
+
+`sweep_performance_vs_osr` 做的是分析带宽 sweep：
+
+```text
+1. fit_sine_4param 拟合 fundamental。
+2. err = data - fitted_signal。
+3. 对 err spectrum 按不同 OSR 积分带内功率。
+4. 输出 SNDR / SFDR / ENOB vs OSR。
+```
+
+它改变的是分析带宽，不是实际把 waveform 下采样。
+
+### 11.4 Sigma-Delta ADC 拓展
+
+Noise shaping 是 Sigma-Delta ADC 的核心知识之一，但要分清：
+
+```text
+Stage 10 的 NTF / noise shaping:
+  Sigma-Delta ADC 的线性化频域解释。
+
+真实 Sigma-Delta ADC:
+  oversampling + loop filter/integrator + quantizer + feedback DAC 的闭环系统。
+```
+
+真实结构直觉：
+
+```text
+input
+  -> summing node
+  -> loop filter / integrator
+  -> coarse quantizer
+  -> digital output
+  -> feedback DAC
+  -> 回到 summing node
+```
+
+环路会不断修正输入和反馈之间的误差。低频误差被积分器强烈感知并反馈压低，
+高频误差则被推到带外。因此线性化后得到：
+
+```text
+Y(z) = STF(z)X(z) + NTF(z)E(z)
+```
+
+这里的“信号”和“噪声”分开，不是说真实电路里有两条物理路径。真实电路当然是同一条
+闭环链路。分开处理来自线性化等效模型：
+
+```text
+quantizer output ≈ quantizer input + E
+```
+
+把量化器替换成“线性通过 + 一个误差源”后，剩下的环路可以用线性系统叠加：
+
+```text
+只看 X 到 Y 的传递函数 -> STF
+只看 E 到 Y 的传递函数 -> NTF
+```
+
+一阶环路的简化推导可以写成：
+
+```text
+H(z) = z^-1 / (1 - z^-1)
+Y = H * (X - Y) + E
+
+Y * (1 + H) = H * X + E
+
+STF = H / (1 + H) = z^-1
+NTF = 1 / (1 + H) = 1 - z^-1
+```
+
+所以一阶 Sigma-Delta 的直觉是：
+
+```text
+信号基本只是延迟；
+量化误差被一阶高通 NTF 整形。
+```
+
+一句话：
+
+```text
+是的，NTF/noise shaping 是 Sigma-Delta ADC 工作原理的核心；
+但本库当前 apply_noise_shaping 只是教学模型，不是完整 ΣΔ 调制器仿真。
+```

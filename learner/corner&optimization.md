@@ -25,10 +25,8 @@
 - `python/src/adctoolbox/aout/rearrange_error_by_value.py`
   - 内部调用 `fit_sine_4param(...)`
   - `error = signal - fitted_signal`
-- `learning/adctoolbox-learning/staged_course/stage_03_error_analysis/stage_03_error_analysis.md`
-  - Stage 03 关于 sine fitting、residual、by value/by phase 的解释需要同步这个边界。
-- `learning/adctoolbox-learning/learner/notes.md`
-  - 短笔记中关于 fit 盲点、by value/by phase 的说法需要保持准确。
+- `python/src/adctoolbox/aout/analyze_error_by_phase.py` / `analyze_error_by_value.py`
+  - public wrapper，内部调用上面的 `rearrange_error_*`
 
 ### 问题陈述
 
@@ -39,33 +37,17 @@ y_fit[n] = A*cos(omega*n) + B*sin(omega*n) + C
 residual[n] = y[n] - y_fit[n]
 ```
 
-因此 residual 的准确解释应为：
+源码侧的事实边界（中性、无歧义）：
 
 ```text
 residual = measured signal 中 best-fit single-tone 解释不了的部分
 ```
 
-不能简单写成：
-
-```text
-residual = ADC 的全部非理想
-```
-
-原因是：任何与 `cos(omega*n)`、`sin(omega*n)`、`DC` 以及频率迭代导数方向不正交的误差，都会被 fit 部分吸收到 `A/B/C/frequency` 中。被吸收的部分不会完整出现在 residual、error PDF、error ACF、error spectrum 中。
-
-特别需要修正的表达：
-
-```text
-by_value / by_phase 不依赖 fit，专门看 AM/PM 失真
-```
-
-当前代码并不支持这个说法。`analyze_error_by_value` 和 `analyze_error_by_phase` 都会先调用 `fit_sine_4param`，再对 `signal - fitted_signal` 做 value/phase 条件化分析。更准确的说法是：
-
-```text
-by_value / by_phase 是 residual 的条件化重排和建模。
-它们能揭示 residual 中随 value/phase 变化的结构，
-但不能恢复已经被 fundamental projection 吸收的同频或近同频误差。
-```
+`analyze_error_by_value` / `analyze_error_by_phase` 都是先调用 `fit_sine_4param`，
+再对 `signal - fitted_signal` 做 value/phase 条件化分析。因此它们分析的是 residual，
+不是 raw signal；它们不能恢复已经被 fundamental projection 吸收的同频或近同频误差，
+但能揭示 residual 中随 value/phase 变化的结构。源码 docstring 对这一点的描述是中性的，
+没有做出过强声称。
 
 ### 原理推导
 
@@ -133,27 +115,10 @@ X^T u != 0
    按定义会被解释为主信号参数，而不是 residual error。
 ```
 
-### 当前判断
-
-- `fit_sine_4param` 的功能和目的没有错；它本来就是 best-fit single-tone estimator。
-- 需要修正的是 Stage 03 和 notes 对 residual 的解释边界。
-- `residual` 应被描述为 `unexplained error after best-fit sine`，而不是 `all ADC non-idealities`。
-- `by_value / by_phase` 当前实现仍依赖 fit residual；文档应避免暗示它们能完全绕开 fit 盲点。
-
-### 后续优化方向
-
-- 在 Stage 03 增加 “fit 的正交性条件和盲点” 小节。
-- 在 notes 中保留紧凑版逻辑链。
-- 如果后续需要真正分析被 fit 吸收的 AM/PM/drift，可考虑增加 raw-signal demodulation、cycle-by-cycle amplitude/phase tracking，或明确区分：
-
-```text
-fit-residual diagnostics
-raw-signal modulation diagnostics
-```
-
 ### 处理状态
 
-- 2026-06-22：已记录 corner。尚未修改 Stage 03 正文和 learner notes。
+- 2026-06-22：已记录 corner。源码侧无 bug，`fit_sine_4param` 与 `analyze_error_*` 的实现与上述边界一致。
+- 2026-06-28：本条早先版本还包含"Stage 03 / learner notes 措辞需修正"的内容。按本文件定义（只记录源码库 bug），课程笔记侧的措辞订正不在此跟踪；相关订正已在 `staged_course/stage_03_error_analysis.md`（§3.5、by_value/by_phase 段）和 `learner/notes.md` 落地。
 
 ## 2026-06-22: auto frequency initialization 的收敛边界和选错峰风险
 
@@ -494,27 +459,21 @@ clock/feedthrough 的短周期结构
 - 这不是原理性问题。`/(N-|k|)` 是合法 ACF estimator。
 - 当前默认 `max_lag=50` 对常见 ADCToolbox 示例数据是合理的。
 - 代码没有根据 `N` 自动限制 `max_lag`，也没有提示大 lag 方差问题。
-- Stage 03 中 “白噪声 lag=0 以外接近 0” 的表述应加上 “小 lag / max_lag << N” 的条件。
+- 复现确认：`max_lag >= N` 时代码不报错，而是**静默返回 NaN**（只在 numpy 层
+  打印 “Mean of empty slice” warning）；`max_lag > N` 时抛晦涩的
+  `ValueError: operands could not be broadcast together`。两者都不是有意义的用户错误提示。
 
 ### 后续优化方向
-
-文档建议：
-
-```text
-1. 说明当前代码使用 adjusted/unbiased-style ACF，分母是 N-|lag|。
-2. 说明归一化后大 lag 方差会增加。
-3. 看图时优先关注小 lag，建议 max_lag << N，经验上 max_lag < N/10。
-4. 如果要看长周期结构，更适合结合 error spectrum，而不是单靠大 lag ACF。
-```
 
 代码优化候选：
 
 ```text
-1. 对 max_lag >= N 抛出 ValueError，避免空 overlap。
+1. 对 max_lag >= N 抛出明确 ValueError（当前是静默 NaN），对 max_lag > N 也给出
+   有意义的错误（当前是晦涩的 broadcast ValueError）。
 2. 对 max_lag > N/10 给出 warning，提示 large-lag ACF variance。
 3. 增加 estimator 参数：
-   estimator="adjusted"  -> current mean over overlap, / (N-|lag|)
-   estimator="biased"    -> sum over overlap / N
+   estimator=”adjusted”  -> current mean over overlap, / (N-|lag|)
+   estimator=”biased”    -> sum over overlap / N
 4. 在返回结果中加入 metadata：
    estimator, effective_counts_per_lag, normalized
 ```
@@ -725,10 +684,12 @@ near Nyquist:
   - 建议标题：`Clarify or relax fit_sine_4param convergence warning semantics`
   - 主要范围：`fit_sine_4param(..., max_iterations=1, tolerance=1e-9, ...)` 的 warning 文案、默认迭代次数和 diagnostics。
   - 提交理由：当前 warning 在普通 noisy/non-coherent single-tone 下非常常见，但频率误差往往已经很小；用户容易把 “did not converge” 误解为 fit 失败。更精确的 warning 文案或 diagnostics 能显著降低误判。
+- 2026-06-23：已并入上游 issue `#54 Expose sine-fit diagnostics and fit options in residual error-analysis APIs`（OPEN）。该 issue 同时覆盖本条和下一条（error analysis API）的 fit diagnostics / max_iterations 暴露诉求。
 
 ### 处理状态
 
 - 2026-06-23：已记录 corner/optimization。尚未修改代码或 Stage 03 正文。
+- 2026-06-28：复核确认 upstream/main 仍未合并相关修复——`fit_sine_4param` 仍 `max_iterations=1` 默认、无 diagnostics、warning 文案未改。修复 PR `#56`（OPEN）已在 fork 分支实现，等待 upstream review。Monte Carlo 结论（warning 在 99%+ noisy 单音下触发，但频率误差已 < 1e-7 bin）仍然成立。
 
 ## 2026-06-23: error analysis API 的 fit quality 暴露与 known-frequency 入口
 
@@ -904,10 +865,12 @@ P3. 文档中明确区分：
     - 可选返回 fit diagnostics，例如 `fit_frequency`、`rmse`、`converged`、`initial_frequency`、`last_delta_freq`。
     - `decompose_harmonic_error` 支持传入 known fundamental frequency。
   - 提交理由：当前 API 隐藏内部 sine fit 质量，用户容易把 fit artifact 误判为真实 residual spur；这是精密 residual 诊断中最有工程价值的 API 优化之一。
+- 2026-06-23：已作为上游 issue `#54 Expose sine-fit diagnostics and fit options in residual error-analysis APIs`（OPEN）提交，与上一条（fit warning）合并到同一 issue。
 
 ### 处理状态
 
 - 2026-06-23：已记录 optimization。尚未修改代码、测试或 Stage 03 正文。
+- 2026-06-28：复核确认 upstream/main 仍未合并——`analyze_error_spectrum` 只暴露 `frequency`，无 `max_iterations`/`tolerance`/`return_fit`/diagnostics；`decompose_harmonic_error` 仍无 known-frequency 入口；`fit_sine_4param` 仍无 diagnostics。修复 PR `#56`（OPEN，`codex/issue-54-harmonic-frequency-options`）已在 fork 分支实现，等待 upstream review。
 
 ## 2026-06-23: `siggen/nonidealities.py` 非理想模型保真度和实现边界审计
 
@@ -926,9 +889,6 @@ P3. 文档中明确区分：
   - `python/src/adctoolbox/examples/04_debug_analog/nonideality_cases.py`
   - `python/src/adctoolbox/examples/03_generate_signals/exp_g06_sweep_dynamic_nonlin.py`
   - `python/src/adctoolbox/examples/03_generate_signals/exp_g07_sweep_interferences.py`
-- 课程关联位置：
-  - `learning/adctoolbox-learning/staged_course/stage_03_error_analysis/stage_03_error_analysis.md`
-  - Stage 03 中 memory、settling、reference、AM、RA gain、drift 等 case 的解释需要明确模型保真度边界。
 
 ### 问题陈述
 
@@ -1393,18 +1353,6 @@ glitch:
        envelope_type="white" / "lowpass" / "1/f-like" / "tone"
 ```
 
-课程建议：
-
-```text
-1. Stage 03/04 对每个 nonideality case 增加 “model fidelity note”。
-2. 明确区分：
-       diagnostic teaching model
-       physically faithful ADC behavioral model
-       stress-test signal generator
-3. 对 RA/reference/memory/drift 四个 case 不要用过强的真实物理措辞。
-4. 如果代码未修，正文必须说明当前代码行为以代码为准。
-```
-
 测试建议：
 
 ```text
@@ -1693,6 +1641,7 @@ except OSError as exc:
 
 - 2026-06-24：已记录 optimization。尚未修改 MATLAB runner 分支代码或测试。
 - 2026-06-25：已基于当前 `main` 提交修复 PR `#57`；尚未合并 upstream/main。
+- 2026-06-28：复核确认 PR `#57` 仍 OPEN 未合并；upstream/main 的 `_is_executable_file` 仍是 `path.is_file() and os.access(path, os.X_OK)`，Windows 上不可靠的问题仍在。
 
 ## 2026-06-25: `calibrate_weight_sine` 输出尺度与 dBFS 满量程尺度混用风险
 
@@ -1982,6 +1931,8 @@ SNR/SNDR/SFDR 与 actual-weight oracle 对齐
 Clarify calibrate_weight_sine output scale and warn on dBFS full-scale mismatch
 ```
 
+- 2026-06-28：复核确认上游状态未变——`calibrate_weight_sine` 的 Returns docstring 仍未说明 `weight`/`calibrated_signal` 是 solver-unit-sine 尺度而非 ADC voltage 尺度；`_prepare_fft_input` 仍按 `peak_amplitude` 归一化且不 clamp / 不对 over-range warn。核心机制（半量程输入 A=0.49 → calibrated_signal peak ≈ 2.0 ≈ 1/A，analyze_spectrum 报 +6.02 dBFS）经实验复现仍然成立。
+
 ## 2026-06-27: `calibrate_weight_sine` dual-basis 分支选择的严谨性与可审计性
 
 ### 问题级别
@@ -2257,6 +2208,9 @@ This is a small eigen/SVD problem in the 2-D fundamental subspace.
   记录问题和本地数值审计结论。
   暂不建议直接替换默认 solver。
   建议先补 diagnostics 和文档边界。
+2026-06-28:
+  课程侧的解释已在 stage_06 §4 (dual basis) 落地，本条只保留源码侧的
+  算法严谨性结论和数值审计证据。
 ```
 
 ## 2026-06-27: `calibrate_weight_sine` harmonic nuisance 的物理归因与可辨识性风险
@@ -2655,7 +2609,7 @@ P3: harmonic_policy 可以作为 v2 API 方向，先不要破坏现有 `harmonic
 ```
 
 这不是立刻破坏默认功能的 bug；它是一个真实的可辨识性和可解释性问题。
-当前实现工程上有用，但应暴露假设、补诊断，并在教学材料中分清用途。
+当前实现工程上有用，但应暴露假设、补诊断，并在 docstring / example 中分清用途。
 
 ### 非目标
 
@@ -2673,10 +2627,13 @@ P3: harmonic_policy 可以作为 v2 API 方向，先不要破坏现有 `harmonic
 2026-06-27:
   记录 harmonic nuisance 的物理归因风险。
   已新增可复现实验脚本 harmonic_nuisance_calibration_study.py。
-  已修正 Stage 06 笔记：H=1 作为 baseline / 纯 mismatch 研究，H>=3 作为 source-nuisance 假设。
   已修正 multi-capture 表述：单纯 multi-capture 只能缓解，multi-capture + per-capture harmonic nuisance 才更干净。
   暂不建议直接删除 harmonic basis 或替换默认 solver。
-  建议优先补文档、demo 分流、diagnostics、warning 和 multi-capture 推荐路径。
+  建议优先补 docstring / example 分流、diagnostics、warning 和 multi-capture 推荐路径。
+2026-06-28:
+  课程侧的解释（H=1 作为 baseline、H>=3 作为 source-nuisance 假设、multi-capture 边界）
+  已在 stage_06 §5 (harmonic_order) 落地，本条只保留源码侧的可辨识性结论、
+  实验证据（multi-capture 表、外部 H3 数据）和 API 优化建议。
 ```
 
 ## 2026-06-27: rank-deficiency patch 的全秩亏崩溃与静默不可观测 bit 风险
@@ -2842,85 +2799,12 @@ constant bit 没有 AC 信息；
 
 所以这里至少需要 warning 或 metadata，而不应该只悄悄返回 0。
 
-### 当前数学逻辑仍然合理的部分
-
-对于真正的线性相关列，例如：
-
-```text
-B[:, i] == B[:, j]
-```
-
-数据确实无法区分：
-
-```text
-w_i 变大
-```
-
-和：
-
-```text
-w_j 变大
-```
-
-用 nominal ratio 分配是合理的工程先验：
-
-```python
-bit_weight_ratios[bit_idx] = nominal_weights[bit_idx] / nominal_weights[founding_bit_idx]
-bits_effective[:, col_idx] += col * bit_weight_ratios[bit_idx]
-```
-
-正确解释应该是：
-
-```text
-先估计可观测的组合权重；
-再按 nominal ratio 把组合权重分回原 bit 空间。
-```
-
-这不是凭空创造信息，而是在不可辨识情况下用架构先验做分配。
-
-### merge 顺序依赖
-
-当前 patch 是按 bit column 顺序逐列处理：
-
-```text
-第一个被 keep 的相关列成为 founding bit；
-后续 dependent columns 按 nominal_weights[bit_idx] / nominal_weights[founding_bit_idx] 合并。
-```
-
-因此输出隐含依赖输入 bit 顺序：
-
-```text
-MSB/LSB 排列不同，founding bit 可能不同；
-founding bit 不同，nominal ratio 的分母不同；
-冗余 SAR 或非二进制权重中，这可能影响分配解释。
-```
-
-这不一定是算法错误，但应该被文档和 diagnostics 暴露出来。
-
-### rank patch 与 column scaling 的耦合
-
-`calibrate_weight_sine.py` 的顺序是：
-
-```text
-1. _patch_rank_deficiency(...)
-2. _scale_columns_for_conditioning(...)
-```
-
-这很重要。Case C merge 后：
-
-```text
-effective column 不再一定是 0/1；
-它可能是多个 bit columns 按 nominal ratio 加权后的组合；
-列的数值范围可能改变。
-```
-
-因此 column scaling 不是独立小优化，而是 rank patch 后保持 least-squares 数值稳定的必要步骤之一。
-
-Stage 06 笔记中应该把这层关系讲清楚，而不是只说：
-
-```text
-某些 effective columns 可能不是简单 0/1。
-```
+> 说明：本条早先还包含 "当前数学逻辑仍然合理的部分"、"merge 顺序依赖"、
+> "rank patch 与 column scaling 的耦合" 三节。这些内容（nominal ratio 分配的
+> 可辨识性解释、Case C merge 对 bit 顺序的依赖、rank patch 与 column scaling 的
+> 耦合关系）已在 `staged_course/stage_06_calibration.md` 第 8 节及补充、第 9 节
+> 完整覆盖，故从本文件移除以避免重复。本文件只保留与源码 bug 直接相关的最小
+> 复现脚本、traceback 定位、以及针对性的修复/测试建议。
 
 ### 建议修复
 
@@ -2995,19 +2879,6 @@ rank_patch_warnings
 dropped_constant_bits
 ```
 
-#### 4. 更新 Stage 06 第 8/9 节
-
-需要补充：
-
-```text
-真实源码使用 np.maximum(bit_to_col_map, 0)，随后把 dropped bits 置零；
-全秩亏时当前代码会触发 IndexError，应修成 ValueError；
-constant bit 权重置零只表示当前 capture 不可观测，不表示物理权重为 0；
-Case C merge 对 bit order / founding bit 有依赖；
-rank patch 在 scaling 之前，merge 后 effective column 的数值范围会改变；
-column scaling 是 rank-patched design matrix 的数值稳定步骤。
-```
-
 ### 建议测试
 
 ```text
@@ -3048,7 +2919,11 @@ P3:
   已复现 all-constant bit matrix 导致 IndexError。
   已确认部分 constant bit 会被恢复为 weight=0。
   暂未修改源代码。
-  建议优先修 guard + test，再补 metadata/warning 和 Stage 06 第 8/9 节。
+  建议优先修 guard + test，再补 metadata/warning。
+2026-06-28:
+  本条的算法解释（nominal ratio 分配、merge 顺序、rank patch + scaling 耦合）
+  已在 stage_06 第 8 节及补充、第 9 节完整覆盖，故从本文件移除这些重复内容。
+  本文件只保留源码 bug 的最小复现脚本、traceback 定位和针对性修复/测试建议。
 ```
 
 ## 2026-06-28: Stage 09 subsample debug output 的 multi-N alias 反推缺口
@@ -3234,17 +3109,26 @@ line 193-211:
 line 304-327:
   实验：3x subsample aliasing。
 
-line 365-372:
-  学习检查问题，包括 N=31 为什么相对安全。
+line 353-389 (§4 它适合看什么，不适合看什么):
+  已有 caveat：不适合判断"某个低频 debug spur 的唯一原始频率"、
+  "完整未混叠频谱"、"collision 后单个 spur 的真实幅度"；
+  并给出正确用法"换 N、换 fin、扫参数来减少歧义"。
+
+line 391-426 (和 TI-ADC 的连接):
+  已有 gcd(N, M) = 1 规则和 N = 31 / 15 / 7 推荐。
 ```
 
-Stage 文档目前讲清了正向 alias 规则，但需要明确补充：
+也就是说，Stage 09 文档**已经覆盖**了 "单个 N 不可唯一反演"、"alias collision"、
+"换 N 换 fin 减少歧义"、"gcd(N,M)=1 / N 选择" 这些 caveat。本条早先版本认为
+Stage 09 "需要明确补充" 这些内容的判断已经过时。
 
-```text
-单个 N 的 debug 输出不可唯一反演原始频谱;
-真实芯片中未知 HD2/HD3/clock/TI spur 会造成 alias collision;
-可信诊断需要 multi-N / multi-fin / design prior。
-```
+当前 Stage 09 文本上唯一的缺口是：collision 的机制（多个原始频率折到同一 debug bin
+时是**复数相量相加**，幅度可能升高、降低甚至相互抵消）只在 §4 用一句话带过
+（"collision 后单个 spur 的真实幅度"），没有展开。这一点已在 2026-06-28 的文本
+订正中补上（stage_09 §4 collision 段）。
+
+因此 Stage 09 文档侧不再有缺口；本条剩余内容纯属源码侧的 example / 工具缺口
+（见下面"建议优化方向"）。
 
 ### 建议优化方向
 
@@ -3344,13 +3228,15 @@ gcd(N, M) == 1
 
 #### 4. 文档中明确边界
 
-Stage 09 和 README 应明确写：
+`09_downsample/README.md`（上游 example README）应明确写：
 
 ```text
 当前 exp_d00 只是正向 alias 演示;
 它不能从单个 N 的 debug 频谱唯一反推原始 spur;
 真实 debug 诊断应使用 multi-N、multi-fin、设计先验或高带宽 capture 辅助。
 ```
+
+（Stage 09 课程文档侧的相关 caveat 已齐备，无需再改；见上面 "3. Stage 文档位置"。）
 
 ### 建议测试
 
@@ -3392,5 +3278,7 @@ P3:
   已确认当前 09_downsample 只有固定 N=3 的正向 alias example。
   已确认没有 multi-N 反推、collision check、N selection 自动化。
   暂未修改源代码。
-  建议先补 Stage 09/README 边界说明，再加 exp_d01 multi-N demo。
+  课程文档侧（stage_09）的相关 caveat 已齐备，并在 §4 补上了 collision 相量相加
+  机制的展开；剩余缺口纯粹是源码侧的 example / 工具（alias_candidates、
+  exp_d01 multi-N、score_debug_downsample_factor），仍在此跟踪。
 ```

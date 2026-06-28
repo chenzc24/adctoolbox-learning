@@ -57,6 +57,7 @@ from adctoolbox.siggen import ADC_Signal_Generator
 - 添加 jitter
 - 添加 HD2/HD3 静态非线性
 - 添加 memory effect、incomplete sampling、reference error、AM noise 等
+- 添加 noise-shaped quantization，用于 Stage 10 的 oversampling/noise-shaping 学习
 
 适合用途：
 
@@ -198,7 +199,20 @@ Digital output debug，即对 ADC 原始 bit matrix 做诊断。
 
 | API | 作用 |
 |---|---|
-| `ntf_analyzer` | 分析 NTF 在指定频带内的性能 |
+| `ntf_analyzer` | 分析 NTF 在指定频带内的噪声抑制性能 |
+
+典型搭配：
+
+```python
+from adctoolbox import ntf_analyzer, sweep_performance_vs_osr
+from adctoolbox.siggen import ADC_Signal_Generator
+```
+
+学习入口：
+
+```text
+python/src/adctoolbox/examples/10_oversampling/
+```
 
 ## `toolset/`
 

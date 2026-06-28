@@ -134,7 +134,9 @@ y[n] = ideal_sine[n] + error[n]
 
 为什么这个分解有意义？因为理想正弦是完全确定性的——给定 A、f、phase、DC 四个
 参数，任何 n 的值都可以精确算出来。所以"理想正弦"这一部分不携带任何 ADC 信息，
-**ADC 的全部非理想行为都被推到了 error[n] 里**。
+**ADC 的非理想行为大部分会出现在 error[n] 里**。但要注意一个边界：与 fundamental
+不正交的误差（AM 边带、与 fundamental 同频的 PM、频率估计偏差）会被 fit 部分吸收，
+不会完整留在 error 中。这个边界在 § 3.5（fit 的正交投影性质和盲点）会展开。
 
 这就是 Stage 03 的核心思路：
 
@@ -531,10 +533,13 @@ fit 看不见的：
     -> 这些必须用 by_value / by_phase 分析
 ```
 
-`by_value` 不依赖 fit，直接把样本按输入电压 bin 分组，看每个 voltage level 的
-error 分布——专门看 AM 失真。`by_phase` 把样本按输入相位 bin 分组，看每个相位
-区间的 error——专门看 PM 失真。这两套工具和 fit + 三件套是互补的，合起来才能
-完整诊断 ADC 的所有非理想行为。
+`by_value` 把样本按输入电压 bin 分组，看每个 voltage level 的 error 分布；
+`by_phase` 把样本按输入相位 bin 分组，看每个相位区间的 error。这两套工具分析的
+仍然是 residual（`signal - fitted_signal`），所以它们**不能恢复已经被 fit 吸收的
+同频或近同频误差**。它们真正的价值在于：把 residual 按 value / phase 维度重新组织，
+让 fit 盲点里的那些结构（AM envelope、与相位相关的 PM）在 residual 的条件化切片里
+重新变得可见。这两套工具和 fit + 三件套是互补的，合起来才能更完整地诊断 ADC 的
+非理想行为。
 
 判断 fit 是否被污染：
 

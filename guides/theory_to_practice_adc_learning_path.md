@@ -630,7 +630,56 @@ python 08_time_interleave\exp_ti02_autocorr_background_skew_calibration.py
 workflow_summary.json
 ```
 
-## 10. Dashboard 和报告化
+## 10. Subsample debug output
+
+### 理论要点
+
+低速 debug output 常常不是 DSP decimation，而是无滤波地每 N 个 raw samples
+保留一个。它会把 harmonic、spur 和 TI mismatch spur 按 `fs_out = fs_in/N`
+折叠到输出 Nyquist 带内，但 spur 高度基本守恒。对 TI-ADC，还要让 N 和通道数互质，
+避免只采到部分子通道。
+
+### 本库对应代码
+
+```text
+python/src/adctoolbox/examples/09_downsample/
+learning/adctoolbox-learning/staged_course/stage_09_downsample_debug/
+```
+
+### 实验
+
+```powershell
+cd C:\Users\90590\adctoolbox_examples
+python 09_downsample\exp_d00_subsample_aliasing.py
+```
+
+## 11. Oversampling 与 noise shaping
+
+### 理论要点
+
+Oversampling 固定信号带宽 `fB`，提高 `fs`，让带内白噪声按 `10*log10(OSR)`
+下降。Noise shaping 进一步通过 NTF 把量化噪声推出信号带。这里的“下采样/带宽变窄”
+和 Stage 09 的 raw debug subsample 目的相反。
+
+### 本库对应代码
+
+```text
+python/src/adctoolbox/oversampling/
+python/src/adctoolbox/spectrum/sweep_performance_vs_osr.py
+python/src/adctoolbox/examples/10_oversampling/
+learning/adctoolbox-learning/staged_course/stage_10_oversampling_noise_shaping/
+```
+
+### 实验
+
+```powershell
+cd C:\Users\90590\adctoolbox_examples
+python 10_oversampling\exp_o01_noise_shaping_spectrum.py
+python 10_oversampling\exp_o02_ntf_band_analysis.py
+python 10_oversampling\exp_o03_snr_vs_osr.py
+```
+
+## 12. Dashboard 和报告化
 
 ### 理论要点
 
@@ -666,7 +715,7 @@ python 06_use_toolsets\exp_t01_aout_dashboard_single.py
 python 06_use_toolsets\exp_t03_dout_dashboard_single.py
 ```
 
-## 11. MATLAB 与 Python 对照
+## 13. MATLAB 与 Python 对照
 
 ### 理论要点
 
@@ -793,7 +842,21 @@ python 05_debug_digital\exp_d16_sar_unit_cap_mismatch_mc.py
 python 05_debug_digital\exp_d18_sar_redundant_mismatch_training_length_sweep.py
 ```
 
-### Phase F：完整贯通
+### Phase F：进阶频谱主题
+
+1. TI-ADC spur grid 和 skew 校准
+2. raw debug-port subsample alias
+3. OSR/NTF/noise shaping
+
+跑：
+
+```powershell
+python 08_time_interleave\exp_ti01_compare_skew_methods.py
+python 09_downsample\exp_d00_subsample_aliasing.py
+python 10_oversampling\exp_o01_noise_shaping_spectrum.py
+```
+
+### Phase G：完整贯通
 
 跑：
 
@@ -826,7 +889,7 @@ E:\ADCToolbox\learning\adctoolbox-learning\outputs\whole_workflow\
 - 全量测试套件：部分旧 import 路径未更新。
 - dashboard：适合已理解基础后做快速体检，不适合第一性学习。
 - MATLAB compare 测试：适合验证算法一致性，不适合初学。
-- oversampling/NTF：本库有工具，但不是当前最完整的主线。
+- 真实 Sigma-Delta 环路设计：Stage 10 和 `10_oversampling/` 是 NTF/噪声整形的行为级学习入口，不是完整调制器稳定性设计教程。
 
 ## 你作为代码资深者可以重点看的抽象
 
@@ -848,6 +911,8 @@ models: 把输入变成 ADC 数字输出
 spectrum/aout/dout: 分析结果
 calibration: 从 bits 估计权重
 toolset: 把多个分析打包成 dashboard
+timeinterleave: 拆/合 TI 通道、提取 offset/gain/skew、预测 spur
+oversampling: 分析 NTF 和 OSR 对带内噪声的影响
 ```
 
 如果你想继续深入源码，推荐阅读顺序：

@@ -48,6 +48,10 @@ Stage 04 SAR ADC 行为建模
 Stage 05 bit matrix 数字诊断
 Stage 06 sine-based 位权重校准
 Stage 07 校准验证、模型边界与工程严谨性
+Stage 08 Time-Interleaved ADC 失配与校准
+Stage 09 Subsample debug output 与 alias
+Stage 10 Oversampling、NTF 与 noise shaping
+Stage 11 遗留 example 与知识缺口补充
 ```
 
 每个阶段都要回答检查问题，再进入下一阶段。
@@ -135,6 +139,10 @@ uv run adctoolbox-get-examples C:\Users\90590\adctoolbox_examples
 05_debug_digital/exp_d15_sar_unit_cap_mismatch_uncal_spectra.py
 05_debug_digital/exp_d16_sar_unit_cap_mismatch_mc.py
 05_debug_digital/exp_d18_sar_redundant_mismatch_training_length_sweep.py
+08_time_interleave/exp_ti01_compare_skew_methods.py
+09_downsample/exp_d00_subsample_aliasing.py
+10_oversampling/exp_o01_noise_shaping_spectrum.py
+02_spectrum/exp_s12_polar_coherent_averaging.py
 ```
 
 不要只看图片。每跑一个示例，都要问：
@@ -159,6 +167,12 @@ uv run adctoolbox-get-examples C:\Users\90590\adctoolbox_examples
 9. `python/src/adctoolbox/dout/analyze_overflow.py`
 10. `python/src/adctoolbox/calibration/calibrate_weight_sine_lite.py`
 11. `python/src/adctoolbox/calibration/calibrate_weight_sine.py`
+12. `python/src/adctoolbox/timeinterleave/extract_mismatch_sine.py`
+13. `python/src/adctoolbox/timeinterleave/calibrate_foreground.py`
+14. `python/src/adctoolbox/oversampling/ntf_analyzer.py`
+15. `python/src/adctoolbox/spectrum/sweep_performance_vs_osr.py`
+16. `python/src/adctoolbox/aout/compute_inl_from_sine.py`
+17. `python/src/adctoolbox/spectrum/analyze_spectrum_polar.py`
 
 先读函数 docstring 和输入输出，再读主体逻辑。
 
@@ -209,3 +223,34 @@ staged_course/stage_07_validation_rigor/stage_07_validation_rigor.md
 - 模型假设和边界说明
 
 这一步完成后，你才真正从“能跑 ADCToolbox”进入“能判断 ADC 建模与校准结论是否可信”。
+
+## 第 9 步：学习高速和带宽相关进阶主题
+
+读完 Stage 07 后，再进入三块互不重复的进阶主题：
+
+```text
+Stage 08:
+  TI-ADC offset/gain/skew 失配、spur 网格、foreground/background 校准。
+
+Stage 09:
+  无滤波 subsample debug output、alias、spur 高度守恒、TI 通道覆盖。
+
+Stage 10:
+  OSR、NTF、noise shaping、带内噪声积分、performance vs OSR。
+
+Stage 11:
+  polar 频谱、相平面、谐波分解、INL/DNL、频谱平均这些剩余诊断工具。
+```
+
+推荐运行：
+
+```powershell
+cd E:\ADCToolbox\python
+uv run python src\adctoolbox\examples\08_time_interleave\exp_ti01_compare_skew_methods.py
+uv run python src\adctoolbox\examples\09_downsample\exp_d00_subsample_aliasing.py
+uv run python src\adctoolbox\examples\10_oversampling\exp_o01_noise_shaping_spectrum.py
+uv run python src\adctoolbox\examples\10_oversampling\exp_o02_ntf_band_analysis.py
+uv run python src\adctoolbox\examples\10_oversampling\exp_o03_snr_vs_osr.py
+uv run python src\adctoolbox\examples\02_spectrum\exp_s12_polar_coherent_averaging.py
+uv run python src\adctoolbox\examples\04_debug_analog\exp_a32_inl_from_sine_sweep_length.py
+```

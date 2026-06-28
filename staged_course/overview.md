@@ -1,4 +1,4 @@
-# ADC 八阶段学习总览
+# ADC 十二个阶段学习总览
 
 本课程面向“代码能力较强，但 ADC 和相关数学还在入门阶段”的学习者。
 
@@ -13,6 +13,10 @@ Python 数值仿真基础
   -> bit matrix 数字诊断
   -> sine-based 位权重校准
   -> 校准验证、模型边界与工程严谨性
+  -> Time-Interleaved ADC（时间交织 ADC）的失配与校准
+  -> Subsample Debug Output（无滤波下采样调试口）
+  -> Oversampling 与 Noise Shaping（过采样和噪声整形）
+  -> 遗留 example 与知识缺口补充（polar/相平面/谐波分解）
 ```
 
 每个阶段都包含三条线：
@@ -52,11 +56,19 @@ staged_course/
 │   └── stage_05_digital_bits.md
 ├── stage_06_calibration/
 │   └── stage_06_calibration.md
-└── stage_07_validation_rigor/
-    └── stage_07_validation_rigor.md
+├── stage_07_validation_rigor/
+│   └── stage_07_validation_rigor.md
+├── stage_08_time_interleave/
+│   └── stage_08_time_interleave.md
+├── stage_09_downsample_debug/
+│   └── stage_09_downsample_debug.md
+├── stage_10_oversampling_noise_shaping/
+│   └── stage_10_oversampling_noise_shaping.md
+└── stage_11_examples_beyond/
+    └── stage_11_examples_beyond.md
 ```
 
-## 八个阶段
+## 十二个阶段
 
 | 阶段 | 主题 | 你应该获得的能力 |
 |---|---|---|
@@ -68,10 +80,14 @@ staged_course/
 | Stage 05 | bit matrix 数字诊断 | 能直接分析 ADC raw bits，而不只看 waveform |
 | Stage 06 | sine-based calibration | 能理解 `calibrate_weight_sine` 的整体数学逻辑 |
 | Stage 07 | 验证与严谨性 | 能判断校准结果是否可信，并知道模型边界 |
+| Stage 08 | 时间交织 ADC（TI-ADC）| 能区分 TI spur 与单通道谐波，理解 per-channel offset/gain/skew 失配及其校准 |
+| Stage 09 | Subsample debug output | 能解释无滤波低速调试口中的 alias、spur 高度守恒、NSD 变化和 TI 通道覆盖 |
+| Stage 10 | Oversampling / noise shaping | 能解释 OSR、NTF、noise shaping、带内噪声积分和 `ntf_analyzer` |
+| Stage 11 | 遗留 example 与知识缺口补充 | 能用 polar 频谱看谐波相位、用相平面识别 sparkle/磁滞、用谐波分解单独测 HD 分量 |
 
 ## 推荐学习节奏
 
-不要一口气读完八个阶段。建议每个阶段按这个顺序：
+不要一口气读完十二个阶段。建议每个阶段按这个顺序：
 
 1. 先读“初学者先抓住的主线”，把本阶段的大图抓住。
 2. 看最小例子或手算例子，确认自己知道变量在做什么。
@@ -129,13 +145,15 @@ uv run python ..\learning\adctoolbox-learning\demos\sar_adc_model_study.py
 ADCToolbox 的 Python 主线可以简化成：
 
 ```text
-siggen/        生成输入和非理想信号
-models/        ADC 行为模型，重点是 SAR
-spectrum/      FFT 动态指标
-aout/          analog output residual debug
-dout/          digital output bit matrix debug
-calibration/   bit weight calibration
-toolset/       dashboard workflow
+siggen/            生成输入和非理想信号
+models/            ADC 行为模型，重点是 SAR
+spectrum/          FFT 动态指标
+aout/              analog output residual debug
+dout/              digital output bit matrix debug
+calibration/       bit weight calibration（单通道 SAR）
+timeinterleave/    TI-ADC 通道间失配提取与校准（Stage 08）
+oversampling/      NTF 频带噪声抑制分析（Stage 10）
+toolset/           dashboard workflow
 ```
 
 对应完整 ADC 校准闭环：
@@ -175,3 +193,14 @@ bits @ weights ≈ ideal sine
 - 校准就是估计 `weights`。
 
 Stage 07 会提醒你：一个校准结论是否可信，不只取决于训练数据上的 ENOB，而取决于独立验证、误差来源、模型边界和测试条件是否讲清楚。
+
+Stage 08–11 是四个互不重复的进阶/收尾主题：
+
+| 阶段 | 关键词 | 核心问题 |
+|---|---|---|
+| Stage 08 | TI-ADC | spur 是不是来自通道间 offset/gain/skew？ |
+| Stage 09 | subsample debug output | 低速 raw debug 口把 spur 折叠到哪里？ |
+| Stage 10 | oversampling / NTF | 信号带内噪声怎样随 OSR 和 NTF 下降？ |
+| Stage 11 | polar / phase-plane / INL-DNL / averaging | 怎么用剩余诊断工具补齐可视化、静态线性和多记录分析？ |
+
+看到“采样率变化”时先问清楚目的：是保留 raw spur 做调试，还是限制 signal band 来降低带内噪声。

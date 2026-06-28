@@ -38,7 +38,7 @@ Main capability map:
 | Time-interleaved ADCs | Split/rejoin channels, estimate/predict offset/gain/skew spurs, fractional delay correction | `deinterleave`, `interleave`, `predict_spurs`, `extract_mismatch_sine` |
 | Oversampling | Noise-transfer-function performance checks | `ntf_analyzer` |
 | Dashboards | One-command plot panels for analog output and digital output workflows | `toolset.generate_aout_dashboard`, `toolset.generate_dout_dashboard` |
-| Examples | 59 runnable examples grouped by topic | `adctoolbox-get-examples` |
+| Examples | 62 runnable examples grouped by topic | `adctoolbox-get-examples` |
 | MATLAB parity | MATLAB implementation and reference outputs for comparison | `matlab/`, `reference_output/`, `python/tests/compare/` |
 | Codex skills | Bundled user/contributor guide skills for Codex | `python/src/adctoolbox/_bundled_skills/skills/` |
 
@@ -265,6 +265,12 @@ Good examples to study first:
 05_debug_digital/exp_d15_sar_unit_cap_mismatch_uncal_spectra.py
 06_use_toolsets/exp_t01_aout_dashboard_single.py
 08_time_interleave/exp_ti01_compare_skew_methods.py
+09_downsample/exp_d00_subsample_aliasing.py
+10_oversampling/exp_o01_noise_shaping_spectrum.py
+10_oversampling/exp_o02_ntf_band_analysis.py
+10_oversampling/exp_o03_snr_vs_osr.py
+02_spectrum/exp_s12_polar_coherent_averaging.py
+04_debug_analog/exp_a32_inl_from_sine_sweep_length.py
 ```
 
 For MATLAB:
