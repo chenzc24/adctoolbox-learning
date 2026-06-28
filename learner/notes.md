@@ -3311,3 +3311,823 @@ ENOB
 harmonics
 noise floor
 ```
+
+## 8. stage_07 校准验证、模型边界与工程严谨性
+
+### 本阶段目标
+
+学完本阶段，你应该能解释：
+
+- 为什么校准结果不能只看训练数据。
+- 为什么 ENOB 变好不等于模型完全正确。
+- 如何区分 deterministic mismatch 和 random noise。
+- 如何设计 train/test 分离的验证。
+- 为什么 Monte Carlo 要看分布，而不是只看一个 seed。
+- ADCToolbox 的行为级 SAR 模型有哪些边界。
+- 测试条件为什么是指标的一部分。
+- 校准如何影响 FOM，以及为什么校准本身也有代价。
+- 如何把 `harmonic_order`、rank patch、bit activity 和尺度约定纳入校准可信度检查。
+- 什么时候可以相信结果，什么时候只能把它当学习或算法原型。
+
+### 8.1 核心主线：从“会校准”到“会判断”
+
+Stage 06 的结果是：
+
+```text
+bits -> calibrated_weights -> calibrated_signal
+```
+
+Stage 07 问的是：
+
+```text
+这组 calibrated_weights 在训练数据之外还可信吗？
+```
+
+不要用一句：
+
+```text
+ENOB 变好了
+```
+
+替代完整判断。更稳的检查是：
+
+```text
+训练和验证是否分开；
+换 frequency / amplitude / phase 后是否仍有效；
+改善来自 SFDR/THD 还是 SNR；
+bit activity / rank patch 是否正常；
+H=1 vs H=3 权重差异是否很大；
+dBFS / full-scale 标尺是否一致；
+模型边界和测试条件是否写清楚。
+```
+
+### 8.2 证据等级
+
+```text
+Level 0:
+  只看 training capture。
+  只能说明训练目标下降，不能说明校准可信。
+
+Level 1:
+  同一颗 chip / mismatch realization 上，用独立 test capture。
+  可以说明 weights 对另一个输入仍有效。
+
+Level 2:
+  扫 frequency / amplitude / phase / noise seed。
+  可以说明在这个输入范围内较稳定。
+
+Level 3:
+  多 mismatch seed / Monte Carlo 分布。
+  可以说明对一组随机芯片有统计稳定性。
+
+Level 4:
+  同时说明模型边界、测试源限制、校准代价和失效案例。
+  才接近工程或论文级论证。
+```
+
+### 8.3 校准前 preflight
+
+调用 `calibrate_weight_sine` 前先查：
+
+```text
+freq 是否是 normalized Fin/Fs；
+bits shape 和 bit order 是否正确；
+bit activity 是否合理；
+是否有 constant columns；
+输入是否覆盖足够 code；
+是否发生 rank patch；
+是否需要比较 H=1 / H=3；
+before / after / oracle 的 max_scale_range 是否一致。
+```
+
+如果 bit 不翻、freq 单位错、输入 clipping 或标尺不一致，先修测试条件，不要急着解释 ENOB。
+
+### 8.4 失败时的排查顺序
+
+```text
+1. 复现性：
+   同一 seed 和同一设置能不能复现。
+
+2. 分析设置：
+   window、side_bin、nf_method、max_scale_range、是否去 DC 是否一致。
+
+3. raw bits：
+   bit activity、constant columns、rank deficiency、bit order。
+
+4. train/test：
+   是否独立；是否换频率、相位、幅度、noise realization。
+
+5. harmonic 假设：
+   H=1 vs H=3 normalized weight delta 是否很大。
+
+6. oracle：
+   仿真里 actual-weight oracle 是否也不理想。
+
+7. 模型边界：
+   是否是 sar.py 没有建模的 settling、reference droop、metastability、kickback 等。
+```
+
+### 8.5 结果怎么写
+
+弱结论：
+
+```text
+在这条训练记录上，拟合误差下降。
+```
+
+中等结论：
+
+```text
+在独立 test capture 上，SFDR/THD 仍然改善，SNR 基本不变；
+这符合 deterministic weight error 被修正的预期。
+```
+
+强一点的结论：
+
+```text
+在多个 frequency / amplitude / phase 和多个 mismatch seed 下，
+校准后 SFDR/THD 分布稳定改善；
+并报告 bit activity、rank patch、H=1/H=3 sensitivity、模型边界和测试条件。
+```
+
+不要写：
+
+```text
+ENOB 变高，所以校准正确。
+数字校准消除了噪声。
+H=3 更好，所以 harmonic_order 越高越好。
+行为模型证明真实芯片一定由 CDAC mismatch 主导。
+```
+
+## 9.stage_08: Time-Interleaved ADC的失配与校准
+
+### 本阶段目标
+
+学完本阶段，你应该能解释：
+
+- TI-ADC 为什么需要多个子 ADC 交织，交织后采样率怎么算。
+- offset / gain / skew 三类失配分别在哪产生 spur。
+- 为什么 TI spur 的位置是 `k·fs/M` 和 `fin ± k·fs/M`，而不是输入谐波。
+- 怎么用单音正弦 + DFT 相量法从输出提取每通道的 offset/gain/skew。
+- foreground 校准和 background 校准的区别。
+- TI 校准和 SAR bit-weight 校准在数学结构上的相似与不同。
+- 怎么验证 TI 校准效果（和 Stage 07 的思路一致）。
+
+### 9.1 TI-ADC 的基本结构
+
+#### 9.1.1 交织采样
+
+TI-ADC 的核心动作是**交织**（interleave）。M 个子 ADC，每个以 `fs/M` 的速率采样，
+但它们的采样时刻错开，合起来等效一个 `fs` 的采样器：
+
+```text
+通道 0 在 t = 0,    M/fs,   2M/fs,   ...
+通道 1 在 t = 1/fs,  (M+1)/fs, ...
+通道 2 在 t = 2/fs,  (M+2)/fs, ...
+...
+通道 M-1 在 t = (M-1)/fs, (2M-1)/fs, ...
+```
+
+输出序列就是把 M 个通道的样本按时间顺序拼起来：
+
+```text
+x[0] = ch0, x[1] = ch1, ..., x[M-1] = ch(M-1), x[M] = ch0, ...
+```
+
+所以 `x[n]` 属于通道 `n mod M`。这是 ADCToolbox 里 `deinterleave` 做的事：
+
+如果 M 个通道**完全一致**，交织后的输出就和一个真正的 `fs` 采样器没区别。
+但真实通道总有 offset / gain / skew 差异，这些差异在交织后变成周期性的调制，
+调制频率是 `fs/M`，于是在频谱上产生 TI spur。
+
+#### 9.1.2 offset mismatch
+
+如果每个通道有不同的 DC 偏置 `offset_m`，那么交织后的输出相当于：
+
+```text
+x[n] = signal(n) + offset_{n mod M}
+```
+
+关键点：每个通道自己的 offset 是常数，但交织后的总输出会轮流取到不同通道的 offset：
+
+```text
+e[n] = offset_{n mod M}
+```
+
+所以从整体采样流看，offset error 是一个 M 点周期序列。M 点周期序列可以展开为：
+
+```text
+e[n] = Σ C_k · exp(j·2π·k·n/M)
+```
+
+因此它的频谱只在 `k·fs/M`（k=1..M-1）有非 DC 分量。offset mismatch 产生的 spur 固定在：
+
+```text
+fs/M, 2fs/M, ..., (M-1)fs/M
+```
+
+不是 `fs/(M·k)`，因为 offset pattern 每 M 个样本重复一次，基频就是 `fs/M`；
+更高项是这个基频的整数倍 `k·fs/M`。
+
+#### 9.1.3 gain + skew mismatch
+
+如果每个通道有不同的增益 `gain_m`，交织后的输出相当于：
+
+```text
+x[n] = signal(n) * gain_{n mod M}
+```
+
+注意这里和 offset 不同：offset 是**加性误差**，gain/skew 是对输入的**乘法调制**。
+设：
+
+```text
+a[n] = gain_{n mod M}
+a[n] = Σ C_k · exp(j·2π·k·n/M)
+s[n] = A/2 · exp(jω0 n) + A/2 · exp(-jω0 n)
+```
+
+那么：
+
+```text
+y[n] = a[n] · s[n]
+     = A/2 · Σ C_k · exp(j(ω0 + 2πk/M)n)
+      +A/2 · Σ C_k · exp(j(-ω0 + 2πk/M)n)
+```
+
+所以 gain mismatch 的 spur 不固定在 `k·fs/M` 本身，而是出现在输入单音两侧：
+
+```text
+fin ± fs/M, fin ± 2fs/M, ..., fin ± (M-1)fs/M
+```
+
+频域上，这是“时域相乘 = 频域卷积”：周期 gain error 在 `k·fs/M` 有谱线，
+输入在 `±fin` 有谱线，卷积后得到 `±fin + k·fs/M`。
+
+skew 也可以并入这个框架。对单音：
+
+```text
+s(t + skew_m)
+= exp(j·2π·fin·t) · exp(j·2π·fin·skew_m)
+```
+
+所以 skew 等价于每个通道有一个频率相关的复数增益：
+
+```text
+alpha_m = gain_m · exp(j·2π·fin·skew_m)
+```
+
+小 skew 时 `exp(j·2π·fin·skew_m) ≈ 1 + j·2π·fin·skew_m`，因此 skew spur 会随
+`fin` 增大而变严重。
+
+### 9.2 DFT 相量法：从输出反推 offset / gain / skew
+
+`extract_mismatch_sine` 的思路：
+
+```text
+1. deinterleave(x, M)
+   channels[m, k] = x[k·M + m]
+
+2. 用绝对采样时间
+   t_m[k] = (k·M + m) / fs
+
+3. 先估计 offset
+   offset_m = mean(channels[m])
+
+4. 在 fin 处做 DFT 投影
+   P_m = (2/K) Σ (y_m[k] - offset_m) · exp(-j·2π·fin·t_m[k])
+
+5. 从相量拿 gain / skew
+   gain_m = |P_m| / mean(|P|)
+   skew_m = (unwrap(angle(P_m)) - mean_phase) / (2π·fin)
+```
+
+为什么要用绝对时间 `t_m[k] = (kM+m)/fs`？因为通道之间本来就错开 `1/fs`。
+如果只用每个通道自己的局部时间，会把理想交织相位误认为 skew。
+
+相量为什么等于幅度和相位？设：
+
+```text
+y_m - offset_m = A_m · cos(ω0t + φ_m)
+ω0 = 2π·fin
+```
+
+则：
+
+```text
+A_m cos(ω0t + φ_m) · exp(-jω0t)
+= A_m/2 · exp(jφ_m)
+ + A_m/2 · exp(-j(2ω0t + φ_m))
+```
+
+第一项是常数，求和后保留；第二项是 `2fin` 旋转项。在 coherent sampling 下：
+
+```text
+Σ exp(-j2ω0t) ≈ 0
+```
+
+所以：
+
+```text
+P_m ≈ A_m · exp(jφ_m)
+```
+
+这就是：
+
+```text
+abs(P_m)   -> 通道 fundamental 幅度 -> gain
+angle(P_m) -> 通道 fundamental 相位 -> skew
+```
+
+二倍频项“约等于零”的意思不是输出里没有二倍频，而是它在 fundamental DFT 投影里
+与目标基函数正交，复平面向量绕完整圈后相消。若采样不相干、fin 估计不准或窗口太短，
+这项不会完全抵消，会以 leakage 形式污染 gain/skew 提取。
+
+skew 的相位关系：
+
+```text
+s(t + skew_m) = cos(2πfin t + φ + 2πfin·skew_m)
+Δφ_m = 2πfin·skew_m
+skew_m = Δφ_m / (2πfin)
+```
+
+代码减掉 mean phase，因为整体公共延迟不可观测，只能得到相对 skew。
+
+### 9.3 foreground vs background
+
+| | foreground (ti01) | background (ti02) |
+|---|---|---|
+| 需要已知校准输入 | 是，通常是单音正弦 | 否，可以正常工作时后台搜索 |
+| 是否打断正常工作 | 是 | 否 |
+| 求解方式 | 一次提取 offset / gain / skew | 迭代调 trim code |
+| 收敛速度 | 快 | 慢 |
+| 精度限制 | 主要受单音质量、DFT 泄漏、噪声影响 | 受噪声、量化、评价指标和搜索策略影响 |
+| 典型硬件 | 不一定在线实现 | 常配合 VDL / trim DAC |
+| 适用场景 | 上电、出厂、实验室 characterization | 运行时温漂和慢漂移跟踪 |
+
+foreground 的逻辑：
+
+```text
+停下来 -> 输入已知校准信号 -> 一次性估出 offset/gain/skew。
+```
+
+所以它快、准，但需要校准模式。ti01 的 `extract_mismatch_sine` 就是 foreground：
+
+```text
+offset -> 通道均值
+gain   -> fin 处 DFT 相量幅度
+skew   -> fin 处 DFT 相量相位 / (2πfin)
+```
+
+background 的逻辑：
+
+```text
+系统继续工作 -> 后台调 trim -> 看指标变好还是变坏。
+```
+
+ti02 用 VDL 改变通道采样延迟，再通过 SFDR / 自相关类指标搜索更好的 trim code。
+它不需要已知输入，也不打断工作，但慢、受噪声和量化影响。
+
+两者通常组合使用：
+
+```text
+上电 / 出厂:
+  foreground 先校掉大误差。
+
+正常运行:
+  background 跟踪温漂和慢变化。
+```
+
+### 9.4 VDL：Variable Delay Line
+
+VDL 是可变延迟线，用数字 `trim code` 控制采样时钟/采样开关的延迟。
+
+```text
+trim code -> delay_sec
+```
+
+它不是 ADC 输出码校正器，也不是数字滤波器，而是一个时间微调旋钮：
+
+```text
+code = 512 -> 约 0 fs
+code = 513 -> 约 +10 fs
+code = 511 -> 约 -10 fs
+```
+
+在 exp_ti02 里，每个通道的总 skew 是：
+
+```text
+effective_skew_m = intrinsic_skew_m + VDL_m(trim_code_m)
+```
+
+所以 VDL 只能直接修 timing skew：
+
+```text
+offset:
+  不能靠 VDL 修，需要减 DC / offset trim。
+
+gain:
+  不能靠 VDL 修，需要幅度归一 / gain trim。
+
+skew:
+  可以靠 VDL 改采样边沿位置。
+```
+
+这也是为什么 exp_ti02 是 **background skew calibration**，不是完整的
+offset/gain/skew background calibration。
+
+这里的 LSB 是 VDL LSB，不是 ADC LSB：
+
+```text
+ADC LSB:
+  电压 / 码值步长。
+
+VDL LSB:
+  时间步长，一个 trim code 对应多少秒。
+```
+
+exp_ti02 当前参数：
+
+```text
+n_codes = 1024
+center code = 512
+1 VDL LSB ≈ 10 fs
+total range ≈ 10.2 ps / channel
+```
+
+所以：
+
+```text
+ideal code = 647
+actual code = 648
+```
+
+表示：
+
+```text
+actual 比 ideal 多 1 个 VDL code step
+≈ 采样边沿多延迟 10 fs
+```
+
+不是 ADC 输出值差 1 个码。
+
+残余时间误差会变成相位误差：
+
+```text
+Δφ = 2π · fin · Δt
+```
+
+在 `fin≈300 MHz`、`Δt=10 fs` 时：
+
+```text
+Δφ ≈ 1.9e-5 rad
+```
+
+很小，所以 `exp_ti02_lsb_sensitivity.png` 里差 1 个 VDL LSB 几乎不影响 SFDR。
+
+VDL 还有 DNL：每个 code step 不一定刚好都是 10 fs。代码用 `step_cv=0.15`
+模拟 15% 左右的 step variation，但保证每一步为正，所以 VDL 曲线单调。
+
+### 9.5 TI 校准 vs SAR bit-weight 校准
+
+| 维度 | SAR 校准 (Stage 06) | TI 校准 (Stage 08) |
+|---|---|---|
+| 待估参数 | 每个位的 digital weight | 每通道 offset / gain / skew |
+| 观测 | bit matrix `B` | 交织输出 `x` |
+| 第一步 | 构造 `B @ w` | `deinterleave` 拆通道 |
+| 目标信号 | 正弦 basis | 单音 DFT 相量 / 在线指标 |
+| 核心方法 | 最小二乘 `B @ w ≈ sine` | DFT 相量拟合或 background 搜索 |
+| spur 性质 | 输入谐波，如 2fin / 3fin | TI 网格 spur，如 `k·fs/M` 和 `fin ± k·fs/M` |
+| 不可观测自由度 | 整体尺度 | 整体公共延迟 |
+| 处理方式 | fundamental 归一 | skew 减均值 |
+
+Stage 06 解决的是：
+
+```text
+同一个 SAR ADC 内部，bit weight 不准。
+```
+
+它估计的是：
+
+```text
+w0, w1, w2, ...
+```
+
+并用：
+
+```text
+B @ w ≈ sine
+```
+
+做线性回归。
+
+Stage 08 解决的是：
+
+```text
+多个子 ADC 交织时，通道之间不一致。
+```
+
+它估计的是：
+
+```text
+offset_m, gain_m, skew_m
+```
+
+所以必须先拆通道，再分别看均值、幅度和相位。
+
+共同点：
+
+```text
+都是从正弦相关观测中反推一组数字校准参数。
+```
+
+区别：
+
+```text
+SAR:
+  修的是 bit-weight reconstruction。
+
+TI:
+  修的是通道间对齐。
+```
+
+一个重要对应：
+
+```text
+SAR 的整体尺度不可观测 -> weights 用 fundamental 归一。
+TI 的公共延迟不可观测 -> skew 减均值，只保留相对 skew。
+```
+
+## 10. stage_09:Subsample Debug Output（无滤波下采样调试窗口）
+
+### 本阶段目标
+
+学完本阶段，你应该能解释：
+
+- subsample-only 和带抗混叠滤波的 DSP downsample 有什么本质区别。
+- 为什么 debug port 下采样会保留 spur 高度，但改变 spur 频率位置。
+- alias 公式如何用于 fundamental、harmonic 和 TI spur。
+- 为什么无滤波下采样后 NSD 会恶化 `10*log10(N)`。
+- 为什么 TI-ADC 的 debug 下采样因子要和 interleave 通道数互质。
+- 如何运行 `09_downsample/exp_d00_subsample_aliasing.py` 检查这些现象。
+
+### 10.1 DSP decimation vs debug subsampling
+
+**核心思路**：Debug输出的采样率可能与输入采样率不同
+真正的 DSP decimation 通常是：
+
+```text
+low-pass / band-limit -> keep every N-th sample
+```
+
+也就是先把 `fs_out/2` 以上的频率滤掉，再抽点：
+
+```text
+fs_out = fs_in / N
+Nyquist_out = fs_out / 2
+```
+
+目的：
+
+```text
+得到一个低带宽、已抗混叠、可继续处理的干净信号。
+```
+
+Stage 09 的 debug output 是：
+
+```text
+y[m] = x[m·N]
+```
+
+也就是只保留每 N 个 ADC sample 中的 1 个，不先低通。因此所有频率成分都会按
+`fs_out` 重新折叠：
+
+```text
+f, f ± fs_out, f ± 2fs_out, ...
+```
+
+在 debug 输出里可能落到同一个频率位置。
+
+这不是 bug，而是目的不同：
+
+```text
+DSP decimation:
+  带外 spur 是污染源，应该滤掉。
+
+ADC debug / monitor output:
+  带外 spur 可能正是调试证据，应该尽量保留。
+```
+
+debug 口想观察 raw ADC 行为，例如：
+
+```text
+harmonic；
+spur；
+code histogram；
+TI channel pattern；
+reference / clock / settling artifact。
+```
+
+如果先低通，这些证据可能被删掉。
+
+代价是：低速 debug 频谱的频率轴不能直接当成原始模拟频率。正确读法是：
+
+```text
+1. 知道 fs_in 和 N。
+2. 算 fs_out = fs_in / N。
+3. 对可疑 spur 按 fs_out 反折叠。
+4. 再判断它可能来自 fundamental、harmonic、TI spur 或其他 artifact。
+```
+
+一句话：
+
+```text
+DSP decimation 追求“干净低速信号”；
+Stage 09 debug subsampling 追求“低速但尽量 raw 的观察窗口”。
+```
+
+### 10.2 aliasing 公式
+
+设输出采样率：
+
+```text
+fs_out = fs_in / N
+```
+
+任意真实频率 `f` 在 debug output 中会落到：
+
+```text
+f_alias = | ((f + fs_out/2) mod fs_out) - fs_out/2 |
+```
+
+这和 Stage 02 的 Nyquist folding 是同一件事，只是这里的采样率从 `fs_in`
+变成了低速输出口的 `fs_out`。
+
+举例：
+
+```text
+fs_in  = 1 GHz
+N      = 3
+fs_out = 333.33 MHz
+Nyq    = 166.67 MHz
+```
+
+如果输入 fundamental 是 100 MHz：
+
+```text
+HD2 = 200 MHz -> alias 到 133.33 MHz
+HD3 = 300 MHz -> alias 到 33.33 MHz
+```
+
+### 10.3 NSD 为什么会恶化
+
+总噪声功率没有因为简单丢样而神奇消失；但输出 Nyquist 带宽缩小成原来的 `1/N`。
+如果同样的噪声功率挤进更窄的频带，单位 Hz 的噪声密度会上升：
+
+```text
+NSD_out ≈ NSD_in + 10*log10(N)
+```
+
+注意区分：
+
+```text
+SNR / SNDR:
+  看带内总功率比，依赖你定义的带宽。
+
+NSD:
+  看每 Hz 噪声密度，输出采样率变小后很容易看起来变差。
+```
+
+所以 Stage 09 的重点不是“下采样提高 SNR”，而是“低速 debug 口如何解释频率轴和噪声密度”。
+
+### 10.4 Debug output 的意义
+
+Stage 09 的 debug output 不是低速精确频谱仪，也不是完整 ADC 性能测量口。
+它更像：
+
+```text
+observability port:
+  IO / 测试链路受限时，提供一个低速但尽量 raw 的观察窗口。
+```
+
+它的意义不是“测得准”，而是“看得到”。
+
+关键区别：
+
+```text
+完整码字:
+  每个被送出来的 sample 仍然保留完整 ADC code。
+
+完整采样序列:
+  每个采样时刻都保留下来，频率信息不因丢样而 alias。
+```
+
+subsample debug output 通常是：
+
+```text
+完整码字，稀疏时间序列。
+```
+
+例如：
+
+```text
+原始:
+  x[0], x[1], x[2], x[3], x[4], ...
+
+N=4 debug:
+  x[3], x[7], x[11], ...
+```
+
+为什么不直接输出全速 raw code？主要是观测链路受限：
+
+```text
+pad / package IO 带宽；
+FPGA / ATE capture 速率；
+片上 debug bus 宽度；
+高速持续输出功耗；
+高速接口面积和验证成本；
+片上 SRAM 只能短抓，不能长期 streaming。
+```
+
+所以本质是：
+
+```text
+ADC 内部太快，外部观察太慢；
+用时间完整性换 IO 可观测性。
+```
+
+最终产品输出也不一定等于 ADC core 的 raw 输出，它可能已经经过：
+
+```text
+digital calibration；
+channel alignment；
+decimation filter；
+DDC / averaging；
+format packing / JESD framing。
+```
+
+这些处理可能把你想 debug 的 raw artifact 滤掉、校掉或平均掉。
+
+debug output 适合看：
+
+```text
+有没有异常；
+扫 trim / bias / supply / temperature 后异常是否变化；
+channel pattern / code histogram；
+校准前后的 alias spur 相对变化；
+长期趋势。
+```
+
+不适合单独判断：
+
+```text
+某个 debug spur 的唯一原始频率；
+完整未混叠频谱；
+collision 后单个 spur 的真实幅度；
+数据手册级最终性能。
+```
+
+一句话：
+
+```text
+Debug output 不是 performance characterization port；
+它是 observability port。
+```
+
+### 10.5 和 TI-ADC 的连接：N 要和通道数互质
+
+如果前一级是 M-way TI-ADC，原始样本通道序列是：
+
+```text
+ch0, ch1, ch2, ..., ch(M-1), ch0, ch1, ...
+```
+
+如果每 N 个样本取一个，取到的通道是：
+
+```text
+sample index: N-1, 2N-1, 3N-1, ...
+channel:      (N-1) mod M, (2N-1) mod M, ...
+```
+
+如果 `gcd(N, M) != 1`，输出可能只访问部分通道。最坏情况：
+
+```text
+M = 4, N = 4
+```
+
+每次都取同一个通道，debug output 完全看不到 channel-to-channel mismatch。
+
+所以经验规则是：
+
+```text
+gcd(N, M) = 1
+```
+
+常用选择：
+
+```text
+N = 31  适合很多 M，输出率低，覆盖通道均匀
+N = 15  对 M = 2/4/8/16 互质
+N = 7   对非 7 因子的 M 互质
+```
+
+避免在 binary-interleaved ADC 上用 `N = 2, 4, 8, 16` 这类因子。

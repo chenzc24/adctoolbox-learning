@@ -3050,3 +3050,347 @@ P3:
   暂未修改源代码。
   建议优先修 guard + test，再补 metadata/warning 和 Stage 06 第 8/9 节。
 ```
+
+## 2026-06-28: Stage 09 subsample debug output 的 multi-N alias 反推缺口
+
+### 问题背景
+
+Stage 09 讨论的是芯片 debug / monitor 口常见的低速输出方式：
+
+```text
+ADC 内部高速采样: fs_in
+debug 输出带宽有限
+每 N 个样本只送出 1 个
+fs_out = fs_in / N
+```
+
+这类 `subsample-only debug output` 没有 anti-alias low-pass。它的目标不是生成
+一个干净的低带宽 DSP 信号，而是保留 raw ADC 行为供离线 debug：
+
+```text
+harmonic;
+spur;
+TI channel pattern;
+code histogram;
+clock / reference / settling artifact.
+```
+
+代价是所有原始频率都会按 `fs_out` 折叠到 debug Nyquist 带内：
+
+```text
+f_debug = fold(f_original, fs_out)
+```
+
+反过来：
+
+```text
+f_original = ±f_debug + k * fs_out
+```
+
+这是 many-to-one 映射。单个 `N` 的低速 debug 频谱无法唯一反推出原始频率。
+
+### 为什么这是严肃问题
+
+当前 Stage 09 已经解释了一个孤立 coherent spur 的高度在无滤波抽点前后基本守恒。
+但这个结论依赖很强：
+
+```text
+只有一个 spur 折到该输出 bin;
+没有其他 harmonic / TI spur / clock spur collision;
+FFT coherent;
+窗口和分析口径一致。
+```
+
+真实电路里，debug 输出之前我们往往并不知道：
+
+```text
+HD2 / HD3 的真实位置和幅度;
+TI offset spur / gain-skew spur 是否存在;
+clock / PLL / reference spur 在哪里;
+某个高频 artifact 是否会折到目标带内 spur 位置。
+```
+
+因此单个 `N` 的 debug FFT 存在两个风险：
+
+```text
+1. 来源误判:
+   把高频 HD3 / TI spur / clock spur 的 alias 当成真实低频 spur。
+
+2. 幅度污染:
+   多个原始频率折到同一个 debug bin 后，复数相量相加。
+   该 bin 的幅度可能变高、变低，甚至相互抵消。
+```
+
+所以 raw subsample debug output 不能被当成完整频谱测量工具。它更像是：
+
+```text
+有限 IO 条件下的折叠观察口。
+```
+
+可信解释需要额外信息：
+
+```text
+多个 N;
+多个输入 fin;
+设计先验;
+或短时间高带宽 raw capture / on-chip SRAM。
+```
+
+### 当前代码位置与现状
+
+当前相关代码主要在 example 层，不是核心库 API。
+
+#### 1. 当前唯一 Stage 09 示例
+
+```text
+python/src/adctoolbox/examples/09_downsample/exp_d00_subsample_aliasing.py
+```
+
+关键位置：
+
+```text
+line 31:
+  def subsample(signal, n):
+      return signal[n - 1 :: n]
+
+line 37:
+  def alias_freq(f, fs):
+      ...
+
+line 51:
+  n_factor = 3
+
+line 66-69:
+  cases = [
+      fin = 50 / 70 / 100 / 140 MHz
+  ]
+
+line 96-100:
+  a_hd2 = alias_freq(2 * fin, fs_out)
+  a_hd3 = alias_freq(3 * fin, fs_out)
+
+line 157-171:
+  图和打印表强调 harmonic aliasing + spur-height conservation。
+```
+
+这个脚本做的是正向演示：
+
+```text
+已知 fin / HD2 / HD3;
+固定 N = 3;
+计算它们会 alias 到哪里;
+验证 SFDR_in 和 SFDR_out 接近。
+```
+
+它没有做：
+
+```text
+multi-N sweep;
+debug spur -> original frequency candidates;
+alias collision check;
+N selection / recommendation;
+unknown-source disambiguation.
+```
+
+#### 2. 当前 README 表述
+
+```text
+python/src/adctoolbox/examples/09_downsample/README.md
+```
+
+关键位置：
+
+```text
+line 12:
+  说明 exp_d00 是 fin = 50 / 70 / 100 / 140 MHz, N = 3 的单示例。
+
+line 18-34:
+  说明 subsample-only、无 anti-alias filter、harmonic alias、spur height conservation。
+
+line 36:
+  Choosing the downsample ratio N
+```
+
+README 已经提醒选择 `N` 的问题，但没有提供自动化 multi-N 诊断或反推工具。
+
+#### 3. Stage 文档位置
+
+```text
+learning/adctoolbox-learning/staged_course/stage_09_downsample_debug/stage_09_downsample_debug.md
+```
+
+关键位置：
+
+```text
+line 42-153:
+  DSP decimation vs debug subsampling 的定义和目的差异。
+
+line 155-186:
+  alias 到输出 Nyquist 的公式和例子。
+
+line 193-211:
+  spur 高度基本守恒的教学说明。
+
+line 304-327:
+  实验：3x subsample aliasing。
+
+line 365-372:
+  学习检查问题，包括 N=31 为什么相对安全。
+```
+
+Stage 文档目前讲清了正向 alias 规则，但需要明确补充：
+
+```text
+单个 N 的 debug 输出不可唯一反演原始频谱;
+真实芯片中未知 HD2/HD3/clock/TI spur 会造成 alias collision;
+可信诊断需要 multi-N / multi-fin / design prior。
+```
+
+### 建议优化方向
+
+#### 1. 增加候选频率反推工具
+
+建议新增 utility，例如：
+
+```text
+adctoolbox.downsample.alias_candidates(...)
+```
+
+或先作为 example helper：
+
+```text
+python/src/adctoolbox/examples/09_downsample/exp_d01_multi_n_alias_disambiguation.py
+```
+
+输入：
+
+```text
+fs_in
+N
+observed_debug_freqs
+f_max_original
+tolerance_hz
+```
+
+输出：
+
+```text
+f_candidate = ±f_debug + k * fs_out
+```
+
+并折回 `[0, fs_in/2]` 或用户指定的可观测频带。
+
+#### 2. 增加 multi-N 联立反推 demo
+
+建议新增 example：
+
+```text
+exp_d01_multi_n_alias_disambiguation.py
+```
+
+流程：
+
+```text
+1. 构造 unknown original spur set，例如:
+   fin, HD2, HD3, TI spur, clock spur。
+
+2. 对多个 N 生成 debug observations:
+   N_list = [3, 5, 7, 11, 31]
+
+3. 对每个 N 只给出 folded debug spur。
+
+4. 反推每个 debug spur 的 original frequency candidates。
+
+5. 跨多个 N 匹配候选:
+   找出能同时解释多个观测的原始频率。
+```
+
+这不是 Monte Carlo，而是：
+
+```text
+deterministic multi-projection / alias tomography。
+```
+
+#### 3. 增加 alias collision / N selection 工具
+
+建议新增 helper：
+
+```text
+score_debug_downsample_factor(
+    fs_in,
+    n_list,
+    expected_freqs,
+    tolerance_hz,
+)
+```
+
+用途：
+
+```text
+给定可能的 fin / HD2 / HD3 / TI spur / clock spur;
+遍历候选 N;
+计算哪些频率会折到同一 debug bin;
+给每个 N 一个 collision score;
+推荐 collision 最少且和 TI 通道数 M 互质的 N。
+```
+
+TI-ADC 场景还应检查：
+
+```text
+gcd(N, M) == 1
+```
+
+避免 debug output 总是抽到固定通道子集，隐藏 channel mismatch。
+
+#### 4. 文档中明确边界
+
+Stage 09 和 README 应明确写：
+
+```text
+当前 exp_d00 只是正向 alias 演示;
+它不能从单个 N 的 debug 频谱唯一反推原始 spur;
+真实 debug 诊断应使用 multi-N、multi-fin、设计先验或高带宽 capture 辅助。
+```
+
+### 建议测试
+
+```text
+1. alias_candidates_roundtrip:
+   给定 fs_in、N、known f_original;
+   fold 到 f_debug 后，candidate list 应包含 f_original。
+
+2. multi_n_disambiguation_unique:
+   构造两个不同 original spur，它们在 N=3 下 collision;
+   加入 N=5 后应能分开候选。
+
+3. collision_score_detects_overlap:
+   expected_freqs 中两个频率在某个 N 下 fold 到同一 bin;
+   score 应报告 collision。
+
+4. ti_gcd_warning:
+   M=4, N=4 或 N=8 时应提示 channel coverage risk;
+   N=3,5,7,31 不应触发该 warning。
+```
+
+### 建议优先级
+
+```text
+P2:
+  增加文档边界声明 + multi-N demo。
+
+P2/P3:
+  增加 alias candidate / collision score helper。
+
+P3:
+  将 helper 从 example 提升为 public API，视用户需求和真实项目使用频率决定。
+```
+
+### 处理状态
+
+```text
+2026-06-28:
+  已确认当前 09_downsample 只有固定 N=3 的正向 alias example。
+  已确认没有 multi-N 反推、collision check、N selection 自动化。
+  暂未修改源代码。
+  建议先补 Stage 09/README 边界说明，再加 exp_d01 multi-N demo。
+```

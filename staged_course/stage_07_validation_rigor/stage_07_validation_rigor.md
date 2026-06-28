@@ -105,6 +105,22 @@ ch5/ch6/ch7：
 Stage 07 把“算法结果”放回测试、电路和系统约束里审查。
 ```
 
+## 本阶段边界：只讲验证，不重复后续频谱专题
+
+Stage 07 是一个横向检查阶段。它教你如何判断结论是否可信，但不展开每一种高速或带宽相关机制：
+
+| 后续阶段 | 机制 | Stage 07 只保留的检查角度 |
+|---|---|---|
+| Stage 08 | TI-ADC offset/gain/skew spur | 验证校准前后 spur 是否真实改善、是否跨输入条件稳定 |
+| Stage 09 | subsample debug output alias | 报告 debug 输出采样率、N、alias 解释和通道覆盖 |
+| Stage 10 | oversampling / NTF / noise shaping | 报告 OSR、信号带宽、NTF 假设和带内指标 |
+
+所以本阶段不重复推导 `k*fs/M`、subsample alias 公式或 NTF 积分；它只提醒你：
+
+```text
+任何这些结论都要写清测试条件、模型边界和可泛化范围。
+```
+
 ## 初学者先抓住的主线
 
 看到任何校准结果时，先按这个模板检查：
@@ -154,6 +170,44 @@ ADCToolbox 很适合：
 ```text
 它是学习和算法验证工具，不是最终工程签核工具。
 ```
+
+## 证据等级：从“能跑”到“可信”
+
+Stage 07 最容易变成一句空话：
+
+```text
+要严谨验证。
+```
+
+为了避免空话，可以把校准证据分成几个等级。等级越高，能支持的结论越强。
+
+| 等级 | 你做了什么 | 可以声称什么 | 还不能声称什么 |
+|---|---|---|---|
+| Level 0 | 只看 training capture | 代码能跑，训练目标下降 | 校准能泛化 |
+| Level 1 | 独立 test capture，同一颗 chip / mismatch realization | 权重对同一颗芯片的另一个输入有效 | 对频率、幅度、相位普遍有效 |
+| Level 2 | 扫 frequency / amplitude / phase / noise seed | 在这个输入范围内较稳定 | 对所有 PVT、架构和测试链路有效 |
+| Level 3 | 多 mismatch seed / Monte Carlo 分布 | 对一组随机芯片有统计稳定性 | 对真实硅片生产分布有效 |
+| Level 4 | 写清模型边界、测试源限制、校准代价和失效案例 | 可以作为严肃工程/论文级论证的一部分 | 仍不能替代晶体管级仿真和实测 |
+
+如果只有 Level 0，报告里最多说：
+
+```text
+这个校准器能拟合这条训练记录。
+```
+
+如果做到 Level 1/2，才可以说：
+
+```text
+这组 calibrated weights 在独立输入上仍然改善了指标。
+```
+
+如果做到 Level 3/4，才更接近工程判断：
+
+```text
+在这个 mismatch model 和测试范围内，校准收益有统计稳定性，并且已说明模型边界。
+```
+
+这张表的目的不是制造形式主义，而是防止把一个漂亮 demo 说成完整工程结论。
 
 ## 数学需要补什么
 
@@ -634,6 +688,31 @@ learning/adctoolbox-learning/demos/sar_adc_model_study.py
 
 ## 推荐验证流程
 
+### Step 0：校准前 preflight
+
+在调用 `calibrate_weight_sine` 前，先做最低限度的输入健康检查：
+
+```text
+1. freq 是否是 normalized Fin/Fs，而不是 Hz。
+2. bits shape 是否正确，bit order 是否符合 MSB -> LSB 约定。
+3. bit activity 是否合理，是否有大量 constant columns。
+4. 输入幅度是否覆盖足够 code，低位是否被激励。
+5. 是否预期会发生 rank patch，是否能接受 nominal-ratio 分配。
+6. 是否需要比较 H=1 和 H=3，检查 harmonic nuisance 假设是否影响 weights。
+7. max_scale_range / dBFS 标尺是否在 before/after/oracle 间一致。
+```
+
+如果 preflight 已经发现：
+
+```text
+bit 几乎不翻；
+所有列常数；
+freq 单位不对；
+输入严重 clipping；
+```
+
+就不要急着解释校准结果。先修测试条件，否则后面的 ENOB / SFDR 都只是症状。
+
 ### Step 1：固定“芯片”
 
 仿真中先抽一组 actual weights：
@@ -914,6 +993,82 @@ CDAC mismatch -> deterministic spur -> sine calibration 修正权重
 | 权重校准后 SNR 大幅改善 | 需要检查分析设置，权重校准通常不该消除随机噪声 |
 | ENOB 很高但 SFDR 有突出 spur | 单个大 spur 可能被总功率指标掩盖，必须看 SFDR/频谱图 |
 
+## 失败归因：先查什么，后查什么
+
+当校准结果不好，或者结果好得不合理时，按这个顺序排查：
+
+1. **复现性**
+
+```text
+同一 seed、同一输入、同一分析设置能不能复现？
+```
+
+如果不能复现，先不要讨论物理原因。
+
+2. **分析设置**
+
+```text
+freq 是否 normalized；
+window / side_bin / nf_method 是否一致；
+max_scale_range 是否一致；
+是否去 DC；
+训练和验证是不是混用了不同标尺。
+```
+
+很多“校准改善/恶化”其实是分析口径变了。
+
+3. **raw bit 健康度**
+
+```text
+bit activity 是否合理；
+是否有 constant columns；
+是否 rank deficient；
+是否出现静默 bit 被恢复为 0；
+是否存在 bit order 错误。
+```
+
+如果 raw bits 本身不可观测，后面的 weight 拟合没有神通。
+
+4. **训练/验证分离**
+
+```text
+训练集是否和测试集独立；
+是否只在同一个 frequency / phase / amplitude 上验证；
+是否换过 noise realization。
+```
+
+训练集好、测试集差，优先怀疑 overfit、频率估计、输入覆盖或模型不匹配。
+
+5. **harmonic 假设**
+
+```text
+H=1 与 H=3 的 normalized weight delta 是否很大；
+H=3 是否把 source harmonic 当 nuisance；
+H=3 是否也可能投影掉 mismatch harmonic。
+```
+
+诊断目的不是判断 harmonic 到底来自哪里，而是判断这个归因假设是否已经影响 weights。
+
+6. **仿真 oracle**
+
+如果是行为仿真，检查：
+
+```text
+actual-weight oracle 是否已经接近理想；
+如果 oracle 也不理想，说明随机噪声或不可恢复 bit decision 已经主导。
+```
+
+7. **模型边界**
+
+最后再问：
+
+```text
+这个现象是不是 sar.py 根本没建模？
+例如 reference droop、settling waveform、metastability、kickback、PVT drift。
+```
+
+这个顺序很重要：先排除使用错误和分析错误，再谈物理解释。
+
 ## 报告一个校准实验时至少写什么
 
 一个严谨的校准报告至少包含：
@@ -938,6 +1093,8 @@ results:
   before/after 的 SNDR、SNR、SFDR、THD、ENOB
   residual/error spectrum
   bit activity、radix、overflow
+  H=1 vs H=3 normalized weight delta（如果 harmonic_order 是关键假设）
+  rank patch / constant bits / merged bits（如果发生）
 
 scope:
   模型包含什么、不包含什么
@@ -952,14 +1109,51 @@ ENOB improved from X to Y
 
 有价值得多。
 
+## 结论应该怎么写
+
+弱证据的写法：
+
+```text
+在这条训练记录上，calibrated_signal 的拟合误差下降。
+```
+
+中等证据的写法：
+
+```text
+在同一 mismatch realization 的独立 test capture 上，SFDR/THD 仍然改善，
+且 SNR 基本不变，符合 deterministic weight error 被修正的预期。
+```
+
+更强证据的写法：
+
+```text
+在多个 frequency / amplitude / phase 和多个 mismatch seed 下，
+校准后 SFDR/THD 分布稳定改善；报告同时给出 bit activity、rank patch、
+H=1/H=3 sensitivity、模型边界和测试条件。
+```
+
+不建议的写法：
+
+```text
+ENOB 变高，所以校准正确。
+数字校准消除了噪声。
+这个行为模型证明真实芯片一定由 CDAC mismatch 主导。
+H=3 结果更好，所以 harmonic_order 越高越好。
+```
+
+Stage 07 的语言要和证据等级匹配。证据只覆盖哪里，结论就只能写到哪里。
+
 ## 容易混淆的点
 
 - train/test 分离不是机器学习专属概念，任何校准算法都需要独立验证。
 - 行为级模型中 `actual_weights` 可见，是因为仿真知道真值；真实芯片上通常不知道。
 - Monte Carlo 结果要看分布，不要只看某一次 seed 的漂亮结果。
+- Level 0 的训练集改善只能证明拟合成功，不能证明校准可信。
 - 一个模型“有用”不等于“完整”。有用表示它能解释目标问题，完整表示它覆盖所有重要物理效应。
 - 校准改善 SFDR 但不改善 SNR，通常是合理现象，不要立刻判断算法失败。
 - `analyze_spectrum` 的设置变化会影响结果；比较 before/after 时设置必须一致。
+- `H=1` 和 `H=3` 的权重差异是风险报警，不是 harmonic 来源判决器。
+- rank patch 发生时，要报告哪些列被 drop / merge；否则权重解释不完整。
 - FOM 改善不代表系统一定更好；校准本身也消耗资源。
 - 真实测试中，信号源、时钟、电源和采集链路可能比 ADC 本身更差。
 - 如果 bit decision 本身不可恢复，数字权重校准无法完全修复。
