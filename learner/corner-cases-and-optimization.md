@@ -3282,3 +3282,315 @@ P3:
   机制的展开；剩余缺口纯粹是源码侧的 example / 工具（alias_candidates、
   exp_d01 multi-N、score_debug_downsample_factor），仍在此跟踪。
 ```
+
+## 2026-06-29: `analyze_error_by_value` 把 value-binned residual 标成 INL 的语义边界
+
+### 上游 issue
+
+```text
+https://github.com/Arcadia-1/ADCToolbox/issues/62
+```
+
+### 代码位置
+
+```text
+python/src/adctoolbox/aout/analyze_error_by_value.py
+python/src/adctoolbox/aout/rearrange_error_by_value.py
+python/src/adctoolbox/aout/plot_rearranged_error_by_value.py
+python/src/adctoolbox/examples/04_debug_analog/exp_a02_analyze_error_by_value.py
+python/docs/source/algorithms/analyze_error_by_value.md
+```
+
+核心分 bin 逻辑在：
+
+```text
+python/src/adctoolbox/aout/rearrange_error_by_value.py
+```
+
+关键代码：
+
+```python
+scale = (n_bins - 1) / (v_max - v_min)
+raw_indices = (signal - v_min) * scale
+bin_indices = np.round(raw_indices).astype(int)
+```
+
+mean / RMS residual 统计也在该文件中完成。
+
+图例误导点在：
+
+```text
+python/src/adctoolbox/aout/plot_rearranged_error_by_value.py
+```
+
+当前图例把 value-binned mean residual 标成：
+
+```text
+Mean Error (INL)
+```
+
+`exp_a02_analyze_error_by_value.py` 里还存在 example 文案和实际参数不一致的问题：注释/说明中提到较大的 bin 数，但实际演示使用的是较小的 bin 数。
+
+### 问题陈述
+
+`analyze_error_by_value` 的基本目标是合理的。它适合快速区分：
+
+```text
+thermal noise:
+  mean residual 随 signal value 基本为 0
+
+static k3 nonlinearity:
+  mean residual 随 signal value 呈 S 型
+```
+
+它的实际处理流程是：
+
+```text
+1. fit sine
+2. residual = signal - fitted_sine
+3. 按 signal value 分 bins
+4. 对每个 bin 求 residual mean / RMS
+5. 画 value-binned residual profile
+```
+
+所以它观察的是：
+
+```text
+value-binned conditional residual statistics
+```
+
+而不是严格意义上的：
+
+```text
+code-domain transfer deviation
+code width error
+DNL / INL from transition levels
+histogram INL/DNL
+```
+
+因此把 mean residual 曲线直接标成 `INL` 容易误导。更准确的表述应是：
+
+```text
+Mean Residual
+Mean Error by Value
+Value-Binned Mean Residual
+INL-like residual profile  # 只能作为文档里的限定性说法
+```
+
+这不是说该工具无用，也不是说 `fit_sine_4param` 或 residual 计算错了。问题在于：当前命名、图例和文档表达会让用户把一个平滑的 value-binned residual diagnostic 误读成严格 code-domain INL。
+
+### 实验验证
+
+构造一个 code-level corner：
+
+```text
+8-bit code-like signal
+256 codes
+人为注入相邻 code 交替误差：
+  even code = -0.20 LSB
+  odd code  = +0.20 LSB
+```
+
+真实 code-domain 误差是：
+
+```text
+mean_abs = 0.2000 LSB
+max_abs  = 0.2000 LSB
+```
+
+但如果只用 `16 value bins` 做 value-binned residual mean：
+
+```text
+mean_abs = 0.0291 LSB
+max_abs  = 0.0640 LSB
+```
+
+误差几乎被相邻 code 的正负交替平均掉，看起来像 false healthy / false negative。
+
+当 bins 提高到 `256 bins`，才基本恢复 code-scale 结构：
+
+```text
+mean_abs = 0.2007 LSB
+max_abs  = 0.2820 LSB
+```
+
+本地验证图：
+
+```text
+E:/ADCToolbox/python/src/adctoolbox/examples/04_debug_analog/output/corner_value_bins_vs_codes_mismatch.png
+```
+
+这个实验说明：
+
+```text
+bins 少不是天然“更稳”；
+如果 n_bins 和目标误差尺度不匹配，真实 code-level error 会被 bin averaging 平滑掉；
+bins 多但每 bin 样本不足，又会让统计变 noisy。
+```
+
+### 原理推导
+
+`analyze_error_by_value` 计算的不是 transition-level INL，而是条件均值：
+
+```text
+mean_residual[k] = mean(residual[n] | signal[n] falls into value bin k)
+```
+
+如果一个 bin 覆盖多个 code，并且这些 code 的误差符号交替：
+
+```text
+e_even = -0.20 LSB
+e_odd  = +0.20 LSB
+```
+
+那么粗 bin 内部的均值会趋向：
+
+```text
+mean(e_even, e_odd) ≈ 0
+```
+
+这会把真实的 code-scale error 消掉。这个消掉不是噪声平均带来的好处，而是观测尺度选错造成的结构丢失。
+
+严格 INL/DNL 的观测对象是 code-domain transfer curve：
+
+```text
+DNL: code width deviation
+INL: transition/code boundary relative to ideal line 的累计偏差
+```
+
+它必须保留 code/transition 尺度的信息。value-binned residual profile 则是 residual 条件统计，更适合看：
+
+```text
+二阶/三阶静态非线性形状
+clipping / edge distortion
+value-dependent residual trend
+```
+
+但不能替代：
+
+```text
+analyze_inl_from_sine
+analyze_inl_from_ramp
+histogram / code-density INL-DNL
+```
+
+### 建议修改方向
+
+#### 1. 图例改名
+
+把：
+
+```text
+Mean Error (INL)
+```
+
+改为：
+
+```text
+Mean Residual
+```
+
+或：
+
+```text
+Mean Error by Value
+Value-Binned Mean Residual
+```
+
+不要在主图例中直接叫 `INL`。
+
+#### 2. 文档和 docstring 明确语义
+
+文档应写清楚：
+
+```text
+This is a value-binned residual diagnostic.
+It is not strict code-domain INL/DNL extraction.
+```
+
+并指向真正的静态线性工具：
+
+```text
+analyze_inl_from_sine
+analyze_inl_from_ramp
+```
+
+#### 3. x 轴使用 actual value center
+
+当前图如果只显示 bin index，很容易被误读成 code index / INL curve。
+
+建议返回并绘制：
+
+```text
+value_centers[k]
+```
+
+而不是只画：
+
+```text
+bin index k
+```
+
+#### 4. 返回并显示 count_per_bin
+
+建议在结果中返回：
+
+```text
+count_per_bin
+```
+
+并在图上提示 empty / low-count bins。因为每个 bin 的样本数直接决定 mean/RMS residual 的可信度。
+
+#### 5. 输入校验
+
+建议新增：
+
+```text
+n_bins 必须为正整数；
+signal / residual 不得含 NaN / Inf；
+clip_percent 不能裁到无有效样本；
+v_min / v_max 在裁剪后必须有效；
+low-count / empty bins 应有 warning 或显式统计。
+```
+
+#### 6. 修正 exp_a02 文案
+
+`exp_a02_analyze_error_by_value.py` 的注释和实际参数应一致，避免教学文案说 `50 / 200 bins`，实际却用 `16 / 64 bins` 之类的不一致。
+
+#### 7. 文档增加 bin 尺度 caveat
+
+应明确写：
+
+```text
+bins 必须匹配目标误差尺度；
+bins 太少会平均掉 code-level error，造成 false negative；
+bins 太多但样本不足会导致 noisy estimate；
+如果目标是 strict INL/DNL，请使用 code-density / sine/ramp histogram 工具。
+```
+
+### 优先级判断
+
+```text
+P2
+```
+
+原因：
+
+```text
+不破坏 residual 计算核心；
+不影响 spectrum/SNDR/THD 等主指标；
+但会误导教学和 debug workflow；
+在 optimization/debug 场景里可能给出过度乐观的 false-negative 判断。
+```
+
+### 处理状态
+
+```text
+2026-06-29:
+  已向 upstream 提 issue:
+  https://github.com/Arcadia-1/ADCToolbox/issues/62
+
+  当前仅记录问题和建议修复方向；
+  尚未修改 analyze_error_by_value / rearrange_error_by_value /
+  plot_rearranged_error_by_value / exp_a02。
+```
