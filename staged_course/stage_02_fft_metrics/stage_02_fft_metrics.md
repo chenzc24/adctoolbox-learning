@@ -1841,7 +1841,7 @@ window_gain^2 * ENBW:
     描述 window 对总功率的 RMS 缩放
 ```
 
-##### 5.11.3b ENBW 的另一面：noise floor 为什么有的光滑、有的全是毛刺
+##### 5.11.4 ENBW 的另一面：noise floor 为什么有的光滑、有的全是毛刺
 
 跑实验 3（`exp_s08_windowing_deep_dive.py`）的 non-coherent 场景时，会看到一个现象：
 同一个信号，换不同 `win_type`，**noise floor 的视觉光滑度差别非常大**。
@@ -1953,7 +1953,7 @@ ENBW 不只参与 power correction，
 光滑 ⟹ 频率分辨率下降，不光滑 ⟹ 分辨率好但需要更多 bin 平均才能降方差。
 ```
 
-##### 5.11.4 Power correction：本库怎样把 window 影响纳入功率谱标定
+##### 5.11.5 Power correction：本库怎样把 window 影响纳入功率谱标定
 
 本库在 `compute_spectrum.py` 中这样做：
 

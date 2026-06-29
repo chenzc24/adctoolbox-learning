@@ -51,7 +51,7 @@ Stage 07 校准验证、模型边界与工程严谨性
 Stage 08 Time-Interleaved ADC 失配与校准
 Stage 09 Subsample debug output 与 alias
 Stage 10 Oversampling、NTF 与 noise shaping
-Stage 11 遗留 example 与知识缺口补充
+Stage 11 ADCToolbox Examples 全量专题
 ```
 
 每个阶段都要回答检查问题，再进入下一阶段。
@@ -239,7 +239,8 @@ Stage 10:
   OSR、NTF、noise shaping、带内噪声积分、performance vs OSR。
 
 Stage 11:
-  polar 频谱、相平面、谐波分解、INL/DNL、频谱平均这些剩余诊断工具。
+  59 个 runnable examples 的运行与解释地图，并重点补 polar 频谱、相平面、
+  谐波分解、INL/DNL、频谱平均等诊断工具。
 ```
 
 推荐运行：

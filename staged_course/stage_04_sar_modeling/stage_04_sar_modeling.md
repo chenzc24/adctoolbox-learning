@@ -352,6 +352,33 @@ redundancy: 转换时提供纠错空间（硬件，多一位 trial）
 实际 SAR ADC 通常两者都用。Stage 06 会展开校准；多 bit redundancy 和校准的交互
 （redundant bit 帮助估计 weights）也留到 Stage 05/06。
 
+##### 代码局限：sar_convert 不实现纠错电路
+
+**重要**：真实 redundancy SAR 的工作分两个阶段——**trial（贪心决策）+ digital error
+correction（事后纠错）**。本库的 `sar_convert` 只实现了 trial 阶段，`sar_reconstruct`
+只做简单线性组合 `codes @ weights`，**不实现纠错电路**。
+
+后果：
+
+```text
+1. 理想情况（无噪声），redundancy 的精度可能略低于纯二进制
+   -> 因为贪心在非超增权重下不保证最优
+   -> 例如 vin=0.7, redundant [0.4,0.2,0.2,0.1,0.05]:
+      贪心给 aout=0.65, 而纯二进制给 0.6875
+
+2. 有 comparator noise 时，redundancy 的容错效果在代码里很弱
+   -> 实测 8-bit + 1 redundant + noise=0.02: 只改善 2.5%
+   -> 真实电路应该显著改善（因为纠错电路利用 redundant bit 补偿）
+
+3. 根本原因
+   -> sar_convert 的 trial 包含 redundant bit（正确）
+   -> 但 sar_reconstruct 不检测 overrange、不做纠错
+   -> redundancy 的"纠错信息"被 reconstructor 丢弃了
+```
+
+**学习时的正确认知**：Stage 04 把 redundancy 当**概念**理解（"重复一位换纠错空间"），
+不要依赖代码做 redundancy 的精确仿真。如果实验中看到 redundancy 效果不明显甚至更差，
+这是代码局限，不是 redundancy 概念本身的问题。
 
 #### 2.4 对应到 sar_ideal_weights 代码
 

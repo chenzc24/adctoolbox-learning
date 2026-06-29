@@ -57,7 +57,7 @@ core information.
 
 ## Corner and Optimization Log
 
-`learner/corner&optimization.md` records corner cases, subtle implementation
+`learner/corner-cases-and-optimization.md` records corner cases, subtle implementation
 boundaries, documentation correction points, and possible optimization ideas.
 
 Use it only when the maintainer explicitly asks to add or record an item there.

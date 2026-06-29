@@ -957,7 +957,7 @@ ENOB 差 -> 不够具体，拆成 SNR/THD/SFDR 分别看原因
 7. 代码锚点：python/src/adctoolbox/spectrum/_window.py
    equiv_noise_bw_factor = N*sum(w^2)/sum(w)^2
 
-8. 详细推导见 stage_02_fft_metrics.md 5.11.3b
+8. 详细推导见 stage_02_fft_metrics.md 5.11.4
 ```
 
 #### 5.jitter
@@ -4441,4 +4441,130 @@ NTF = 1 / (1 + H) = 1 - z^-1
 ```text
 是的，NTF/noise shaping 是 Sigma-Delta ADC 工作原理的核心；
 但本库当前 apply_noise_shaping 只是教学模型，不是完整 ΣΔ 调制器仿真。
+```
+
+## 12. stage_11：ADCToolbox Examples 全量专题
+
+Stage 11 的定位不是“零散补遗”，而是 example atlas：
+
+```text
+前面 stages:
+  按 ADC 知识主线学习。
+
+Stage 11:
+  按 examples 反向总览整个 ADCToolbox。
+```
+
+源库 examples 目录当前有：
+
+```text
+59 个 runnable examples:
+  文件名形如 exp_*.py。
+
+helper 文件:
+  nonideality_cases.py
+  variable_delay_line.py
+```
+
+学习目标不是把每个脚本机械跑一遍，而是做到：
+
+```text
+看到任意 example，知道它属于哪条知识线；
+知道该怎么运行；
+知道输出图和指标在诊断什么；
+知道它是教学 demo、诊断工具、workflow，还是模型边界说明。
+```
+
+解释每个实验前，必须先写数据建模卡：
+
+```text
+数据来源:
+  真实 ADC capture / 完整 ADC 行为模型 / 手工合成 waveform？
+
+理想基线:
+  Fs、Fin、N、A、DC、full-scale、bit 数。
+
+非理想性:
+  thermal noise、quantization、jitter、static nonlinearity、memory、mismatch、
+  glitch、clipping、TI skew 等。
+
+注入位置:
+  在 analog waveform 上加？
+  在量化前加？
+  在 SAR CDAC actual weights 里加？
+  在 digital reconstruction 时故意用 nominal weights？
+  还是在多 run 平均前改变相位？
+
+分析步骤:
+  直接 FFT / fit sine residual / harmonic decomposition /
+  phase-plane / calibration / decimation。
+```
+
+不写数据建模信息，实验很容易被误读。例如 `exp_s11` 的 polar memory effect 不是 skew，
+也不是真实 ADC capture；它是手工把上一拍 MSB 混入当前输出，模拟历史依赖。
+
+`exp_s11` 上排也不是“三阶正弦输入”。输入仍是单音 sine；demo 在输出上加入
+`k2*x^2` / `k3*x^3` 静态多项式非线性。多项式模型是 memoryless transfer curve 的
+低阶行为近似，能解释 HD2/HD3 和相位翻转；SAR CDAC mismatch 也会产生 harmonic/spur，
+但它更像分段 code-dependent 静态非线性，不等同于连续的 `k2/k3` 模型。
+
+推荐按目录理解：
+
+```text
+01_basic:
+  环境、自检、coherent/non-coherent sampling。
+
+02_spectrum:
+  FFT、window、spur、OSR、polar spectrum、averaging。
+
+03_generate_signals:
+  生成侧 sweep，观察 bit 数、jitter、非线性、干扰对性能的影响。
+
+04_debug_analog:
+  analog output error diagnosis，包括 error PDF、ACF、phase-plane、INL/DNL。
+
+05_debug_digital:
+  SAR bit matrix、weight calibration、radix、overflow、mismatch Monte Carlo。
+
+06_use_toolsets:
+  dashboard single/batch workflow。
+
+07_conversions:
+  dB/dBFS/dBm、FoM、NSD/SNR、Nyquist zone 等单位和指标换算。
+
+08_time_interleave:
+  TI-ADC offset/gain/skew、foreground/background、VDL。
+
+09_downsample:
+  subsample debug output 的 alias、spur 高度和频率解释。
+```
+
+Stage 11 仍然重点展开几个前面没有系统讲透的诊断视角：
+
+```text
+polar spectrum:
+  同时看谐波幅度和相位。
+
+phase-plane / lag plot:
+  本质是 lagged Lissajous：画 x[n] vs x[n+k]。
+  理想单音形成椭圆；异常会以不同方式破坏椭圆。
+  sparkle/glitch -> 孤立离群点。
+  hysteresis -> 上升/下降双轨、回环、8 字形。
+  settling/memory -> 拖尾、条纹、扭曲、多轨。
+  metastability -> 阈值附近局部变厚、断裂或聚集。
+  AM/gain modulation -> 多层环、厚环。
+  jitter/phase modulation -> 沿轨迹切向扩散。
+
+MAD outlier detection:
+  用 median/MAD 估计主环半径和正常环厚度；
+  比 std 更不容易被 sparkle/glitch 这种 outlier 本身拉偏。
+
+harmonic decomposition:
+  把 waveform 拆成 fundamental、各阶 harmonic 和 residual。
+
+INL/DNL from sine:
+  用 sine histogram 看静态 transfer curve。
+
+averaging:
+  区分 power averaging、coherent averaging、polar coherent averaging。
 ```

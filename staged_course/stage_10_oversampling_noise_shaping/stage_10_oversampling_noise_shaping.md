@@ -524,7 +524,7 @@ python/src/adctoolbox/siggen/nonidealities.py        # apply_noise_shaping
 python/src/adctoolbox/spectrum/sweep_performance_vs_osr.py
 ```
 
-官方示例：
+官方示例（**注意：以下实验脚本尚未创建，API 已就绪**）：
 
 ```text
 python/src/adctoolbox/examples/10_oversampling/README.md
@@ -532,6 +532,10 @@ python/src/adctoolbox/examples/10_oversampling/exp_o01_noise_shaping_spectrum.py
 python/src/adctoolbox/examples/10_oversampling/exp_o02_ntf_band_analysis.py
 python/src/adctoolbox/examples/10_oversampling/exp_o03_snr_vs_osr.py
 ```
+
+截至本课程版本，`examples/10_oversampling/` 目录尚未生成。但核心 API
+（`apply_noise_shaping`、`ntf_analyzer`、`sweep_performance_vs_osr`）已经实现并可调用。
+可以用这些 API 直接写学习脚本，不依赖官方 example。
 
 ### `apply_noise_shaping` 对应哪一部分
 

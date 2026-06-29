@@ -695,7 +695,7 @@ FFT，主瓣形状变了，抛物线近似就不准——但本库的 `_estimate
 
 #### 3.6.2 标准三点 log-domain 抛物线公式
 
-IEEE 1057 推荐的标准版本用三个点 `(k-1, k, k+1)` 的 log 幅度：
+常见的工程实现（广泛用于 FFT 频率估计）用三个点 `(k-1, k, k+1)` 的 log 幅度：
 
 ```text
 α = log|spec[k-1]|
@@ -1105,7 +1105,7 @@ err_lsb = err_voltage / LSB
 重要提醒：**PDF 单独看不够**。PDF 只告诉幅度分布，看不出"误差是不是按某种时间
 模式重复出现"。一个含固定频率 spur 的 error，它的 PDF 可能看起来仍然接近高斯
 （如果 spur 幅度小），但 ACF 和 error spectrum 会立刻暴露。所以 PDF/ACF/spectrum
-要一起看——这是 stub 第 120 行强调过的点。
+要一起看——这是前面"几类 residual 图分别看什么"一节强调过的点。
 
 ### 5. Autocorrelation：误差样本之间有没有 memory
 
