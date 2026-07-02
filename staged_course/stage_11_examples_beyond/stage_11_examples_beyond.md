@@ -25,7 +25,7 @@ Stage 11 是：
 按 examples 反向总览 ADCToolbox
 ```
 
-根据源库 `python/src/adctoolbox/examples/README.md`，当前 examples 目录下有 **59 个
+根据当前本地 `python/src/adctoolbox/examples/` 扫描结果，examples 目录下有 **64 个
 runnable example**。另外还有少量 helper 文件，例如：
 
 ```text
@@ -56,9 +56,9 @@ examples 的意义不只是“展示 API 怎么调用”。它们承担了三层
 
 学完本阶段，你应该能解释：
 
-- 如何按目录完整跑完 59 个 runnable examples。
+- 如何按目录完整跑完 64 个 runnable examples。
 - 每个 example 属于哪条知识线：基础、频谱、信号生成、analog debug、digital/SAR、dashboard、
-  conversions、TI、downsample。
+  conversions、TI、downsample、oversampling。
 - 哪些 example 是前面 stage 的验证脚本，哪些需要在 Stage 11 单独补背景。
 - polar 频谱为什么能同时显示谐波的幅度和相位，笛卡尔频谱为什么不能。
 - 相平面 / lag plot 怎么识别 sparkle code、磁滞、亚稳态。
@@ -120,6 +120,7 @@ foreach ($ex in $examples) {
   -> 07_conversions
   -> 08_time_interleave
   -> 09_downsample
+  -> 10_oversampling
 ```
 
 ## 每个实验必须先交代数据建模信息
@@ -170,8 +171,9 @@ Stage 11 以后解释 example，先不要急着看图。每个实验都应该先
 | `07_conversions/` | 5 | 单位与指标换算 | aliasing zone、dB/dBFS/dBm、FoM、NSD/SNR |
 | `08_time_interleave/` | 2 | TI-ADC mismatch calibration | offset/gain/skew、foreground/background、VDL |
 | `09_downsample/` | 1 | debug subsample output | 无滤波抽样 alias、spur 高度和频率解释 |
+| `10_oversampling/` | 3 | oversampling / NTF / ifilter | noise shaping、带内提取、OSR sweep |
 
-这一张表是 Stage 11 的主索引。下面五个深挖点，是前面 stage 没完全展开、但 examples
+这一张表是 Stage 11 的主索引。下面的深挖点，是前面 stage 没完全展开、但 examples
 里确实有独立诊断价值的部分。
 
 ---
@@ -2277,7 +2279,7 @@ polar 图上变成散开的云，而不是稳定的谐波点。
 
 ## 全量 example 索引：每个脚本该怎么看
 
-这一节把 59 个 runnable examples 全部收齐。每个条目后面的说明不是复述源码，而是告诉你：
+这一节把 64 个 runnable examples 全部收齐。每个条目后面的说明不是复述源码，而是告诉你：
 
 ```text
 它对应哪个知识背景；
@@ -3170,6 +3172,675 @@ exp_a42_analyze_error_phase_plane
 
 `nonideality_cases.py` 是这组 example 共享的非理想性 case 定义，不单独作为 runnable example。
 
+#### exp_a03：phase-binned error 里的 AM / PM / base noise
+
+`exp_a03_analyze_error_by_phase.py` 和 `exp_a02` 是一对：`a02` 按输入值分箱，`a03`
+按 sine phase 分箱。它生成的信号模型是：
+
+```text
+y[n] = (A + am_noise[n]) * sin(phase[n] + pm_noise[n]) + DC + thermal_noise[n]
+```
+
+实验参数：
+
+```text
+Fs = 800 MHz
+N = 2^16
+Fin = 10.1234567 MHz
+A = 0.49
+DC = 0.5
+n_bins = 100 phase bins
+```
+
+它要区分三类误差：
+
+```text
+AM-like error:
+  幅度调制 / gain noise / reference gain fluctuation。
+
+PM-like error:
+  phase modulation noise，ADC 里最常见解释是 sampling jitter / aperture jitter。
+
+base noise:
+  与 phase 无关的 thermal / broadband noise。
+```
+
+小信号展开可以解释图上的形状。AM noise：
+
+```text
+x = (A + a[n]) * sin(theta)
+error_am ~= a[n] * sin(theta)
+```
+
+所以 AM 型误差在峰顶/谷底最大，过零附近最小。PM noise：
+
+```text
+x = A * sin(theta + phi[n])
+  ~= A * sin(theta) + A * phi[n] * cos(theta)
+
+error_pm ~= A * phi[n] * cos(theta)
+```
+
+所以 PM/jitter 型误差在过零点最大，峰顶/谷底最小。这符合电路物理：同样的采样时刻误差
+`delta_t`，在输入斜率最大的地方造成最大电压误差。
+
+图里的下排画的是 **RMS error vs phase**，不是频谱。因为 RMS/variance 会平方，所以形状变成：
+
+```text
+AM variance ~= am^2 * sin^2(theta)
+PM variance ~= pm^2 * cos^2(theta)
+base variance = constant
+```
+
+这就是为什么 AM/PM 曲线看起来有“两瓣”。但要注意：
+
+```text
+RMS-vs-phase 里出现 2*theta 周期
+  不等价于
+频谱里一定出现 HD2。
+```
+
+随机 AM noise 通常表现为调制噪声底 / 噪声裙，而不是 coherent HD2。只有当调制项本身和
+输入相位锁定时，才会变成确定谐波：
+
+```text
+m[n] ~= sin(theta):
+  (1 + k*sin(theta)) * sin(theta)
+  -> sin(theta) + k*sin^2(theta)
+  -> fundamental + DC + HD2
+
+m[n] ~= |sin(theta)|:
+  sin(theta) * |sin(theta)|
+  -> strong odd harmonics such as HD3 / HD5
+```
+
+这也解释了为什么 `exp_g07` 的 Reference Error 会出现强 HD3：它的 reference kick 使用
+`abs(signal_ac)`，不是随机 AM noise。
+
+`exp_a03` 最重要的限制在第三幅图：AM 和 PM 的分解不是唯一物理归因。因为：
+
+```text
+sin^2(theta) + cos^2(theta) = 1
+```
+
+当 AM 和 PM 等强时：
+
+```text
+AM^2 * sin^2(theta) + PM^2 * cos^2(theta) = constant
+```
+
+在 RMS-vs-phase 上它看起来和 phase-independent base noise 很像。源码为了解秩亏，会把这种
+无法区分的平坦部分归入 `base_noise`。因此：
+
+```text
+AM + PM equal:
+  真实注入: AM = 50 uV, PM = 50 uV
+  工具报告: AM ~= 0, PM ~= 0, Base ~= 50 uV
+```
+
+这不是物理上 AM/PM 消失了，而是观测信息不足。这个工具能可靠回答的是：
+
+```text
+RMS error 是否随 phase 呈 AM-dominant 或 PM-dominant 形状？
+```
+
+不能单凭一张图严格区分：
+
+```text
+平坦 thermal noise
+vs
+等强 AM + PM noise
+```
+
+所以 `a03` 的正确定位是：
+
+```text
+phase-binned residual diagnostic;
+能展示 AM / PM / base noise 的相位敏感性；
+但不是唯一物理归因工具。
+```
+
+#### exp_a04：jitter recovery 和真实电路数据怎么用
+
+`exp_a04_jitter_calculation.py` 把上面的 PM 概念用于 jitter 反推。实验人为注入已知 jitter：
+
+```text
+Fs = 7 GHz
+N = 2^16
+Fin target = 1 GHz
+Fin actual ~= 1.0001 GHz
+A = 0.49
+DC = 0
+jitter sweep = 1 fs ~ 10 ps
+```
+
+理论关系是：
+
+```text
+phase_noise_rms = 2*pi*Fin*jitter_rms
+SNR_jitter = -20*log10(2*pi*Fin*jitter_rms)
+```
+
+实验做两条交叉验证：
+
+```text
+1. phase-domain:
+   analyze_error_by_phase -> PM noise -> jitter_calc
+
+2. frequency-domain:
+   analyze_spectrum -> measured SNR
+   与 theoretical jitter limit 对比
+```
+
+反推公式是：
+
+```text
+jitter_calc = pm_noise_rms_rad / (2*pi*Fin)
+```
+
+实测结果：
+
+```text
+Without thermal noise:
+  Corr = 1.0000
+  Avg Err = 0.33%
+
+With 50 uV thermal noise:
+  Corr = 1.0000
+  Avg Err = 17.12%
+```
+
+图上的 label 含义是：
+
+```text
+Set Jitter (fs):
+  人为注入的 ground-truth RMS jitter。
+
+Calculated jitter:
+  从 PM noise 反推的 jitter。
+
+Measured SNR:
+  频谱测得的 SNR。
+
+Theoretical SNR (Jitter Limit):
+  -20log10(2*pi*Fin*sigma_t)。
+
+Corr:
+  corr(set_jitter, calculated_jitter)，看趋势是否单调一致。
+
+Avg Err:
+  mean(abs(calculated - set) / set)，看反推 jitter 的平均相对误差。
+```
+
+无热噪声时，蓝点贴黑线、红点贴理论线，说明 PM 方法能准确恢复 jitter，SNR 也确实受
+jitter limit 控制。加入 `50 uV` thermal noise 后，小 jitter 区域出现平台：
+
+```text
+jitter 很小时，jitter error 已经小于 thermal noise；
+SNR 不再随 jitter 变小继续提升；
+calculated jitter 也会被 thermal noise floor 污染。
+```
+
+所以这张图的意义不是“画一条公式”，而是教一个工程判断：
+
+```text
+如果 calculated jitter 和 SNR_jitter 一致：
+  系统很可能 jitter-limited。
+
+如果 measured SNR 明显低于 jitter limit：
+  还有 thermal noise、quantization、distortion、reference noise 等更强限制。
+
+如果低 jitter 处出现平台：
+  系统已进入 noise-limited 区域，不再由 jitter 主导。
+```
+
+真实电路数据里不能像 demo 一样知道 `set jitter`。真实流程应改成：
+
+```text
+1. 用高纯单音输入采集 ADC 输出。
+2. 已知 Fs、Fin，最好 coherent 或接近 coherent。
+3. 做 sine fit，得到 residual。
+4. analyze_error_by_phase(data, norm_freq=Fin/Fs)。
+5. 从 PM noise 估计 equivalent jitter:
+     jitter_est = pm_noise_rms_rad / (2*pi*Fin)
+6. 用 jitter_est 预测 SNR_jitter。
+7. 与 analyze_spectrum(data)["snr_dbc"] 对比。
+```
+
+真实数据里不能说：
+
+```text
+这一定是 clock 的真实 RMS jitter。
+```
+
+更诚实的说法是：
+
+```text
+在这个 Fin、这个输入源、这个 ADC 输出条件下，
+数据表现出 equivalent jitter-like PM error。
+```
+
+它可能混合了：
+
+```text
+ADC aperture jitter；
+sampling clock phase noise；
+input source phase noise；
+trigger/timebase noise；
+front-end bandwidth / settling 引起的 PM-like error；
+sine fitting error。
+```
+
+因此真实归因最好做 `Fin sweep`：
+
+```text
+如果 SNR 随 Fin 按 -20log10(Fin) 恶化；
+并且 estimated jitter 大致稳定；
+那么 jitter 归因更可信。
+```
+
+单个频点只能给出线索，不能完成最终归因。
+
+#### exp_a24：残差包络谱的定义、推导和物理含义
+
+`exp_a24_analyze_error_envelope_spectrum.py` 不是直接看原始 waveform 的频谱，也不是直接看
+residual 的频谱。它多做了一步：先把 residual 变成 envelope，再看 envelope 的频谱。
+
+代码路径是：
+
+```text
+python/src/adctoolbox/examples/04_debug_analog/exp_a24_analyze_error_envelope_spectrum.py
+python/src/adctoolbox/aout/analyze_error_envelope_spectrum.py
+```
+
+核心流程：
+
+```python
+fit_result = fit_sine_4param(signal, frequency_estimate=frequency, ...)
+sig_ideal = fit_result["fitted_signal"]
+
+error_signal = signal - sig_ideal
+env = np.abs(hilbert(error_signal))
+
+analyze_spectrum(env, fs=fs, ...)
+```
+
+也就是：
+
+```text
+1. 先拟合并扣掉主单音。
+2. 得到 residual:
+     e[n] = signal[n] - fitted_sine[n]
+3. 用 Hilbert transform 构造 residual 的 analytic signal。
+4. 取模，得到 residual envelope。
+5. 对 envelope 做 spectrum。
+```
+
+先从数学定义说起。对实信号 `e(t)`，Hilbert transform 定义为：
+
+```text
+H{e}(t) = 1/pi * PV integral e(tau)/(t - tau) d tau
+```
+
+频域里更容易理解：
+
+```text
+F{H{e}}(omega) = -j * sgn(omega) * E(omega)
+```
+
+所以 Hilbert transform 的作用是：
+
+```text
+正频率相位 -90 deg
+负频率相位 +90 deg
+```
+
+然后构造 analytic signal：
+
+```text
+z(t) = e(t) + j H{e}(t)
+```
+
+它的频谱只保留正频率：
+
+```text
+Z(omega) = 2E(omega),  omega > 0
+Z(0)     = E(0)
+Z(omega) = 0,          omega < 0
+```
+
+包络定义为 analytic signal 的模：
+
+```text
+env(t) = |z(t)|
+       = sqrt(e(t)^2 + H{e}(t)^2)
+```
+
+这就是代码里的：
+
+```python
+env = np.abs(hilbert(e))
+```
+
+直觉上，Hilbert transform 给实信号补了一个正交分量：
+
+```text
+e(t)     -> x 轴
+H{e}(t) -> y 轴
+env(t)  -> sqrt(x^2 + y^2)，也就是半径
+```
+
+所以 envelope 不关心 residual 当下是正还是负，而关心：
+
+```text
+这一小段时间里，residual 振荡的局部幅度 / 强度有多大。
+```
+
+例如纯正弦 residual：
+
+```text
+e(t) = A cos(omega0*t + phi)
+H{e}(t) = A sin(omega0*t + phi)
+```
+
+于是：
+
+```text
+z(t) = A cos(...) + j A sin(...)
+     = A exp(j(omega0*t + phi))
+
+env(t) = A
+```
+
+这说明：即使某个瞬间 `e(t)=0`，包络仍然可以是 `A`。因为 residual 只是刚好过零，
+并不代表这段误差振荡不存在。实时 residual 和 envelope 的区别是：
+
+```text
+e(t):
+  此刻误差是多少，正负方向是什么。
+
+env(t):
+  这一局部振荡有多强，幅度是多少。
+```
+
+对 AM 型窄带信号：
+
+```text
+e(t) = a(t) cos(omega0*t)
+```
+
+如果 `a(t)` 是低频慢变化项，`cos(omega0*t)` 是高频载波，并且两者频谱基本不重叠
+（Bedrosian 条件），则：
+
+```text
+H{a(t) cos(omega0*t)} = a(t) sin(omega0*t)
+```
+
+所以：
+
+```text
+z(t) = a(t) cos(omega0*t) + j a(t) sin(omega0*t)
+     = a(t) exp(j*omega0*t)
+
+env(t) = |a(t)|
+```
+
+这就是 envelope 分析的严格基础：它把高频振荡去掉，留下幅度调制 `a(t)`。
+
+不过 `exp_a24` 有一个重要边界：它取的是 **residual envelope**，不是原始 signal envelope。
+例如 AM tone 的原始模型是：
+
+```text
+y(t) = A [1 + m sin(omega_m*t)] sin(omega_c*t)
+```
+
+展开后：
+
+```text
+y(t) = A sin(omega_c*t)
+     + sidebands at (omega_c - omega_m) and (omega_c + omega_m)
+```
+
+`fit_sine_4param` 会把主载波 `A sin(omega_c*t)` 吸收掉，residual 里主要剩两个边带。
+理想情况下：
+
+```text
+e(t) proportional to cos((omega_c - omega_m)t) - cos((omega_c + omega_m)t)
+     = 2 sin(omega_c*t) sin(omega_m*t)
+```
+
+此时 residual envelope 近似是：
+
+```text
+env(t) proportional to |sin(omega_m*t)|
+```
+
+所以 residual envelope spectrum 看到的低频峰，反映的是 residual 强度的调制或拍频。
+它不一定逐点等于原始 AM 的调制频率；在理想对称边带情况下，`|sin(omega_m*t)|`
+会包含 DC 和 `2fm` 成分。若有 carrier leakage、边带不完全对称、噪声或窗口效应，
+也可能看到 `fm` 或其他低频结构。
+
+多频 residual 也会产生类似现象。若：
+
+```text
+e(t) = A1 cos(omega1*t) + A2 cos(omega2*t)
+```
+
+analytic signal 近似为：
+
+```text
+z(t) = A1 exp(j*omega1*t) + A2 exp(j*omega2*t)
+```
+
+于是：
+
+```text
+|z(t)|^2
+= A1^2 + A2^2 + 2A1A2 cos((omega1 - omega2)t)
+```
+
+所以 envelope spectrum 可能出现差频 `|omega1 - omega2|`。这解释了为什么 envelope
+spectrum 里的峰不一定等同于 residual spectrum 里的原始 spur 位置，它可能是多个 residual
+频率之间的 beating。
+
+这里要特别区分两个“取模”。普通 error spectrum 也会取模，但取模位置不同：
+
+```text
+error spectrum:
+  E(f) = FFT{e(t)}
+  plot |E(f)|
+
+envelope spectrum:
+  z(t) = e(t) + jH{e(t)}
+  env(t) = |z(t)|
+  plot |FFT{env(t)}|
+```
+
+也就是：
+
+```text
+error spectrum    = 先 FFT，再看每个频率系数的模。
+envelope spectrum = 先在时域取 analytic magnitude，再对这条强度轨迹做 FFT。
+```
+
+两者不等价，因为 `abs()` 是非线性的：
+
+```text
+|FFT(e)| != FFT(|e + jH(e)|)
+```
+
+普通频谱回答：
+
+```text
+residual 里有哪些振荡频率？
+```
+
+包络频谱回答：
+
+```text
+residual 的局部强度轨迹里有哪些周期成分？
+```
+
+换句话说，真正能看“什么时候变强/变弱”的是 `env(t)` 的时域波形；`exp_a24` 画的是
+`env(t)` 的频谱，所以它看的是：
+
+```text
+强弱变化是否按某个频率重复；
+强弱变化是否更像低频状态、调制、burst，还是随机起伏。
+```
+
+包络谱里的峰也不一定对应 residual 原本的 spur 频率。因为：
+
+```text
+env(t)^2 = |z(t)|^2 = z(t) z*(t)
+```
+
+频域中乘法对应卷积 / 相关，直觉上 envelope frequency `nu` 来自 residual 频谱中
+相隔 `nu` 的两部分成分之间的 beat：
+
+```text
+F{|z(t)|^2}(nu) = integral Z(f + nu) Z*(f) df
+```
+
+所以 envelope spectrum 更像“频率成分之间的差频 / 强度调制频谱”，不是 residual
+频谱的复制。
+
+物理上可以这样理解：
+
+```text
+error spectrum:
+  看 residual 本身在哪里振荡。
+
+env(t):
+  看 residual 局部振荡强度随时间怎么变。
+
+envelope spectrum:
+  看这条强度变化轨迹里有哪些重复频率。
+```
+
+因此 envelope spectrum 特别适合检查：
+
+```text
+AM / amplitude modulation；
+burst-like error；
+glitch activity；
+reference recovery / droop；
+settling 或 memory 造成的误差强弱变化；
+drift 或低频状态调制。
+```
+
+结合 `exp_a24` 的 15 个 panel，可以按下面方式读：
+
+```text
+Thermal Noise:
+  包络谱是随机强度起伏，没有稳定调制峰。
+  高频端下降主要来自 envelope 运算的统计形状，不是电路高频噪声真的被滤掉。
+
+Quantization Noise:
+  比 thermal 更有结构，因为量化误差和输入相位 / code 有弱相关。
+  但它仍不是干净 AM 调制。
+
+Jitter Noise:
+  一阶近似 e ~= dx/dt * dt。
+  dx/dt 随正弦相位变化，所以误差强度随相位变化，包络谱会出现相位相关结构。
+
+AM Noise:
+  乘性随机 envelope 直接调制信号幅度。
+  因为 envelope 是随机的，所以包络谱偏宽带，而不是单一窄峰。
+
+Static HD2:
+  residual 主要是 HD2 tone。
+  纯 tone 的 envelope 应接近常数；图里的结构主要来自 HD2 与噪声 / 小残差成分之间的 beat。
+
+Static HD3:
+  residual 主要是 HD3 tone。
+  与 HD2 类似，包络谱结构更多是主 tone 和其他小成分之间的差频，而不是新的电路频率。
+
+Memory Effect:
+  上一拍 MSB / code 状态泄漏会产生 code-pattern spur。
+  包络谱中的多个峰表示 residual 强度随码型和周期状态变化。
+
+Incomplete Settling:
+  settling error 依赖上一状态和输入变化率。
+  包络谱有结构，说明误差强度受输入周期和历史状态调制。
+
+RA Gain Error:
+  分段 / code-dependent gain error。
+  包络谱较宽，说明误差强度随 code 区间变化，但不是单一 AM tone。
+
+RA Dynamic Gain:
+  gain 依赖历史状态平方，动态非线性更强。
+  包络谱会混合 HD2/HD3、状态记忆和差频结构。
+
+AM Tone:
+  最适合用 envelope spectrum 看。
+  error spectrum 看到 fin +/- fm 边带；envelope spectrum 把边带关系转成低频强度调制。
+
+Clipping:
+  clipping 只在波峰 / 波谷附近发生。
+  residual envelope 像周期性脉冲串，所以包络谱出现梳状结构。
+
+Drift:
+  drift 是慢变低频状态，包络意义偏弱。
+  更推荐结合 error time trace、ACF 和 low-frequency error spectrum。
+
+Reference Error:
+  droop 由 |signal| 和 IIR recovery 决定。
+  包络谱中的多个峰表示误差强度同时受输入幅度和 reference memory 调制。
+
+Glitch:
+  稀疏脉冲经过 Hilbert envelope 后会变成长尾强度脉冲。
+  频谱宽带且可能出现 notch；这个 notch 很大程度是 envelope 算子的形状，
+  不应解释成真实电路有某个中频抑制点。
+```
+
+为什么很多 panel 在高频端都会下降？因为 envelope frequency 来自差频。若 residual 的正频
+谱只在：
+
+```text
+0 <= f <= Fs/2
+```
+
+那么要产生 envelope frequency `nu`，需要存在一对频率：
+
+```text
+f 和 f + nu
+```
+
+它们都落在 `[0, Fs/2]` 中。`nu` 越大，能配对的频率范围越窄，所以高频 envelope
+成分天然更少。这个下滑是 envelope 分析的数学结果，不应直接解释成 ADC 误差本身高频被滤掉。
+
+Glitch 图里的中高频凹点也要谨慎。对单个 impulse：
+
+```text
+e[n] = delta[n]
+z[n] = delta[n] + jH{delta[n]}
+env[n] = |z[n]|
+```
+
+`env[n]` 不再是一个点，而是带长尾的固定包络脉冲。多个随机 glitch 可以粗略看成这些包络脉冲
+在随机位置的叠加。因此 Glitch 包络谱中的凹点更多是这个包络脉冲形状的频响，而不是某个
+真实电路机制的频率选择性。
+
+但它也有解释边界：
+
+```text
+1. envelope 会丢掉 residual 的正负号。
+2. envelope 最严格的物理解释适用于窄带 AM 型信号。
+3. envelope spectrum 不是直接看“何时”，而是看强度轨迹的频率成分。
+4. 对多谐波、宽带噪声、glitch、reference memory 混合误差，
+   envelope 仍是有用的瞬时强度指标，
+   但不能把每个 envelope spectrum peak 都机械解释成真实电路里的调制频率。
+```
+
+所以 `exp_a24` 的定位是：
+
+```text
+不是替代 error spectrum；
+而是补充回答：
+  residual 的强度是否被某个低频或状态变量调制？
+```
+
 ### `05_debug_digital/`：digital code 与 SAR 校准
 
 ```text
@@ -3218,6 +3889,143 @@ exp_d18_sar_redundant_mismatch_training_length_sweep
   看点：样本数不足时，权重估计和动态性能会不稳定。
 ```
 
+#### `exp_d18` 补充：为什么 training ENOB 偏乐观，test ENOB 偏保守
+
+这个实验很容易误读。两张图不是两套权重：
+
+```text
+第一张图：
+  用 training capture 拟合 calibrated_weights，
+  再把同一组 calibrated_weights 用回 training capture。
+
+第二张图：
+  仍然使用同一组 calibrated_weights，
+  但换到独立 test capture 上评估。
+```
+
+所以第一张图是 in-sample performance，第二张图才更接近泛化验证。
+
+从数学上看，sine-weight calibration 本质上是最小二乘投影。简化写成：
+
+```text
+y_tr ≈ A_tr θ
+
+θ_hat = argmin_θ ||A_tr θ - y_tr||^2
+```
+
+其中：
+
+```text
+A_tr:
+  training capture 上的设计矩阵。
+  它包含 bit matrix，也可能包含 DC / sine / harmonic nuisance columns。
+
+θ:
+  待估参数，包括 bit weights 和 nuisance coefficients。
+
+y_tr:
+  被固定到右侧的 sine basis / calibration target。
+```
+
+令：
+
+```text
+P_tr = A_tr (A_tr^T A_tr)^(-1) A_tr^T
+```
+
+这是把 `y_tr` 投影到 `A_tr` 列空间的投影矩阵。训练残差为：
+
+```text
+r_tr = y_tr - A_tr θ_hat
+     = (I - P_tr) y_tr
+```
+
+因为 `θ_hat` 就是专门让 training residual 最小的解，所以对任何固定的真实权重
+`θ_true` 都有：
+
+```text
+||y_tr - A_tr θ_hat||^2 <= ||y_tr - A_tr θ_true||^2
+```
+
+这不是 ADC 真的变得比物理极限更好，而是训练数据上的误差被最小二乘“用掉”了一部分。
+它不仅吸收真实 CDAC mismatch，也会吸收这条 training capture 里偶然出现的量化残差、
+频点相关 spur、相位相关误差和有限长度谱分析误差。
+
+测试集没有这个保证。测试残差是：
+
+```text
+r_te = y_te - A_te θ_hat
+```
+
+但 `θ_hat` 不是为了最小化 `||y_te - A_te θ||^2` 求出来的，所以不存在：
+
+```text
+||r_te(θ_hat)||^2 <= ||r_te(θ_true)||^2
+```
+
+这个不等式。用统计语言写，如果：
+
+```text
+y = A θ_true + ε
+```
+
+其中 `ε` 代表量化误差、未建模 spur、数值误差和模型边界，那么经典最小二乘有一个
+自由度导致的乐观偏差：
+
+```text
+E[training MSE] ≈ (1 - p/N) σ^2
+E[test MSE]     ≈ (1 + p/N) σ^2
+```
+
+这里 `p` 是拟合自由度数量，`N` 是样本数。`N` 小时，`p/N` 大，训练图会明显偏乐观；
+`N` 变大后，gap 会收敛到很小。
+
+ENOB 又是从误差功率反推：
+
+```text
+SNDR = 10 log10(P_signal / P_error)
+ENOB = (SNDR - 1.76) / 6.02
+```
+
+所以只要 training residual power 被投影压低：
+
+```text
+P_error,train < P_error,true_baseline
+```
+
+training ENOB 就可能略高于名义 16 bit。这不表示这颗 16-bit SAR 真的获得了超过 16 bit
+的物理分辨率，而是 training capture 上的 residual 被低估了。
+
+test ENOB 略低于 16 bit 也不奇怪。`16 bit` 是理想均匀量化公式给出的名义参考线，
+不是某个固定 coherent capture 的严格数学真值。有限样本、固定 input bin、固定相位、
+`quick_sndr` 的谐波/噪声归类方式，都会让 actual-weight oracle 的结果略高或略低于
+16 bit。这个实验里 test capture 的 actual-weight baseline 本身就略低于 16 bit，
+所以 test 曲线略低不是单独由校准失败造成的。
+
+因此这个实验应该这样读：
+
+```text
+training > test:
+  是最小二乘投影的正常结果，不是巧合。
+
+training ENOB > 16:
+  多半是 in-sample optimism，不代表物理分辨率超过 16 bit。
+
+test ENOB < 16:
+  包含有限长度谱分析和 test capture baseline 的影响，不等于校准必然失败。
+
+training length 增大后 gap 缩小:
+  符合 p/N 型自由度偏差的数学预期。
+```
+
+所以 `exp_d18` 的核心不是证明“校准一定能超过 16 bit”，而是提醒：
+
+```text
+校准权重必须用独立 capture 验证；
+training capture 上的漂亮 ENOB 只能说明拟合目标下降；
+test capture 和 actual-weight oracle 才能判断权重是否真的泛化。
+```
+
 ### `06_use_toolsets/`：dashboard workflow
 
 ```text
@@ -3240,6 +4048,270 @@ exp_t04_dout_dashboard_batch
 
 这组更像 workflow，不是新理论。whole-workflow 和前面 stages 已经展示过核心图形，
 这里重点是“如何批量化”。
+
+#### `exp_t01` / `exp_t02`：AOUT dashboard
+
+`exp_t01_aout_dashboard_single.py` 生成一条 analog waveform，然后把它送进同一个
+`generate_aout_dashboard`：
+
+```text
+Fs = 800 MHz
+N = 2^16
+Fin ~= 10 MHz
+A = 0.49 Vpeak
+DC = 0.5 V
+resolution = 12 bit
+nonideality = thermal noise only, 50 uVrms
+```
+
+所以 `t01` 的定位是：
+
+```text
+single analog capture -> one dashboard
+```
+
+它主要验证 dashboard 的单条 capture workflow：频谱、polar spectrum、value/phase residual、
+decomposition、error PDF、ACF、error spectrum、envelope spectrum、phase plane、
+error phase plane 是否能被打包在一张图里。
+
+`exp_t02_aout_dashboard_batch.py` 则复用 Stage 04 的 `nonideality_cases.py`，对 15 类 analog
+非理想性循环生成 dashboard：
+
+```text
+Thermal Noise
+Quantization Noise
+Jitter Noise
+AM Noise
+Static HD2 / HD3
+Memory Effect
+Incomplete Settling
+RA Gain Error / RA Dynamic Gain
+AM Tone
+Clipping
+Drift
+Reference Error
+Glitch
+```
+
+所以 `t02` 的定位是：
+
+```text
+many analog captures -> one dashboard per case
+```
+
+它和 `t01` 的输出图形模板相同，区别不是“图的类型”，而是：
+
+```text
+t01:
+  单个 thermal-noise case，用来演示 single dashboard。
+
+t02:
+  多个 nonideality cases，用来演示 batch report。
+```
+
+这两个 example 曾经有一个 API wiring 问题：脚本说明写的是 12-tool / 3x4 dashboard，
+但 public `toolset.generate_aout_dashboard` 实际导向旧的 8-tool / 2x4 版本。修正后的合理结构是：
+
+```text
+generate_aout_dashboard:
+  默认 12-tool / 3x4。
+
+generate_aout_dashboard_2x4:
+  显式保留旧的 8-tool 版本。
+
+generate_aout_dashboard_3x4:
+  显式 12-tool 版本。
+```
+
+这样 `t01` / `t02` 的脚本说明、public API 和实际输出保持一致。
+
+#### `exp_t03` / `exp_t04`：DOUT dashboard
+
+`exp_t03_dout_dashboard_single.py` 生成一条 ideal quantized sine，再拆成 bit matrix：
+
+```text
+Fs = 1 GHz
+N = 2^13
+Fin ~= 299.93 MHz
+A = 0.49
+DC = 0.5
+resolution = 12 bit
+```
+
+代码路径是：
+
+```python
+signal = A * sin(2*pi*Fin*t) + DC
+quantized_signal = floor(signal * 2**resolution)
+bits = binary bits of quantized_signal, MSB to LSB
+```
+
+然后调用：
+
+```python
+generate_dout_dashboard(
+    bits=bits,
+    freq=Fin/Fs,   # normalized frequency, for calibration
+    fs=Fs,         # real sampling rate, for spectrum axis
+)
+```
+
+这里要区分两个频率参数：
+
+```text
+freq:
+  normalized Fin/Fs。
+  用于 calibrate_weight_sine / ENOB sweep 等校准工具。
+
+fs:
+  真实采样率。
+  用于 spectrum panel 的横轴和 Fin/fs 标注。
+```
+
+如果只传 `freq` 而不传 `fs`，频谱图会显示 normalized 轴：
+
+```text
+Fin/fs = 0.300 / 1.0 Hz
+```
+
+这对数学归一化没错，但对 dashboard 报告不友好。更完整的 API 应该让 `DOUT dashboard`
+同时知道：
+
+```text
+校准用的 normalized frequency；
+画频谱用的真实 sampling frequency。
+```
+
+`exp_t04_dout_dashboard_batch.py` 则批量生成 7 类 digital bits：
+
+```text
+Ideal Binary 8-bit
+Ideal Binary 10-bit
+Ideal Binary 12-bit
+Binary 12-bit + Thermal Noise (50 uV)
+Binary 12-bit + Thermal Noise (200 uV)
+Binary 12-bit + LSB Random
+SAR 12-bit + Thermal Noise
+```
+
+它和 `t03` 的关系类似于 `t02` 和 `t01`：
+
+```text
+t03:
+  single DOUT dashboard。
+
+t04:
+  batch DOUT dashboard。
+```
+
+##### Binary case 的意义
+
+`Binary` 和 `SAR` 在这里不是“码字格式”的区别，而是**数据生成模型**的区别。
+
+`Binary` case 直接把模拟正弦送进理想量化器，再把整数 code 展开成二进制 bits：
+
+```text
+analog value -> ideal quantizer -> integer code -> binary bits
+```
+
+代码上近似是：
+
+```python
+signal = A * sin(...) + DC
+quantized = floor(signal * 2**N)
+bits = binary_repr(quantized)
+```
+
+它没有模拟 SAR 的逐次逼近过程，没有 residue，也没有逐位 trial。它的意义是提供最干净的
+digital-code baseline：
+
+```text
+如果 ADC 输出只是理想 N-bit binary code，
+DOUT dashboard 应该长什么样？
+```
+
+理想 `Binary 12-bit` 的典型结果是：
+
+```text
+ENOB ~= 12 bit
+bit activity ~= 50%
+ENOB sweep 每多一位约增加 1 bit
+weight radix ~= 2
+```
+
+这是一种 sanity check。如果这个 case 都不正常，通常说明 dashboard、bit order、频率标尺或分析设置有问题。
+
+`Binary + LSB Random` 则展示一个更微妙的情况：
+
+```text
+LSB activity 仍接近 50%，
+但 LSB 携带的是随机信息。
+```
+
+所以仅看 bit activity 会以为 LSB 正常，但：
+
+```text
+校准会把 LSB weight 压小；
+effective resolution 会接近 11 bit；
+ENOB sweep 最后一位几乎不再贡献。
+```
+
+这说明：
+
+```text
+bit 翻转 ≠ bit 有效。
+```
+
+##### SAR case 的意义
+
+`SAR` case 模拟逐位比较和 residue 更新：
+
+```text
+analog input -> MSB trial -> residue -> next bit trial -> ... -> final SAR bits
+```
+
+代码结构近似是：
+
+```python
+residue = signal
+for j in bits:
+    bit[j] = residue > 0
+    residue -= +/- voltage_step[j]
+```
+
+所以 SAR bits 不只是某个整数 code 的二进制展开，而是逐位 comparator decision path。
+这让它可以表达 Binary direct-quantizer 表达不了的东西：
+
+```text
+CDAC weight mismatch
+comparator noise
+settling error
+reference droop
+redundancy
+MSB decision error
+bit decision path dependence
+```
+
+本次 `SAR 12-bit + Thermal Noise` 仍是简化模型：
+
+```text
+binary ideal weights
+no CDAC mismatch
+no redundancy
+no reference settling
+only input thermal noise
+```
+
+所以它的权重 radix 仍接近 2，effective resolution 仍接近 12 bit；
+但动态性能被噪声限制，ENOB 约低于理想 12-bit。这个 case 的作用是证明：
+
+```text
+DOUT dashboard 不只适合普通 binary code stream，
+也可以吃 SAR bit decision matrix。
+```
+
+不过不要把这个简化 SAR case 当成完整 SAR 电路模型。真正的 SAR mismatch / redundancy / calibration
+还要回到 Stage 04、Stage 05、Stage 06 的专门实验。
 
 ### `07_conversions/`：单位、指标、datasheet 语言
 
@@ -3265,6 +4337,398 @@ exp_c05_convert_nsd_snr
   看点：NSD 是每 Hz 噪声密度，SNR 是带内总功率比。
 ```
 
+#### `exp_c01`：aliasing / Nyquist zones
+
+`exp_c01_aliasing_nyquist_zones.py` 是 aliasing 教学图，不是 ADC 性能诊断实验。
+它固定：
+
+```text
+Fs = 1100 MHz
+Nyquist = Fs/2 = 550 MHz
+Fin_target = 123 MHz
+Nyquist zones = 6
+```
+
+数学上，任意输入频率 `fin` 采样后都会折叠到 `[0, Fs/2]`：
+
+```text
+f_alias = abs(((fin + Fs/2) mod Fs) - Fs/2)
+```
+
+所以这些真实输入频率：
+
+```text
+123 MHz
+977 MHz   = Fs - 123 MHz
+1223 MHz  = Fs + 123 MHz
+2077 MHz  = 2Fs - 123 MHz
+2323 MHz  = 2Fs + 123 MHz
+3177 MHz  = 3Fs - 123 MHz
+```
+
+都会在数字频谱里出现在：
+
+```text
+123 MHz
+```
+
+图里的蓝线是 Nyquist zone 折叠锯齿：
+
+```text
+Zone 1:
+  0 -> Fs/2，正向上升。
+
+Zone 2:
+  Fs/2 -> Fs，镜像下降。
+
+Zone 3:
+  Fs -> 3Fs/2，再次正向上升。
+```
+
+所以它提醒的是：
+
+```text
+数字频谱里的一个 123 MHz spur，
+不一定来自真实 123 MHz 输入，
+也可能来自更高 Nyquist zone 的 alias。
+```
+
+这个知识会影响后面很多判断：
+
+```text
+harmonic folding；
+spur location 判断；
+debug subsampling；
+TI-ADC spur 折叠；
+带外干扰 alias 到带内。
+```
+
+#### `exp_c02`：单位换算不是杂项
+
+`exp_c02_unit_conversions.py` 是 console example，不生成图。它用“正向换算再反向换算”的方式
+检查常见 ADC 单位 API：
+
+```text
+dB <-> magnitude
+dB <-> power ratio
+dBm <-> Vrms
+dBm <-> mW
+sine amplitude -> power
+volts <-> LSB
+frequency <-> FFT bin
+SNDR <-> ENOB
+SNDR <-> NSD
+```
+
+这些换算的意义是防止后面指标解释整体跑偏。几个核心公式：
+
+```text
+amplitude ratio:
+  dB = 20 log10(A)
+
+power ratio:
+  dB = 10 log10(P)
+
+dBm:
+  0 dBm = 1 mW
+  P = Vrms^2 / R
+
+ADC LSB:
+  LSB_voltage = VFS / 2^N
+
+FFT bin:
+  f_bin = k * Fs / N
+
+ENOB:
+  ENOB = (SNDR - 1.76) / 6.02
+```
+
+本例输出的典型数值：
+
+```text
+12-bit, VFS = 1 V:
+  1 LSB = 244.1 uV
+
+ENOB = 12:
+  SNDR = 74.00 dB
+
+ENOB = 16:
+  SNDR = 98.08 dB
+
+Fs = 800 MHz, OSR = 1:
+  SNDR = 80 dB -> NSD = -166.02 dBFS/Hz
+```
+
+最容易混的几组是：
+
+```text
+20log vs 10log；
+dBFS vs dBc vs dBm；
+peak vs rms；
+voltage LSB vs code LSB；
+SNDR/ENOB vs NSD。
+```
+
+#### `exp_c03`：FOM 和 ADC 物理限制
+
+FOM 是 **Figure of Merit**，可以理解成 ADC 的综合性能指标。它不是新的物理机制，
+而是把功耗、速度、分辨率、带宽和动态性能压缩成一个便于比较的数。
+
+ADC 不能只看 ENOB：
+
+```text
+12-bit, 1 MS/s, 1 mW
+12-bit, 1 GS/s, 1 mW
+12-bit, 1 GS/s, 100 mW
+```
+
+这三个系统的“位数”可能类似，但速度和功耗完全不是一回事。FOM 要回答的是：
+
+```text
+在给定功耗下，这个 ADC 同时做到多快、多准？
+```
+
+或者反过来：
+
+```text
+为了达到某个速度和精度，它花了多少功耗？
+```
+
+`exp_c03_calculate_fom.py` 有四幅图：
+
+```text
+1. Walden FOM:
+   功耗、采样率、ENOB 的能效关系。
+
+2. Schreier FOM:
+   功耗、信号带宽、SNDR 的综合关系。
+
+3. Jitter-limited SNR:
+   输入频率和采样时钟抖动给 SNR 设上限。
+
+4. kT/C thermal-noise-limited SNR:
+   采样电容和 full-scale 给热噪声底设上限。
+```
+
+##### 1. Walden FOM：固定功耗下速度和精度的 trade-off
+
+Walden FOM 定义为：
+
+```text
+FOM_W = Power / (2^ENOB * Fs)
+```
+
+单位常写成：
+
+```text
+fJ / conv-step
+```
+
+其中：
+
+```text
+2^ENOB:
+  有效量化等级数。
+
+2^ENOB * Fs:
+  每秒完成多少个有效转换步。
+
+Power / (2^ENOB * Fs):
+  每个有效转换步消耗多少能量。
+```
+
+所以：
+
+```text
+Walden FOM 越小越好。
+```
+
+第一幅图固定：
+
+```text
+Power = 10 mW
+```
+
+然后画不同 Walden FOM 下，采样率和 ENOB 的关系。由公式反推：
+
+```text
+ENOB = log2(Power / (FOM_W * Fs))
+```
+
+如果 `Power` 和 `FOM_W` 都固定，则：
+
+```text
+2^ENOB * Fs = constant
+```
+
+所以：
+
+```text
+Fs 提高 2 倍，ENOB 大约下降 1 bit；
+ENOB 提高 1 bit，Fs 大约要减半。
+```
+
+这正是第一幅图的意义：
+
+```text
+固定功耗和固定技术能效下，
+ADC 的有效分辨率 ENOB 与采样速度 Fs 需要权衡。
+```
+
+图上的不同曲线代表不同技术效率：
+
+```text
+10 fJ/step:
+  效率最好，同一 Fs 下可支撑最高 ENOB。
+
+100 fJ/step:
+  中等。
+
+1000 fJ/step:
+  效率较差，同一功耗下速度/精度取舍更痛苦。
+```
+
+它不是说某颗 ADC 的 ENOB 会自动沿曲线变化，而是设计预算图：
+
+```text
+如果目标是 12-bit、1 GS/s、10 mW，
+需要多好的 Walden FOM？
+
+如果技术只能做到 100 fJ/step，
+10 mW 下能达到什么 ENOB/Fs 组合？
+```
+
+##### 2. Schreier FOM：带宽、SNDR、功耗的综合比较
+
+Schreier FOM 定义为：
+
+```text
+FOM_S = SNDR + 10 log10(BW / Power)
+```
+
+单位是 dB，且：
+
+```text
+Schreier FOM 越大越好。
+```
+
+第二幅图固定：
+
+```text
+Power = 10 mW
+```
+
+由公式反推：
+
+```text
+SNDR = FOM_S - 10 log10(BW / Power)
+```
+
+所以：
+
+```text
+带宽 BW 越大，同样功耗下可达到的 SNDR 越低；
+FOM_S 越高，同一带宽下可达到的 SNDR 越高。
+```
+
+图上的灰色横线是：
+
+```text
+SNDR = 6.02 * ENOB + 1.76
+```
+
+所以右上图可以用来读：
+
+```text
+某个 ADC 的 Schreier FOM 能在多大带宽下支撑多少 bit 动态性能。
+```
+
+##### 3. Jitter-limited SNR：高输入频率会放大采样时间误差
+
+采样时钟有 RMS jitter `tj` 时，采样时刻误差 `dt` 会转成电压误差：
+
+```text
+error ~= dx/dt * dt
+```
+
+对正弦：
+
+```text
+x(t) = A sin(2*pi*Fin*t)
+dx/dt = 2*pi*Fin*A*cos(2*pi*Fin*t)
+```
+
+因此：
+
+```text
+Fin 越高，同样 tj 造成的电压误差越大。
+```
+
+经典上限是：
+
+```text
+SNR_jitter = -20 log10(2*pi*Fin*tj)
+```
+
+第三幅图横轴是输入频率，纵轴是 jitter 限制下的最大 SNR。规律是：
+
+```text
+输入频率越高，SNR 越低；
+jitter 越大，SNR 越低。
+```
+
+这张图告诉你：
+
+```text
+高频 ADC 不能只看量化位数，
+clock/aperture jitter 可能先把 SNR 卡死。
+```
+
+##### 4. kT/C limit：采样电容和满量程决定热噪声底
+
+采样电容上的热噪声近似：
+
+```text
+v_n,rms^2 = kT / C
+```
+
+所以：
+
+```text
+C 越大，kT/C 噪声越小；
+VFS 越大，同样噪声下 signal power 越大。
+```
+
+第四幅图横轴是采样电容，纵轴是热噪声限制下的最大 SNR。规律是：
+
+```text
+采样电容越大，SNR 越高；
+full-scale 越大，SNR 越高。
+```
+
+例如本例 console 给出：
+
+```text
+1 pF, 1 V full-scale:
+  Max SNR = 74.8 dB
+  ENOB = 12.13 bit
+```
+
+所以这张图是采样前端的硬约束图：
+
+```text
+如果电容太小，kT/C 噪声会先限制 ENOB；
+如果想提高 ENOB，需要更大 C、更大 VFS，或更低噪声设计；
+但更大 C 又会增加驱动功耗和速度压力。
+```
+
+四幅图合起来的结论是：
+
+```text
+FOM 是“怎么比较 ADC”；
+jitter 和 kT/C 是“为什么 ADC 做不到无限好”。
+```
+
 ### `08_time_interleave/`：TI-ADC mismatch
 
 ```text
@@ -3277,6 +4741,516 @@ exp_ti02_autocorr_background_skew_calibration
   看点：盲搜索 skew trim code，主要校准 timing，不等价于 offset/gain 全校准。
 ```
 
+#### `exp_ti01`：foreground TI 校准，FFT delay 与 Farrow delay
+
+`exp_ti01_compare_skew_methods.py` 的输入不是随机噪声诊断，而是一个 4 通道
+time-interleaved ADC 的确定性失配实验。数据模型可以写成：
+
+```text
+x[n] = gain_m * s(nT + skew_m) + offset_m
+m    = n mod M
+```
+
+本次实验参数是：
+
+```text
+Fs = 1 GHz
+M  = 4 channels
+Fin ~= 17.029 MHz
+N  = 2^14
+A  = 0.5
+
+注入失配:
+  gain spread  ~= 3.96 %
+  offset spread ~= 10.39 mV
+  skew spread  ~= 5.20 ps
+```
+
+TI-ADC 的 offset/gain/skew 不是普通白噪声。它们是随通道编号周期性重复的确定性误差：
+
+```text
+offset mismatch:
+  每 M 个样本重复一次，产生 k*Fs/M 位置的 spur。
+
+gain mismatch:
+  对输入正弦做周期性幅度调制，产生 Fin ± k*Fs/M 边带。
+
+skew mismatch:
+  每个通道采样时刻不同，等效为周期性相位/时间调制，也产生 Fin ± k*Fs/M 边带。
+```
+
+所以 TI 校准的目标不是“降低随机噪声”，而是估计并抵消这些 deterministic
+periodic errors。`exp_ti01` 用的是 foreground 方法：给一段已知单音输入，
+先从输出反推出每个通道的 offset/gain/skew，再逐通道补偿。
+
+##### mismatch 是怎么提取的
+
+核心流程可以理解成：
+
+```text
+1. deinterleave:
+   把交织输出拆成 M 个子序列，每个子序列对应一个 ADC channel。
+
+2. offset:
+   每个通道的均值就是该通道 DC offset 的估计。
+
+3. gain:
+   对每个通道，在已知 Fin 处取 DFT 相量。
+   相量幅度的相对差异就是通道 gain mismatch。
+
+4. skew:
+   同一个输入单音下，时间偏移会表现成相位偏移。
+   phase_error_m ~= 2*pi*Fin*skew_m
+   因此 skew_m ~= phase_error_m / (2*pi*Fin)
+```
+
+也就是说，TI foreground 校准不是“凭频谱形状猜原因”，而是利用已知单音把每个通道的
+fundamental phasor 拿出来。幅度给 gain，均值给 offset，相位残差给 skew。
+
+本次实验提取到的典型结果是：
+
+```text
+gain   ~= [1.0013, 0.9745, 1.0102, 1.0140]
+offset ~= [-9.76, -6.51, 0.64, -1.58] mV
+skew   ~= [-0.64, -3.15, 2.05, 1.74] ps
+```
+
+##### 两种 skew 补偿：FFT 与 Farrow
+
+skew 是时间误差。对连续信号来说，把信号延迟 `tau` 等价于在频域乘一个线性相位：
+
+```text
+x(t - tau)       <->  X(f) * exp(-j*2*pi*f*tau)
+```
+
+所以“校准相位”更准确地说是“实现一个分数时间延迟”。它不是只给基波乘一个固定相位，
+因为真实 ADC 输出通常是宽带信号。宽带时间延迟要求不同频率乘不同相位：
+
+```text
+low frequency  -> 小相位旋转
+high frequency -> 大相位旋转
+phase(f) = -2*pi*f*tau
+```
+
+`skew_method='fft'` 的做法是：
+
+```text
+FFT 到频域
+每个频率 bin 乘 exp(-j*2*pi*f*tau)
+IFFT 回时域
+```
+
+这在数值上很接近理想 fractional delay，所以本例里 FFT 校准后的 SNDR/SFDR 可以高到
+接近数值精度极限：
+
+```text
+uncalibrated:
+  SNDR ~= 34.3 dB
+  SFDR ~= 38.8 dB
+  ENOB ~= 5.41 bit
+
+FFT calibrated:
+  SNDR ~= 200 dB
+  SFDR ~= 274 dB
+  ENOB ~= 32.93 bit
+```
+
+这里的 200 dB 不是说真实硬件能做到 200 dB，而是教学仿真里没有真实热噪声、时钟噪声、
+非线性和有限精度限制；FFT fractional delay 基本把注入的确定性 skew 精确消掉了。
+
+`skew_method='farrow'` 的做法是：
+
+```text
+在时域用有限阶插值滤波器近似 fractional delay
+y[n] = sum_k h_k(mu) * x[n-k]
+```
+
+其中 `mu` 是小数采样间隔的延迟量。Farrow 结构的意义是：不用每个 delay code 都重做一套
+滤波器系数，而是用多项式系数随 `mu` 连续变化，适合做硬件里的 streaming fractional
+delay filter。
+
+本例里 Farrow 也能大幅改善 TI spur，但因为它是有限阶近似，不是完美频域相位旋转，
+所以指标略低于 FFT：
+
+```text
+Farrow calibrated:
+  SNDR ~= 188.1 dB
+  SFDR ~= 191.9 dB
+  ENOB ~= 30.95 bit
+```
+
+##### 为什么 FFT 校准“数学容易”，但硬件上不一定最合适
+
+如果只校准一个单音的固定相位，那么硬件里做一个复数旋转确实很容易。但 TI skew 的本质是
+时间延迟，不是单一频点相移。对宽带 ADC 来说，正确补偿需要对整个频带实现：
+
+```text
+H(f) = exp(-j*2*pi*f*tau)
+```
+
+FFT 当然也可以在硬件里做，但它通常意味着：
+
+```text
+分块处理；
+FFT/IFFT 运算；
+block latency；
+overlap/save 或 overlap/add 边界处理；
+频域复乘和存储资源；
+对连续高速 raw stream 的实时压力。
+```
+
+Farrow 则是时域 FIR/interpolator，天然适合流水线：
+
+```text
+sample in -> finite taps -> sample out
+```
+
+因此 `exp_ti01` 想传达的不是“FFT 永远比 Farrow 好”，而是：
+
+```text
+FFT fractional delay:
+  更接近离线数值理想，适合做参考答案或软件后处理。
+
+Farrow fractional delay:
+  精度略受有限阶限制，但更接近实时硬件可实现方案。
+```
+
+#### `exp_ti02`：background MAD/autocorrelation skew 校准
+
+`exp_ti02_autocorr_background_skew_calibration.py` 演示的是另一条路线：不暂停系统做
+foreground 提取，而是在正常数据流上持续观察统计量，用 VDL code 慢慢把通道 timing 拉回去。
+
+本次实验模型是：
+
+```text
+Fs = 1 GHz
+M  = 4 channels
+Fin ~= 299.927 MHz
+N_BATCH = 2^20
+Amp = 0.5
+
+intrinsic skew ~= [0.33, 0.77, -0.09, -1.01] ps
+VDL LSB ~= 10 fs
+HD3 = -100 dBc
+noise_rms = 3.5e-5
+```
+
+注意这个 helper 模型不是完整量化 ADC。`variable_delay_line.py` 里说明得很清楚：
+
+```text
+capture 返回连续值 float64 samples；
+没有 ADC quantization；
+主要非理想性是 per-channel intrinsic skew + VDL delay；
+额外加少量 noise 和 HD3 作为 realistic ceiling。
+```
+
+所以这个 example 的教学目标很集中：
+
+```text
+用 background 统计方法校准 timing skew，
+不是同时校准 offset、gain、量化误差和所有非线性。
+```
+
+##### 1. 这里的 MAD 不是前面的鲁棒统计 MAD
+
+前面 phase-plane outlier 里讲过 MAD，那里是：
+
+```text
+Median Absolute Deviation
+```
+
+本实验注释里的 MAD 是：
+
+```text
+Mean/Sum Absolute Difference
+```
+
+也就是相邻通道样本差值的绝对值求和：
+
+```text
+MAD_i = sum |row[i+1] - row[i]|
+```
+
+名字相同，但含义完全不同。
+
+##### 2. 为什么相邻差值能反映 skew
+
+直觉上，两个采样点离得越远，正弦值平均差得越多；离得越近，平均差得越少。
+但这里必须小心：**单个样本差值当然会随相位变化**。真正能用的是长记录上的统计平均。
+
+设输入为：
+
+```text
+x(t) = A cos(wt)
+```
+
+相邻两个采样点间隔为 `dt`，则：
+
+```text
+|x(t + dt) - x(t)|
+  = |A cos(w(t+dt)) - A cos(wt)|
+  = 2A |sin(wdt/2)| * |sin(wt + wdt/2)|
+```
+
+这里有两项：
+
+```text
+2A |sin(wdt/2)|:
+  只和时间间隔 dt 有关。
+
+|sin(wt + wdt/2)|:
+  和当前相位有关。
+```
+
+所以如果只看一个样本，差值并不能直接说明 skew。只有当 capture 足够长、相位覆盖充分时：
+
+```text
+average(|sin(phase)|) ~= 2/pi
+```
+
+于是：
+
+```text
+mean |x(t + dt) - x(t)|
+  ~= (4A/pi) |sin(wdt/2)|
+```
+
+这时相位项被平均掉，MAD 主要变成 `dt` 的函数。
+
+用平方差可以得到更标准的 autocorrelation 形式：
+
+```text
+E[(x(t+dt) - x(t))^2]
+  = E[x(t+dt)^2] + E[x(t)^2] - 2E[x(t+dt)x(t)]
+  = 2(R(0) - R(dt))
+```
+
+对正弦：
+
+```text
+R(dt) = A^2/2 * cos(wdt)
+```
+
+所以：
+
+```text
+E[(x(t+dt) - x(t))^2]
+  = A^2(1 - cos(wdt))
+  = 2A^2 sin^2(wdt/2)
+```
+
+这说明差分统计量本质上是在测：
+
+```text
+输入信号在相邻采样间隔 dt 上的相关性。
+```
+
+`dt` 因 skew 改变，差分统计量也会改变。
+
+##### 3. 对 TI-ADC，相邻 interval 应该统计均匀
+
+4 通道 TI-ADC 的理想采样时刻是：
+
+```text
+ch0, ch1, ch2, ch3, ch0(next cycle), ...
+```
+
+理想相邻间隔都等于：
+
+```text
+T = 1/Fs
+```
+
+有 skew 后，有效通道延迟为：
+
+```text
+tau_m = intrinsic_skew_m + VDL_m(code_m)
+```
+
+相邻 interval 变成：
+
+```text
+dt0 = T + tau1 - tau0
+dt1 = T + tau2 - tau1
+dt2 = T + tau3 - tau2
+dt3 = T + tau0(next cycle) - tau3
+```
+
+代码把交织输出拆成通道，再构造相邻行：
+
+```python
+ch = deinterleave(x, M)
+rows = np.vstack([ch[:, :-1], ch[0:1, 1:]])
+mad = np.sum(np.abs(np.diff(rows, axis=0)), axis=1)
+```
+
+对应：
+
+```text
+MAD0 = sum |ch1[k]   - ch0[k]|
+MAD1 = sum |ch2[k]   - ch1[k]|
+MAD2 = sum |ch3[k]   - ch2[k]|
+MAD3 = sum |ch0[k+1] - ch3[k]|
+```
+
+如果 timing 均匀，则：
+
+```text
+dt0 = dt1 = dt2 = dt3 = T
+```
+
+在相位充分平均后：
+
+```text
+MAD0 ~= MAD1 ~= MAD2 ~= MAD3
+```
+
+这就是“看 MAD 是否均匀”的含义。它不是说每一个瞬时差值都相等，而是说每个相邻
+interval 的长期统计平均应该接近。
+
+源码里还有一个关键处理：
+
+```text
+每次 capture 随机起始相位。
+```
+
+原因正是前面说的相位偏置。如果每轮都是固定起始相位，单音输入的固定相位结构会产生
+finite-K bias，算法可能把这个 bias 当成 skew。
+
+##### 4. 为什么要用 cumulative MAD
+
+单个 `MAD_i` 只反映第 `i` 个 interval 偏大还是偏小，但 trim code 是按通道调的。
+调 `ch2` 会同时影响：
+
+```text
+ch1 -> ch2
+ch2 -> ch3
+```
+
+所以代码用累计量，把 interval error 转成“某个通道相对 ch0 早了还是晚了”。
+
+在小 skew 附近，可以近似写成：
+
+```text
+MAD_i ~= g(T) + a * (tau_{i+1} - tau_i)
+```
+
+其中 `a` 是 `MAD(dt)` 在 `T` 附近的局部斜率。把前 `p` 段加起来：
+
+```text
+MAD0 + MAD1 + ... + MAD_{p-1}
+  ~= p*g(T) + a * (tau_p - tau0)
+```
+
+中间通道的 `tau1 ... tau_{p-1}` 会 telescoping 抵消。
+
+代码对应：
+
+```python
+madk = np.cumsum(mad)
+mean_mad = mad.mean()
+k = madk[:-1] > np.arange(1, M) * mean_mad
+```
+
+含义是：
+
+```text
+前 p 段累计 MAD
+vs
+如果完全均匀时应该有的 p * mean(MAD)
+```
+
+如果累计量超过公平线，就说明 `chp` 相对 `ch0` 落在一侧；如果低于公平线，就说明落在另一侧。
+这个符号判断就是后面 VDL code 增减的依据。
+
+##### 5. 后续如何真正矫正：VDL 闭环反馈
+
+MAD/autocorrelation 统计量本身只负责观测方向。真正矫正靠 VDL：
+
+```text
+VDL = Variable Delay Line
+```
+
+一个数字 trim code 对应一个实际延迟：
+
+```text
+code -> delay_sec
+```
+
+本 demo 中：
+
+```text
+1 LSB ~= 10 fs
+```
+
+算法每一轮只做一件很小的事：
+
+```python
+delta = DIRECTION * (2 * int(k[m_ch - 1]) - 1)
+trim_code[m_ch] += delta
+```
+
+也就是：
+
+```text
+只判断方向；
+不估计精确 skew 数值；
+每轮只移动 +1 或 -1 LSB；
+下一轮重新 capture、重新算 MAD、重新判断。
+```
+
+因此它是一个 sign-based / bang-bang background loop。
+
+目标也不是让每个通道的绝对 delay 都等于 0，因为 common delay 不可观测。目标是：
+
+```text
+tau1 ~= tau0
+tau2 ~= tau0
+tau3 ~= tau0
+```
+
+也就是让所有通道相对参考通道 ch0 对齐。
+
+本次运行中：
+
+```text
+ideal trim = [512, 468, 552, 647]
+best trim  = [512, 468, 552, 648]
+```
+
+图里 ch0 固定为参考，其他通道逐步走到 dotted ideal code 附近。频谱上，TI skew spur 被压下：
+
+```text
+SFDR before ~= 61.29 dBc
+SFDR after  ~= 98.96 dBc
+best batch  ~= 101.55 dBc
+```
+
+这里后校准 SFDR 卡在约 100 dBc，是因为 example 故意加了 `-100 dBc` 的 HD3。它不是说明
+VDL 只能做到 100 dBc，而是这个 demo 给了一个 realistic distortion ceiling。
+
+##### 6. 这个方法的成立条件和边界
+
+这个 background 方法不是无条件可靠。它依赖：
+
+```text
+1. 记录足够长，相位覆盖充分；
+2. 输入统计性质在各通道之间一致；
+3. offset/gain mismatch 不主导相邻差分；
+4. MAD(dt) 或 R(dt) 在 T 附近有可用斜率；
+5. skew 足够小，局部线性近似有效；
+6. VDL 方向、range、LSB 都合适；
+7. ch0 作为参考通道固定，common delay 不可观测。
+```
+
+所以 `exp_ti02` 的正确读法是：
+
+```text
+它展示 background timing-skew loop 的核心机制；
+不是完整 TI-ADC 一键全校准；
+也不是 offset/gain/skew/非线性同时存在时的签核级模型。
+```
+
 `variable_delay_line.py` 是 `exp_ti02` 用到的 VDL 支撑模型，不单独算 runnable example。
 
 ### `09_downsample/`：低速 debug output
@@ -3285,6 +5259,290 @@ exp_ti02_autocorr_background_skew_calibration
 exp_d00_subsample_aliasing
   背景：stage_09 的无滤波 subsample debug output。
   看点：spur 高度基本守恒，但频率按新采样率折叠；N 选不好会发生 alias 污染。
+```
+
+### `10_oversampling/`：OSR、NTF、ifilter 和带内性能
+
+```text
+exp_o01_noise_shaping_spectrum
+  背景：stage_10 的 NTF / noise shaping 频谱直觉。
+  看点：无 shaping、一阶 NTF、二阶 NTF 的带内噪声和带外噪声分布。
+
+exp_o02_ifilter_band_analysis
+  背景：理想 FFT brickwall filter 做带内提取。
+  看点：带外 tone / shaped noise 被滤掉后，带内频谱如何解释。
+
+exp_o03_ntfperf_perfosr
+  背景：NTF 理论积分收益 + performance-vs-OSR sweep。
+  看点：OSR 改变分析带宽时，SNDR/ENOB 如何随带内噪声减少而上升。
+```
+
+#### `exp_o01`：noise shaping 的核心图像
+
+`exp_o01_noise_shaping_spectrum.py` 的模型是：
+
+```text
+Fs = 100 MHz
+N  = 2^13
+OSR = 32
+Fin ~= 305.2 kHz
+A = 0.4
+quant_range = [-0.5, 0.5]
+n_bits = 10
+```
+
+它比较三种信号：
+
+```text
+No shaping:
+  普通量化噪声，大致铺在全频带。
+
+1st-order NTF:
+  NTF(z) = 1 - z^-1
+  低频噪声被压低，高频噪声被抬高。
+
+2nd-order NTF:
+  NTF(z) = (1 - z^-1)^2
+  低频 notch 更深，高频噪声上升更快。
+```
+
+实验结果：
+
+```text
+No shaping:
+  SNR ~= 75.86 dB
+  SNDR ~= 75.08 dB
+  ENOB ~= 12.18
+
+1st-order NTF:
+  SNR ~= 101.71 dB
+  SNDR ~= 99.88 dB
+  ENOB ~= 16.30
+
+2nd-order NTF:
+  SNR ~= 124.79 dB
+  SNDR ~= 122.21 dB
+  ENOB ~= 20.01
+```
+
+这里的关键不是“噪声消失了”，而是：
+
+```text
+总量化噪声被重新分布；
+低频信号带内噪声下降；
+高频带外噪声上升；
+如果后续只保留带内，动态指标会改善。
+```
+
+默认 NTF 是 FIR：
+
+```text
+|1 - exp(-j*w)|^L = (2|sin(w/2)|)^L
+```
+
+所以在离散时间 `0 ~ fs/2` 内它是有界的：
+
+```text
+DC      -> 0
+Nyquist -> 2^L
+```
+
+超过 Nyquist 后不是继续物理发散，而是离散时间频谱周期重复 / 折叠。真实高阶
+Sigma-Delta loop 当然会有 out-of-band peaking、overload 和 stability 问题，但这个
+example 的默认模型只是教学 FIR NTF，不是完整闭环 Sigma-Delta 设计。
+
+这张图使用 log frequency axis。它的优势是可以直接看：
+
+```text
+1st-order 约 20 dB/decade；
+2nd-order 约 40 dB/decade；
+NTF 阶数越高，低频 notch 越陡。
+```
+
+但它也容易造成混淆：FFT bin 在 Hz 上是等间隔的，放到 log 横轴后，低频看起来点少，
+高频看起来点多。再加上当前 `N=2^13`、`OSR=32`，带内正频率 bin 只有大约：
+
+```text
+N / (2*OSR) = 8192 / 64 = 128
+```
+
+所以这张图适合作为 quick demo，不适合作为严谨 PSD 图。更稳的展示方式是：
+
+```text
+log-frequency 全局图:
+  看 NTF 斜率和带外噪声抬升。
+
+linear in-band zoom:
+  看带内 bin 数、带内噪声统计和 SNR 计算范围。
+
+Welch / 多段平均 PSD:
+  看更平滑的噪声密度趋势。
+```
+
+#### `exp_o02`：`ifilter` 是理想 brickwall 带内提取
+
+`exp_o02_ifilter_band_analysis.py` 先生成二阶 noise-shaped 信号，再人为加一个带外 tone：
+
+```text
+f_oob = 0.38 * Fs = 38 MHz
+amplitude = 0.01
+```
+
+然后用：
+
+```python
+sig_ib = ifilter(sig, [[0, 0.5 / OSR]])
+```
+
+提取：
+
+```text
+0 ~ Fs/(2*OSR)
+```
+
+也就是 `OSR=32` 下的带内。源码里的 `ifilter` 是：
+
+```text
+FFT -> frequency mask -> IFFT
+```
+
+它是理想 FFT-domain brickwall filter：
+
+```text
+passband 内 bin 保留；
+passband 外 bin 置零；
+再 IFFT 回时域。
+```
+
+所以它适合做：
+
+```text
+离线带内提取；
+理想 decimation filter 的参考；
+分析 noise-shaped 输出的 in-band component。
+```
+
+但它不是硬件因果 FIR/IIR：
+
+```text
+需要整段记录；
+非因果；
+隐含周期延拓；
+时域等效 impulse response 是 sinc，理论上无限长；
+不能直接等价为可实现 decimation filter。
+```
+
+本次运行：
+
+```text
+RMS original / in-band / high-band
+  ~= 2.8293e-01 / 2.8284e-01 / 7.0952e-03
+
+Original:
+  SNDR ~= 122.21 dB
+  SFDR ~= 127.32 dB
+
+After ifilter:
+  SNDR ~= 121.38 dB
+  SFDR ~= 128.71 dB
+```
+
+`SNDR` 没有大幅变化，是因为 `analyze_spectrum(..., osr=32)` 本来就只统计带内指标。
+带外 38 MHz tone 不该显著污染带内 SNDR。`ifilter` 的教学意义是让读者看到：
+
+```text
+noise-shaped ADC 输出里，高频带外噪声很高；
+如果目标是带内重建信号，后续必须有低通/decimation filter；
+`ifilter` 给的是理想带内提取参考，不是物理权重校准预处理。
+```
+
+尤其要避免一个误用：不要把 `ifilter` 后的 thermometer / unit-element code matrix
+直接当成物理权重校准输入。那会把问题变成只约束带内的病态 least-squares，可能得到
+训练指标好但权重强烈振荡、甚至为负的非物理解。这个问题已经单独记录到
+`corner-cases-and-optimization.md`。
+
+#### `exp_o03`：NTF 理论收益和 OSR sweep
+
+`exp_o03_ntfperf_perfosr.py` 有两层含义。
+
+第一层是 `ntfperf`：
+
+```python
+ntfperf(ntf, 0, 0.5/osr)
+```
+
+它计算：
+
+```text
+在 0 ~ 0.5/OSR 的信号带内，
+某个 NTF 相对 flat NTF=1 能减少多少带内噪声功率。
+```
+
+本次输出：
+
+```text
+OSR= 8:  NTF1 improvement ~= 21.96 dB, NTF2 ~= 32.34 dB
+OSR=16:  NTF1 improvement ~= 30.96 dB, NTF2 ~= 47.33 dB
+OSR=32:  NTF1 improvement ~= 39.99 dB, NTF2 ~= 62.37 dB
+OSR=64:  NTF1 improvement ~= 49.02 dB, NTF2 ~= 77.42 dB
+```
+
+规律是：
+
+```text
+OSR 越大，分析带宽相对 Fs 越窄；
+NTF 在低频的 notch 越能发挥作用；
+高阶 NTF 的带内噪声改善增长更快。
+```
+
+第二层是 `perfosr`：
+
+```python
+perfosr(sig, osr=[2, 4, 8, 16, 32, 64])
+```
+
+这里要说严谨一点：在这个 example 里 `Fs` 固定，扫 OSR 本质上是在扫分析带宽：
+
+```text
+BW = Fs / (2*OSR)
+```
+
+所以：
+
+```text
+OSR 越大
+  -> 相对于 Fs 定义的目标/分析带宽越窄
+  -> 统计进来的带内噪声越少
+  -> SNDR/ENOB 越高
+```
+
+它不是说同一个真实应用信号自动变窄。更物理的两种解读是：
+
+```text
+固定 Fs:
+  OSR 变大 = 你只关心更窄的 BW。
+
+固定 BW:
+  OSR 变大 = 你提高 Fs，让同一 BW 占更小的 Fs 比例。
+```
+
+本例属于前者。实测：
+
+```text
+OSR=  2: SNDR ~=  60.80 dB, ENOB ~=  9.81
+OSR=  4: SNDR ~=  74.39 dB, ENOB ~= 12.06
+OSR=  8: SNDR ~=  87.73 dB, ENOB ~= 14.28
+OSR= 16: SNDR ~= 103.22 dB, ENOB ~= 16.85
+OSR= 32: SNDR ~= 119.97 dB, ENOB ~= 19.64
+OSR= 64: SNDR ~= 133.08 dB, ENOB ~= 21.81
+```
+
+这个实验把 Stage10 主线收束成一句话：
+
+```text
+noise shaping 负责把量化噪声推出带内；
+oversampling / 带宽限制负责只统计或保留低噪声的带内部分；
+两者一起才带来高 in-band SNDR/ENOB。
 ```
 
 ---
@@ -3299,12 +5557,18 @@ exp_d00_subsample_aliasing
 6. exp_d15 的 sigma=1% 那行，SFDR 从 123 掉到 98，这 25 dB 是什么造成的？stage_06 怎么修它？
 7. INL/DNL 和 SNDR/SFDR 分别在回答什么问题？为什么不能互相替代？
 8. power averaging、coherent averaging、polar coherent averaging 分别保留和丢失什么？
+9. ti02 里的 MAD 为什么不是瞬时相邻差值，而是相位平均后的 interval 统计？VDL code 又如何把这个统计量变成 timing correction？
+10. `exp_o01` 的 log 横轴为什么适合看 NTF 斜率，又为什么会让低频 bin 看起来很稀？
+11. `ifilter` 为什么是理想 brickwall 离线带内提取，而不是硬件因果 decimation filter？
+12. `perfosr` 里 OSR 变大时，到底是物理信号带宽变窄，还是分析带宽相对 Fs 变窄？
 
 ---
 
 ## 收尾：全课程 example 视角
 
-Stage 11 不是说前面没讲的 example 才重要，而是把完整例库变成一张地图：
+Stage 11 到这里不再是“又学了几个工具”，而是完成了一次反向索引：从每个 example
+回到它背后的 ADC 概念。前面 Stage 00-10 是沿知识主线向前走，Stage 11 是把完整例库
+整理成一张地图：
 
 ```text
 前面 stages:
@@ -3314,7 +5578,7 @@ Stage 11:
   反过来按 examples 检查整个工具箱。
 
 完整 examples 目录:
-  59 个 runnable examples。
+  64 个 runnable examples。
 
 helper 文件:
   nonideality_cases.py、variable_delay_line.py 等，不按 runnable example 统计。
@@ -3329,6 +5593,66 @@ helper 文件:
 能区分教学 demo、诊断工具、工程 workflow 和完整设计签核。
 ```
 
+这 64 个 example 可以压缩成十条知识线：
+
+```text
+01_basic:
+  环境、自检、coherent sampling。
+
+02_spectrum:
+  FFT 指标、window、OSR、averaging、polar phase。
+
+03_generate_signals:
+  量化、jitter、静态/动态非线性、干扰建模。
+
+04_debug_analog:
+  从 residual 出发看 value/phase/PDF/spectrum/ACF/envelope/phase-plane/INL。
+
+05_debug_digital:
+  从 bit matrix 出发看 activity、weight、radix、overflow、SAR mismatch 和 calibration。
+
+06_use_toolsets:
+  把单个工具组合成 aout/dout dashboard workflow。
+
+07_conversions:
+  把 dB、dBFS、dBm、NSD、SNR、ENOB、FoM 这些工程语言互相接上。
+
+08_time_interleave:
+  多通道 offset/gain/skew、foreground extraction、background VDL tracking。
+
+09_downsample:
+  低速 debug output 的无滤波抽样 alias 和 spur 高度解释。
+
+10_oversampling:
+  OSR、NTF、ifilter、noise shaping 和带内性能。
+```
+
+也可以按“工具成熟度”再分一次：
+
+```text
+概念演示:
+  aliasing、NTF、FOM、unit conversion、phase-plane 形状。
+
+诊断工具:
+  analyze_spectrum、decompose_harmonics、error PDF/spectrum/ACF/envelope、
+  bit activity、overflow、radix、INL/DNL。
+
+校准 workflow:
+  SAR weight calibration、TI foreground、TI background VDL。
+
+dashboard / 工程入口:
+  aout dashboard、dout dashboard、batch report。
+```
+
+全章最重要的原则是：
+
+```text
+先问数据怎么造；
+再问指标怎么算；
+再问图在诊断什么；
+最后才问这个结论能不能泛化到真实芯片。
+```
+
 最后保留两个明确边界，避免把学习库说过头：
 
 ```text
@@ -3336,6 +5660,8 @@ helper 文件:
    当前 Stage 08 聚焦 offset/gain/skew。
 2. Stage 10 是 OSR/NTF/noise shaping 的行为级学习入口，
    不是完整 Sigma-Delta loop 稳定性设计教程。
+3. `ifilter` 是离线理想 brickwall 带内提取工具，
+   不能直接等价为硬件 decimation filter，也不应默认用于物理 unit 权重校准。
 ```
 
 整个 staged course 的主线到这里完整闭合：

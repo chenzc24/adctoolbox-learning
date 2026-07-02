@@ -75,6 +75,40 @@ Preserve the context that made the corner important. If later code or course
 content resolves the issue, append a status/update note under the existing
 entry instead of deleting the historical record.
 
+## Controversial Questions Log
+
+`learner/controversial-questions.md` records unresolved or partially resolved
+learning debates. Use it for questions where the learner has found a real
+boundary between a simplified explanation and a more rigorous interpretation.
+
+This file is different from `learner/notes.md`:
+
+- `notes.md` keeps compact review knowledge.
+- `controversial-questions.md` keeps the shape of a debate, including why the
+  issue was confusing, what is currently believed, and what remains open.
+
+Use this log for topics such as:
+
+- Whether a common correction really recovers a physical truth.
+- Whether a metric is a true quantity or an estimator under test conditions.
+- Whether a textbook statement hides assumptions that matter for ADCToolbox.
+- Whether code behavior matches the theoretical interpretation.
+- Which standards, experiments, or later stages should be used to verify the
+  current understanding.
+
+Do not treat entries as final doctrine. Each entry should clearly distinguish:
+
+- The question.
+- The trigger or learner objection.
+- The current working consensus.
+- The remaining boundary or uncertainty.
+- The impact on course wording or code interpretation.
+- Follow-up experiments, standards, or later-stage links.
+
+When a controversy is later resolved, append an update under the existing entry
+instead of deleting the discussion. Preserve the reasoning history because it is
+part of the learning material.
+
 ## Stage Continuity
 
 Stages are connected parts of one learning path. Do not treat them as isolated

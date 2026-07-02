@@ -690,6 +690,11 @@ near Nyquist:
 
 - 2026-06-23：已记录 corner/optimization。尚未修改代码或 Stage 03 正文。
 - 2026-06-28：复核确认 upstream/main 仍未合并相关修复——`fit_sine_4param` 仍 `max_iterations=1` 默认、无 diagnostics、warning 文案未改。修复 PR `#56`（OPEN）已在 fork 分支实现，等待 upstream review。Monte Carlo 结论（warning 在 99%+ noisy 单音下触发，但频率误差已 < 1e-7 bin）仍然成立。
+- 2026-07-01：upstream 已合并 PR `#56 Expose sine-fit controls and diagnostics in AOUT analyses`，并关闭 issue `#54`。
+  - 合并 commit：`e916c7292ab3d9d844c472b366acbdc71dac0a2c`
+  - 已落地：`fit_sine_4param` 返回 `converged`、`n_iterations`、`initial_frequency`、`last_delta_freq`。
+  - 已落地：下游 residual/error analysis API 暴露 `max_iterations`、`tolerance`、`return_fit`，可检查 fit 质量。
+  - 当前判断：本条作为 upstream issue 的主要阻塞已解决。默认 `max_iterations=1` 仍保留，warning 语义仍需用户结合 diagnostics 解释；若未来要改 warning 文案或 near-DC 自动策略，应作为新增强项跟踪。
 
 ## 2026-06-23: error analysis API 的 fit quality 暴露与 known-frequency 入口
 
@@ -871,6 +876,12 @@ P3. 文档中明确区分：
 
 - 2026-06-23：已记录 optimization。尚未修改代码、测试或 Stage 03 正文。
 - 2026-06-28：复核确认 upstream/main 仍未合并——`analyze_error_spectrum` 只暴露 `frequency`，无 `max_iterations`/`tolerance`/`return_fit`/diagnostics；`decompose_harmonic_error` 仍无 known-frequency 入口；`fit_sine_4param` 仍无 diagnostics。修复 PR `#56`（OPEN，`codex/issue-54-harmonic-frequency-options`）已在 fork 分支实现，等待 upstream review。
+- 2026-07-01：upstream 已合并 PR `#56`，issue `#54` 已关闭。
+  - 合并 commit：`e916c7292ab3d9d844c472b366acbdc71dac0a2c`
+  - 已落地：`analyze_error_spectrum`、`analyze_error_pdf`、`analyze_error_autocorr`、`analyze_error_envelope_spectrum`、`rearrange_error_by_value`、`rearrange_error_by_phase` 等 API 支持 fit controls 和 `return_fit=True`。
+  - 已落地：`decompose_harmonic_error` 及 decomposition wrappers 支持 `frequency`、`max_iterations`、`tolerance`，known fundamental 可绕过强 HD2 误检。
+  - 已落地：新增 regression tests 覆盖 near-DC false residual 和 strong-HD2 fundamental mis-detection。
+  - 当前判断：本条 optimization 已在 upstream/main 解决。
 
 ## 2026-06-23: `siggen/nonidealities.py` 非理想模型保真度和实现边界审计
 
@@ -1642,6 +1653,10 @@ except OSError as exc:
 - 2026-06-24：已记录 optimization。尚未修改 MATLAB runner 分支代码或测试。
 - 2026-06-25：已基于当前 `main` 提交修复 PR `#57`；尚未合并 upstream/main。
 - 2026-06-28：复核确认 PR `#57` 仍 OPEN 未合并；upstream/main 的 `_is_executable_file` 仍是 `path.is_file() and os.access(path, os.X_OK)`，Windows 上不可靠的问题仍在。
+- 2026-07-01：upstream 已合并 PR `#57 Fix Windows MATLAB runner executable validation`。
+  - 合并 commit：`59680024b79961188e8931715377e4be4f954f21`
+  - 已落地：Windows 上不再只依赖 `os.access(path, os.X_OK)`；显式路径、`shutil.which(...)` 结果和 launch-time `OSError` 都进入统一 invalid executable 处理。
+  - 当前判断：本条 Windows MATLAB runner executable 校验问题已解决。
 
 ## 2026-06-25: `calibrate_weight_sine` 输出尺度与 dBFS 满量程尺度混用风险
 
@@ -3593,4 +3608,2306 @@ P2
   当前仅记录问题和建议修复方向；
   尚未修改 analyze_error_by_value / rearrange_error_by_value /
   plot_rearranged_error_by_value / exp_a02。
+
+2026-06-30:
+  upstream 已合并修复 PR:
+  https://github.com/Arcadia-1/ADCToolbox/pull/63
+
+  issue #62 已关闭:
+  https://github.com/Arcadia-1/ADCToolbox/issues/62
+
+  合并 commit:
+  5b53039de80e25f42f3744d9673aa2f7313ac27d
+
+  已落地内容：
+  - `analyze_error_by_value` / 文档改为 value-binned residual diagnostic 语义。
+  - 图例从 INL-style 表述改为 value-binned residual 表述。
+  - x 轴改用实际 signal value / value-bin centers。
+  - 结果返回 `value_bin_centers` 和 `count_per_bin`。
+  - 增加 `n_bins`、finite signal、`clip_percent`、`value_range` 输入校验。
+  - 修正 `exp_a02_analyze_error_by_value.py` 的 bin 数说明。
+  - 增加单测覆盖 residual diagnostic label、bin centers、count_per_bin 和输入校验。
+
+  当前判断：
+  该条目对应的 upstream 问题已解决。后续若继续优化，可关注低 count bin 的可视化提示
+  是否需要更醒目；但这已属于增强项，不再是本条记录的阻塞问题。
 ```
+
+## 2026-06-30: FFT dynamic metrics 的 peak-bin / integrated-lobe 口径混用
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/compute_spectrum.py`
+  - `sig_linear = sum(power_spectrum[fundamental_bin ± side_bin])`
+  - `sig_peak = power_spectrum[fundamental_bin]`
+  - `snr_dbc` / `sndr_dbc` 使用 `sig_linear`
+  - `harmonics_dbc` / `thd_dbc` / `sfdr_dbc` 使用 `sig_peak`
+- `python/src/adctoolbox/spectrum/_harmonics.py`
+  - `_calculate_harmonic_power_plotspec(...)`
+  - `_extract_highest_spur(...)`
+
+### 问题陈述
+
+当前 `compute_spectrum` 的动态指标混用了两种 tone power convention：
+
+```text
+SNR / SNDR / ENOB / NSD:
+    使用 integrated fundamental power
+    sig_linear = fundamental main-lobe bins 求和
+
+THD / harmonics_dbc / SFDR:
+    使用 peak-bin fundamental power
+    sig_peak = fundamental center bin
+```
+
+同时，当前 harmonic 和 spur 也是 peak-bin 口径：
+
+```text
+harmonic_powers:
+    harmonic center bin single-bin power
+
+spur_power:
+    largest remaining single-bin power
+```
+
+因此当前实现是 mixed convention，而不是统一的 integrated-lobe convention 或统一的
+peak-bin convention。这对用户非常 confusing，尤其在 Hann / Blackman-Harris / flattop
+等非矩形 window 下，center bin 不等于 tone total power。
+
+另外 `_extract_highest_spur(...)` 的 docstring 当前描述 `spur_power` 为：
+
+```text
+summed over center ± side_bin
+```
+
+但实际实现是：
+
+```python
+spur_power = float(spectrum_copy[spur_bin_idx])
+```
+
+这是一个明确的文档/注释不一致。
+
+### 原理推导
+
+非矩形 window 会把一个 tone 的能量分布到多个 FFT bins：
+
+```text
+tone total power ≠ center-bin power
+```
+
+一次 coherent tone 数值检查显示：
+
+```text
+rectangular:
+    sig_integrated - sig_peak = 0.000 dB
+
+hann:
+    sig_integrated - sig_peak = 1.761 dB
+
+blackmanharris:
+    sig_integrated - sig_peak = 3.020 dB
+
+flattop:
+    sig_integrated - sig_peak = 5.764 dB
+```
+
+因此如果一组动态指标中有的使用 `sig_linear`，有的使用 `sig_peak`，则用户不能把这些指标
+理解为同一套功率定义下的结果。
+
+更一般的 finite-record FFT tone-power estimator 应倾向于 integrated-lobe convention：
+
+```text
+P_signal   = sum fundamental main-lobe bins
+P_harmonic = sum harmonic main-lobe bins
+P_spur     = sum spur main-lobe bins
+P_noise    = remaining in-band noise
+```
+
+然后：
+
+```text
+SNR  = P_signal / P_noise
+SNDR = P_signal / (P_noise + distortion)
+THD  = sum(P_harmonics) / P_signal
+SFDR = P_signal / max(P_spur)
+```
+
+Peak-bin convention 可以作为 plotspec-style / legacy / quick plot-reading mode 保留，但不应
+在默认 API 中与 integrated signal reference 混合而不说明。
+
+### 建议优化方向
+
+短期：
+
+```text
+1. 修正 `_extract_highest_spur(...)` docstring，使其明确当前返回 largest single-bin power。
+2. 在文档中明确当前 `thd_dbc` / `sfdr_dbc` 是 peak-bin plotspec-style convention，
+   而 `snr_dbc` / `sndr_dbc` 使用 integrated fundamental power。
+3. 返回或暴露 `sig_peak_dbfs`，帮助用户看到它和 `sig_pwr_dbfs` 的差异。
+```
+
+中期：
+
+```text
+1. 新增 integrated metrics：
+   - `harmonics_integrated_dbc`
+   - `thd_integrated_dbc`
+   - `sfdr_integrated_dbc`
+
+2. 或新增 `metric_mode`：
+   - `metric_mode="integrated"`
+   - `metric_mode="peak_bin"` / `"plotspec"`
+
+3. integrated mode 下，signal / harmonic / spur 均使用 main-lobe integrated power。
+```
+
+长期：
+
+```text
+1. 定义 close-in spur / harmonic collision 时的 integration 规则。
+2. 明确 integrated spur 是否从 noise / SNDR denominator 中排除。
+3. 建立 coherent / non-coherent / different-window 的回归测试矩阵。
+4. 与 IEEE 1241 / IEEE 1057 或厂商 application note 的指标口径做对照说明。
+```
+
+### 优先级判断
+
+```text
+P1/P2
+```
+
+原因：
+
+```text
+不一定导致 coherent rectangular 场景下的数值错误；
+但会让同一 API 输出的动态指标语义不统一；
+在非矩形 window、non-coherent sampling、spur leakage 较明显时，THD/SFDR 的解释会明显依赖方法；
+对教学、debug workflow 和后续标准化都有较大影响。
+```
+
+### 处理状态
+
+```text
+2026-06-30:
+  已记录争议主条目：
+  `learner/controversial-questions.md`
+  "FFT 动态指标是否应该统一使用 integrated-lobe power？"
+
+  当前仅记录问题和建议方向；尚未修改 `compute_spectrum.py` / `_harmonics.py`。
+
+2026-07-01:
+  upstream 已关闭 issue:
+  https://github.com/Arcadia-1/ADCToolbox/issues/64
+
+  已合并修复 PR:
+  - #65 Use integrated lobe power for spectrum metrics
+    https://github.com/Arcadia-1/ADCToolbox/pull/65
+    commit: b633280714408ff8932dea5f076ab5d3970c1729
+
+  - #67 Use integrated lobe power in MATLAB plotspec
+    https://github.com/Arcadia-1/ADCToolbox/pull/67
+    commit: 9a40fab3ca57b7e7566833b467d33e391dfa9f5e
+
+  中间 PR #66 保留 Python integrated 修复、短暂回退 MATLAB metric change；
+  随后 #67 又将 MATLAB plotspec.m 更新为 integrated-lobe THD/SFDR。
+
+  已落地内容：
+  - Python `compute_spectrum` 的 THD / harmonics_dbc / SFDR 改为 integrated-lobe power。
+  - harmonic lobe 使用去重后的 main-lobe sum。
+  - MaxSpur / SFDR 使用 detected spur lobe 的积分功率，而不是单 bin power。
+  - MATLAB `plotspec.m` 同步为 integrated-lobe THD/SFDR。
+  - 增加 coherent windowed、non-coherent HD2/THD、integrated metric power 等回归测试。
+
+  当前判断：
+  本条 peak-bin / integrated-lobe 口径混用问题已在 upstream/main 解决。
+  课程侧仍需保留“integrated-lobe 不是真实频谱恢复”的边界说明。
+```
+
+## 2026-07-01: `SNR` harmonic-lobe exclusion 与 integrated-lobe 指标体系不一致
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/compute_spectrum.py`
+  - `THD` / `harmonics_dbc` 已通过 `_calculate_harmonic_power(...)` 使用 harmonic main-lobe power。
+  - `SNDR` 只排除 DC 和 fundamental main-lobe，剩余 in-band power 全部进入 `noise + distortion` denominator。
+  - `SNR` 调用 `_estimate_noise_power(...)` 得到 noise-only denominator。
+- `python/src/adctoolbox/spectrum/_harmonics.py`
+  - `_calculate_harmonic_power(...)` 对每个 harmonic 使用 `h_bin ± side_bin` 求和。
+- `python/src/adctoolbox/spectrum/_estimate_noise_power.py`
+  - `nf_method=3` 的 `_exclude_noise()` 当前只执行 `spec_noise[h_bin] = 0.0`。
+  - 也就是说，只排除 harmonic center bin，没有排除 harmonic side-lobe。
+- `python/src/adctoolbox/spectrum/_exclude_bins.py`
+  - `nf_method=4` 走 `_exclude_bins_from_spectrum(...)`，会排除 harmonic `± side_bin`。
+
+### 问题陈述
+
+#65 / #67 之后，默认动态指标已经从 mixed peak-bin convention 转向 integrated-lobe convention：
+
+```text
+THD / harmonics_dbc:
+    harmonic power = harmonic main-lobe integrated power
+
+SFDR:
+    spur power = detected spur lobe integrated power
+
+SNDR:
+    denominator = all non-fundamental in-band power
+    harmonic center 和 harmonic side-lobe 都应该留在 noise + distortion 中
+```
+
+但 `SNR` 的 noise-only denominator 仍存在 method-dependent 不一致：
+
+```text
+nf_method=3:
+    只排除 harmonic center bin
+    harmonic side-lobe 会残留进 noise
+
+nf_method=4:
+    排除 harmonic center ± side_bin
+```
+
+因此在 windowed harmonic distortion case 中，同一段 harmonic lobe 可能被不同指标分类为不同物理量：
+
+```text
+THD:
+    harmonic side-lobe 是 distortion power
+
+SNDR:
+    harmonic side-lobe 属于 noise + distortion denominator，合理
+
+SNR(nf_method=3):
+    harmonic center 被排除；
+    harmonic side-lobe 被算作 noise
+```
+
+这不是单纯的标注问题，而是 dynamic metric energy classification consistency 问题。
+
+### 实验现象
+
+确定性实验设置：
+
+```text
+N = 16384
+fundamental bin = 997
+signal peak = 0.7 FS
+noise = 多个整数 bin 正交 tone
+distortion = HD2 / HD3
+```
+
+结果：
+
+```text
+rectangular + coherent:
+    harmonic energy 只落在 center bin；
+    nf_method=3 / nf_method=4 的 SNR 都与真值一致。
+
+Hann / Blackman-Harris + harmonic distortion:
+    harmonic energy 分布到 harmonic main-lobe；
+    THD 与 SNDR 可与真值一致；
+    nf_method=3 的 SNR 会偏低，因为 harmonic side-lobe 被误算为 noise；
+    nf_method=4 排除 harmonic ± side_bin 后，SNR 恢复与真值一致。
+```
+
+这个结果说明：
+
+```text
+SNDR 没有问题：
+    harmonic side-lobe 本来就应该进入 noise + distortion denominator。
+
+THD 没有问题：
+    harmonic side-lobe 已经通过 integrated-lobe power 计入 distortion。
+
+问题集中在 SNR noise estimator：
+    如果 SNR 定义为 signal / noise，
+    那 harmonic distortion 的 main-lobe 应该整体从 noise denominator 中排除。
+```
+
+### 影响范围
+
+```text
+P1/P2: 系统一致性问题。
+```
+
+原因：
+
+```text
+不一定影响 rectangular coherent 的基本 demo；
+但会影响 windowed harmonic distortion 场景下的 SNR、noise_floor_dbfs、nsd_dbfs_hz；
+会让 `nf_method=3` 和 `nf_method=4` 的语义差异不只是 estimator 差异，而是 harmonic-lobe mask 差异；
+会让同一 API 中 THD/SNDR/SNR 对同一段 harmonic side-lobe 给出不同物理分类；
+对教学和工程 debug 都容易造成误解。
+```
+
+### 建议修复方向
+
+优先建议：
+
+```text
+1. 统一 harmonic exclusion mask：
+   将 `nf_method=3` 的 harmonic 排除从 center-bin-only 改为 `h_bin ± side_bin`。
+
+2. 复用或抽取统一 helper：
+   signal / harmonic / spur 的 lobe mask 应尽量由同一套逻辑生成，
+   避免 THD、SNDR、SNR 各自维护不同的 bin classification。
+
+3. 保留 legacy 口径时必须显式命名：
+   如果需要 center-bin-only plotspec-style SNR，
+   应作为 legacy / peak-bin / center-bin-only mode，而不是默认 “exclude harmonics” 语义。
+```
+
+测试建议：
+
+```text
+1. coherent rectangular + harmonic:
+   修改前后 SNR 不应变化。
+
+2. Hann / Blackman-Harris + coherent harmonic:
+   nf_method=3 的 SNR 应与有限记录真值 noise-only ratio 一致。
+
+3. 无 harmonic distortion:
+   SNR / SNDR 不应因 harmonic-lobe exclusion 改变。
+
+4. harmonic collision / alias to DC / alias to fundamental:
+   exclusion mask 应沿用 `_calculate_harmonic_power(...)` 的 collision 规则或明确保持一致。
+```
+
+### 当前状态
+
+```text
+2026-07-01:
+  已记录为独立 optimization item。
+  这不是 #65/#67 的 integrated-lobe 主修复回退，而是其后暴露出的 SNR noise-estimator consistency 问题。
+  尚未修改 upstream 代码，建议后续单独提 issue / PR。
+
+2026-07-02:
+  PR #71 已针对主问题提交修复：`nf_method=3` / `NFMethod='exclude'` 改为 harmonic-lobe exclusion，
+  并补了 band-edge lobe clip。该 PR 解决 center-bin-only 与 OSR band-edge 问题。
+  但 near-fundamental harmonic collision 的 Python/MATLAB policy 仍不一致，见下一条独立记录。
+```
+
+## 2026-07-02: `SNR`/`THD` near-fundamental harmonic collision 的 Python/MATLAB 口径不一致
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/_estimate_noise_power.py`
+  - `_estimate_noise_power(...)`
+  - `nf_method=3` 的 `_exclude_noise()`
+  - 当前有 fundamental-collision guard：
+
+```python
+if abs(h_bin - bin_idx) <= 2 * side_bin:
+    continue
+```
+
+- `python/src/adctoolbox/spectrum/_harmonics.py`
+  - `_calculate_harmonic_power(...)`
+  - THD / `harmonics_dbc` 也有相同类型的 guard：
+
+```python
+is_fundamental_collision = abs(harmonic_bin_center - fundamental_bin) <= 2 * side_bin
+if is_fundamental_collision:
+    collided_harmonics.append(harmonic_order)
+    continue
+```
+
+- `matlab/src/plotspec.m`
+  - `NFMethod='exclude'` 的 harmonic exclusion：
+
+```matlab
+h_start = max(b-sideBin,1);
+h_end = min(b+sideBin,inbandEnd);
+spec_noise(h_start:h_end) = 0;
+```
+
+  - THD mask：
+
+```matlab
+h_start = max(b-sideBin,1);
+h_end = min(b+sideBin,inbandEnd);
+thd_mask(h_start:h_end) = true;
+```
+
+MATLAB 当前没有 Python 侧的 `abs(h_bin - fundamental_bin) <= 2*side_bin` guard。
+
+### 问题陈述
+
+当某个 harmonic alias 到 fundamental 附近时，Python 和 MATLAB 对同一段 bins 的物理分类不同。
+
+以 0-based bin 表达：
+
+```text
+fundamental_bin = 100
+side_bin = 2
+fundamental lobe = 98..102
+
+harmonic_bin = 104
+harmonic lobe = 102..106
+abs(104 - 100) = 4 = 2*side_bin
+```
+
+Python：
+
+```text
+认为 harmonic 与 fundamental collision；
+SNR nf_method=3: 不额外清 harmonic lobe；
+THD / harmonics_dbc: 不计入该 harmonic；
+结果：103..106 仍可能被当成 noise，且不进入 THD。
+```
+
+MATLAB：
+
+```text
+先清掉 fundamental lobe；
+随后仍对 harmonic lobe 做 clip / mask；
+结果：103..106 会被 NFMethod='exclude' 从 noise 中排除；
+THD 也会把 103..106 计入 harmonic distortion。
+```
+
+因此同一个 near-fundamental aliased harmonic：
+
+```text
+Python SNR: 更保守，可能偏低；
+MATLAB SNR: 更乐观，可能偏高；
+
+Python THD: 可能偏低，因为整条 collided harmonic 被跳过；
+MATLAB THD: 可能偏高/更接近 clipped-lobe 口径，因为 fundamental lobe 外侧 annulus 被计入。
+```
+
+这不是 PR #71 的 band-edge clip 问题。#71 已解决：
+
+```text
+harmonic center 在 analysis band 边界外，但 lobe 仍部分在带内时，
+Python 与 MATLAB 都应自然 clip。
+```
+
+本条是另一类问题：
+
+```text
+harmonic center 在 fundamental 附近时，
+Python 选择 collision skip；
+MATLAB 选择 unconditional lobe clip。
+```
+
+### 原理解释
+
+从测量物理看，harmonic alias 到 fundamental 附近时确实存在不可分辨性：
+
+```text
+fundamental leakage
+near-fundamental spur / AM sideband / phase-noise skirt
+aliased harmonic lobe
+```
+
+这些能量可能落在相邻 bins，有限 FFT 和 window 下无法仅凭 bin index 完全区分。因此 Python 的 guard 有保守意义：
+
+```text
+避免把 fundamental 附近的真实 noise / sideband 误删；
+避免把无法可靠分离的 harmonic 强行报告为 THD。
+```
+
+但 MATLAB 当前行为也有另一种一致性：
+
+```text
+只要 harmonic lobe 的一部分落在 analysis band 内，
+就按 lobe mask 处理；
+fundamental lobe 已经提前清零，重叠部分是 no-op，
+非重叠 annulus 仍按 harmonic lobe 处理。
+```
+
+问题不在于哪一种一定物理错误，而在于 Python / MATLAB 当前选择了不同 policy，
+导致 `SNR` / `THD` 在这个 corner 下不能 parity。
+
+### 严重程度
+
+```text
+P1: 动态指标定义一致性问题。
+```
+
+原因：
+
+```text
+发生概率低于常规 harmonic-lobe / OSR band-edge 问题；
+但一旦 harmonic alias 接近 fundamental，SNR 与 THD 的差异可能很大；
+该差异会直接影响 Python↔MATLAB parity；
+也会影响教学中“同一套 dynamic metric mask convention”的解释。
+```
+
+这不是显示层 bug，也不是单纯文档问题；它会改变 `snr_dbc`、`noise_floor_dbfs`、`nsd_dbfs_hz`、
+`thd_dbc` 和 `harmonics_dbc` 的数值。
+
+### 建议修复方向
+
+需要先明确项目 policy，再同步 Python 和 MATLAB。不要只在一侧打补丁。
+
+可选方向：
+
+```text
+Option A: 严格 MATLAB parity / unconditional clipped lobe
+  - 去掉 Python NF / THD 的 fundamental-collision guard；
+  - 统一用 clipped harmonic lobe mask；
+  - fundamental lobe 已清零，重叠部分自然 no-op；
+  - 优点：Python/MATLAB 对齐，mask 逻辑简单；
+  - 风险：near-fundamental AM sideband / phase-noise skirt 可能被误排除，SNR 可能偏乐观。
+
+Option B: 保守 collision policy
+  - 保留 Python guard；
+  - MATLAB NF / THD 增加同等 collision guard；
+  - 优点：不把不可分辨的 near-fundamental 能量强行分类为 harmonic；
+  - 风险：偏离 MATLAB 当前 legacy 行为，THD 可能低估 collided harmonic 的可见 annulus。
+
+Option C: 显式 policy 参数
+  - 例如 harmonic_collision_policy = "clip" / "skip" / "warn"；
+  - 默认选择需谨慎，避免破坏 legacy 行为；
+  - 实现和文档成本较高，不适合作为小修。
+```
+
+无论选择哪一项，都应增加 Python 与 MATLAB 的共同回归测试：
+
+```text
+1. harmonic center 距 fundamental <= side_bin:
+   完全不可分辨，应按选定 policy 一致处理。
+
+2. harmonic center 距 fundamental 在 (side_bin, 2*side_bin]：
+   lobe 与 fundamental lobe 部分重叠，annulus 是关键差异区。
+
+3. near-fundamental AM sideband / spur:
+   验证 chosen policy 对 SNR 乐观/保守偏差的说明。
+```
+
+### 当前状态
+
+```text
+2026-07-02:
+  已记录为未解决 high-priority optimization / parity issue。
+  PR #71 未修改该 guard；#71 只修 harmonic-lobe exclusion、OSR in-band clip 和 band-edge lobe clip。
+  建议后续单独开 issue / PR，先决定 Python/MATLAB near-fundamental collision policy。
+```
+
+## 2026-07-01: OSR 下 Python `THD` / `harmonics_dbc` 未受 in-band 限制
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/compute_spectrum.py`
+  - `n_inband = rfft_inband_bin_count(N, osr)`
+  - `SNDR` / `SFDR` / `SNR` 都使用 `n_inband` 限制分析带宽。
+  - `THD` / `harmonics_dbc` 调用 `_calculate_harmonic_power(...)` 时没有传入 `n_inband`。
+- `python/src/adctoolbox/spectrum/_harmonics.py`
+  - `_calculate_harmonic_power(...)`
+  - harmonic lobe 终点当前是：
+
+```python
+harmonic_end_index = min(harmonic_bin_center + side_bin + 1, len(power_spectrum))
+```
+
+也就是说，Python `THD` / `harmonics_dbc` 当前最多只受 full rFFT spectrum 长度限制，不受
+`osr` 对 in-band bandwidth 的限制。
+
+- `matlab/src/plotspec.m`
+  - MATLAB 侧 #67 后的 THD lobe 终点是：
+
+```matlab
+h_end = min(b+sideBin,inbandEnd);
+```
+
+因此 MATLAB `plotspec.m` 的 THD 已经受 in-band 限制。
+
+### 问题陈述
+
+在 OSR 分析中，动态指标应只评价：
+
+```text
+0 .. Fs/(2*OSR)
+```
+
+这个 signal band 内的信号、噪声、失真和 spur。当前 Python `compute_spectrum` 中：
+
+```text
+SNDR:
+    denominator = sum(spec_sndr[:n_inband])
+
+SFDR:
+    spur search = spectrum[:n_inband]
+
+SNR:
+    noise estimate = spectrum[:n_inband]
+
+THD / harmonics_dbc:
+    harmonic lobe = h_bin ± side_bin, bounded by len(power_spectrum)
+```
+
+因此可能出现同一条带外 harmonic：
+
+```text
+SNDR / SFDR / SNR:
+    不把它当作 in-band error
+
+THD:
+    仍然把它计入 distortion
+```
+
+这会让 OSR 下的 `THD` 与 `SNDR/SFDR/SNR` 使用不同的分析带宽。
+
+### 实验现象
+
+确定性实验：
+
+```text
+N = 8192
+fundamental bin = 900
+HD2 bin = 1800
+HD2 amplitude = -60 dBc
+window = rectangular
+side_bin = 0
+```
+
+结果：
+
+```text
+OSR=1:
+    n_inband = 4097
+    HD2 bin  = 1800 in-band
+    THD=-60 dB, SNDR=60 dB, SFDR=60 dB
+
+OSR=2:
+    n_inband = 2049
+    HD2 bin  = 1800 in-band
+    THD=-60 dB, SNDR=60 dB, SFDR=60 dB
+
+OSR=4:
+    n_inband = 1025
+    HD2 bin  = 1800 out-of-band
+    THD=-60 dB, SNDR=200 dB, SFDR=266 dB
+```
+
+`OSR=4` 时，HD2 已经在 signal band 外；`SNDR` / `SFDR` 已把它排除在分析带宽外，但 `THD`
+仍然报告 `-60 dB`。这是 Python dynamic metric 的明确带宽不一致。
+
+### 影响范围
+
+```text
+P1/P2: OSR 场景下的核心动态指标一致性问题。
+```
+
+原因：
+
+```text
+不影响 OSR=1 的常规全 Nyquist 分析；
+不影响 harmonic 仍在 in-band 的情况；
+但会影响 oversampling / narrow-band ADC / noise-shaping workflow；
+会导致 Python 与 MATLAB plotspec.m 的 THD 口径不一致；
+会让 THD 与 SNDR/SFDR/SNR 在同一次 OSR 分析中使用不同 bandwidth。
+```
+
+### 建议修复方向
+
+```text
+1. 给 `_calculate_harmonic_power(...)` 增加 `n_inband` 或 `max_bin` 参数。
+2. harmonic lobe 终点使用 `min(h_bin + side_bin + 1, n_inband)`。
+3. harmonic center 若不在 `0 < h_bin < n_inband`，则不计入 THD / harmonics_dbc。
+4. collision / DC handling 继续沿用现有规则，但边界应与 in-band mask 一致。
+5. 增加回归测试：
+   - HD2 in-band: THD 应正常报告。
+   - HD2 out-of-band under OSR: THD 应不再计入该 harmonic。
+   - Python 与 MATLAB plotspec.m 对 OSR THD 口径应一致。
+```
+
+### 当前状态
+
+```text
+2026-07-01:
+  已由动态指标一致性审计发现并记录。
+  尚未修改 upstream 代码。
+  建议优先级与 SNR harmonic-lobe exclusion 相近，适合一起作为 dynamic metric mask consistency PR 处理。
+```
+
+## 2026-07-01: `perfosr` / `sweep_performance_vs_osr` 与主动态指标存在 SNDR/SFDR 口径差异
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/sweep_performance_vs_osr.py`
+
+```python
+err_spec = np.abs(np.fft.fft(err_windowed)) ** 2 / n ** 2 * 4
+sig_power = amplitude ** 2 / 2
+```
+
+- `python/src/adctoolbox/oversampling/perfosr.py`
+  - MATLAB-compatible wrapper，直接调用 `sweep_performance_vs_osr(...)`。
+- `matlab/src/perfosr.m`
+
+```matlab
+err_spec = abs(fft(err_windowed)).^2 / N^2 * 4;
+sig_power = mag^2 / 2;
+```
+
+### 问题陈述
+
+`compute_spectrum` / `plotspec` 的 dBFS convention 是：
+
+```text
+full-scale sine lobe power = 1
+```
+
+也就是 peak amplitude `A` 在 full-scale peak reference 下对应 integrated tone power：
+
+```text
+P_signal = A^2
+```
+
+这来自 spectrum path 的 one-sided scaling / window RMS normalization convention。
+
+但 `perfosr` / `sweep_performance_vs_osr` 是 residual-fit path，当前组合是：
+
+```text
+error spectrum:
+    one-sided-like scaling uses *4
+
+signal power:
+    amplitude^2 / 2
+```
+
+这会让 signal power 与 error spectrum 的 power scale 不匹配，白噪声场景下 `SNDR` 相对
+`analyze_spectrum` / 理论 SNR 低约 `3 dB`。
+
+### 实验现象
+
+确定性 / 固定 seed 实验：
+
+```text
+N = 4096
+coherent sine
+A = 0.5 peak
+white noise rms = 1e-3
+OSR = 1
+window = rectangular for analyze_spectrum reference
+```
+
+结果：
+
+```text
+theory SNR       = 50.969 dB
+analyze_spectrum = 50.837 dB
+perfosr sweep    = 47.783 dB
+```
+
+差值约：
+
+```text
+50.837 - 47.783 = 3.054 dB
+```
+
+这不是随机误差，而是功率尺度差异。MATLAB `perfosr.m` 也继承同样公式，因此这是 Python/MATLAB
+parity 下的共同 legacy 口径，不是 Python 独有偏差。
+
+### 2026-07-02 补充：SFDR 也不是 integrated-lobe 口径
+
+同一段代码里，`SFDR` 的 spur power 取法是：
+
+```python
+incremental = err_spec[n_inband_prev:n_inband]
+spur_power = max(spur_power, np.max(incremental))
+sfdr[orig_idx] = 10 * np.log10(sig_power / spur_power)
+```
+
+也就是说 `perfosr` / `sweep_performance_vs_osr` 的 SFDR 是 residual spectrum 的单 bin 最大值，
+不是 `compute_spectrum` 当前采用的：
+
+```text
+largest spur lobe power = sum(center - side_bin ... center + side_bin)
+```
+
+这会带来两个不一致：
+
+```text
+1. SNDR:
+   由于 signal power 与 error spectrum power scaling 不匹配，absolute SNDR 约低 3.01 dB。
+
+2. SFDR:
+   由于 spur power 用单 bin peak，不是 integrated-lobe power，和主频谱 SFDR 口径不同。
+```
+
+因此这个条目不只是 `3 dB SNDR offset`，而是 `perfosr` 整体没有复用主动态指标的
+power convention / lobe convention。
+
+### 影响范围
+
+```text
+P2: 公开 API 的动态指标口径不一致。
+```
+
+原因：
+
+```text
+`perfosr` 是公开 API；
+文档说它 sweep ADC performance metrics versus OSR；
+用户自然会把它的 SNDR / SFDR / ENOB 与 `analyze_spectrum(..., osr=...)` 对齐理解；
+但当前 SNDR absolute value 可能低约 3 dB，SFDR 也不是 integrated-lobe SFDR。
+```
+
+相对趋势仍可能有用：
+
+```text
+OSR 增大时，white noise 下 SNDR slope 仍能反映 3 dB / octave；
+但 absolute SNDR / ENOB 与主动态指标不一致。
+```
+
+### 建议修复方向
+
+需要先决定作者意图：
+
+```text
+Option A: 与 MATLAB perfosr legacy 完全兼容
+    - 保持 `mag^2/2`
+    - 明确文档说明 perfosr uses RMS physical signal power convention，
+      不保证与 analyze_spectrum dBFS/SNDR absolute value 对齐。
+
+Option B: 与 ADCToolbox 主动态指标 convention 统一
+    - 将 `sig_power` 改为与 `err_spec` scaling 一致的 convention。
+    - 或统一调用 / 复用 compute_spectrum-style power scaling helper。
+    - 更新 MATLAB perfosr 或至少记录 Python/MATLAB 兼容差异。
+```
+
+测试建议：
+
+```text
+1. Pure sine + white noise:
+   perfosr(OSR=1) 应与 analyze_spectrum(osr=1) / theory SNR 一致或明确相差固定 legacy offset。
+
+2. OSR sweep:
+   修复后 slope 不应改变，absolute SNDR 应整体对齐主动态指标。
+
+3. SFDR lobe test:
+   构造一个 Hann-windowed residual spur，验证 perfosr 的 SFDR 是否与 compute_spectrum 的
+   integrated-lobe SFDR 使用同一口径，或明确文档说明它是 legacy single-bin spur metric。
+
+4. MATLAB parity:
+   若改变 Python，则需决定是否同步 MATLAB perfosr。
+```
+
+### 当前状态
+
+```text
+2026-07-01:
+  已记录为 dynamic metric consistency audit 发现的问题。
+  尚未修改 upstream 代码。
+  需要先决定 perfosr 是追求 MATLAB legacy 复刻，还是追求 toolbox 内部 metric convention 一致。
+```
+
+## 2026-07-01: `quick_sndr` 默认 `side_bin` 行为与 `compute_spectrum` 默认行为不一致
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/quick_sndr.py`
+
+```python
+if side_bin is None:
+    side_bin = _get_default_side_bin(win_type)
+```
+
+- `python/src/adctoolbox/spectrum/compute_spectrum.py`
+
+```python
+if side_bin is None:
+    side_bin = _detect_side_bin_auto(...)
+```
+
+### 问题陈述
+
+`quick_sndr` 文档写法强调：
+
+```text
+SNDR + ENOB from a single 1-D capture (same SNDR definition as analyze_spectrum)
+```
+
+但实际只在以下条件下严格一致：
+
+```text
+coherent capture；
+或用户显式传入相同 side_bin；
+或 signal leakage 正好被 coherent default side_bin 覆盖。
+```
+
+在 non-coherent capture 中，`compute_spectrum(side_bin=None)` 会自动估计 side-bin，而 `quick_sndr`
+不会；它只使用 window 的 coherent main-lobe default。因此 `quick_sndr` 默认可能把 main-lobe leakage
+算入 noise+distortion，得到显著偏低的 SNDR。
+
+### 实验现象
+
+确定性实验：
+
+```text
+N = 8192
+fundamental bin = 997.37
+window = Hann
+spur / noise fixed
+```
+
+结果：
+
+```text
+noise=0:
+    quick_sndr default    = 20.613 dB
+    compute_spectrum auto = 60.000 dB
+    compute_spectrum sb=1 = 20.613 dB
+
+noise=1e-3:
+    quick_sndr default    = 20.610 dB
+    compute_spectrum auto = 53.120 dB
+    compute_spectrum sb=1 = 20.610 dB
+```
+
+说明 `quick_sndr` 与 `compute_spectrum(side_bin=1)` 一致，但不与 `compute_spectrum(side_bin=None)`
+的 auto behavior 一致。
+
+### 影响范围
+
+```text
+P2/P3: fast path 默认语义不一致。
+```
+
+原因：
+
+```text
+它不影响显式 side_bin 的优化循环；
+也不影响 coherent capture；
+但 bare default `quick_sndr(x)` 很容易被用户理解成 analyze_spectrum 的轻量等价版本；
+non-coherent 场景下会产生很大的 pessimistic SNDR。
+```
+
+### 建议修复方向
+
+保守方案：
+
+```text
+1. 收窄 docstring：
+   quick_sndr is aligned with compute_spectrum only for explicit/coherent side-bin settings。
+
+2. 文档示例中建议：
+   non-coherent 或未知 coherent 状态下使用 analyze_spectrum；
+   optimization loop 中若使用 quick_sndr，应显式传 side_bin。
+```
+
+功能方案：
+
+```text
+1. 给 quick_sndr 增加 `side_bin="auto"` 或 `auto_side_bin=True`。
+2. 默认是否改成 auto 需要谨慎，因为 quick_sndr 的卖点是 fast path。
+3. 如果保持 None=coherent default，则参数文档必须明确。
+```
+
+测试建议：
+
+```text
+1. coherent Hann + side_bin=1:
+   quick_sndr 与 compute_spectrum 完全一致。
+
+2. non-coherent Hann + side_bin=None:
+   测试应明确当前 default 是 coherent default，不是 auto。
+
+3. 若新增 auto path:
+   quick_sndr(auto) 与 compute_spectrum(None) 在 SNDR/ENOB 上一致。
+```
+
+### 当前状态
+
+```text
+2026-07-01:
+  已记录为 consistency/documentation issue。
+  尚未修改 upstream 代码。
+```
+
+## 2026-07-02: `SFDR` spur 搜索仍先按 center-bin peak 选中心，再计算 integrated-lobe power
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/_harmonics.py`
+
+```python
+spectrum_copy = spectrum_power[:n_search_inband].copy()
+...
+spur_bin_idx = int(np.argmax(spectrum_copy))
+spur_start = max(spur_bin_idx - side_bin, 0)
+spur_end = min(spur_bin_idx + side_bin + 1, n_search_inband)
+spur_power = float(np.sum(spectrum_copy[spur_start:spur_end]))
+```
+
+### 问题陈述
+
+#65 / #67 之后，`SFDR` 的 reported spur power 已经改成 integrated-lobe power：
+
+```text
+SFDR = signal_lobe_power / max_spur_lobe_power
+```
+
+但当前 `_extract_highest_spur(...)` 的搜索流程仍是：
+
+```text
+1. 在单个 bin power 上找最大 bin，作为 spur center。
+2. 只围绕这个 center 计算 center +/- side_bin 的 lobe sum。
+```
+
+严格的 integrated-lobe SFDR 应该是：
+
+```text
+1. 对每个候选 spur center 计算 lobe sum。
+2. 选择 lobe sum 最大的 spur。
+```
+
+否则在两个 spur 接近、一个 coherent 单 bin 较高、另一个 non-coherent 或 windowed lobe 总能量更高时，
+代码可能选择错误的 spur center，进而使 SFDR 略偏乐观或偏离真实最大 lobe spur。
+
+### 数值验证
+
+构造：
+
+```text
+N = 8192
+window = hann
+side_bin = 1
+fundamental bin = 251
+spur A: coherent, bin = 900, amplitude ~= -64 dBc
+spur B: non-coherent, bin ~= 1300.37, amplitude ~= -63.5 dBc
+```
+
+扫描所有候选 center 的 integrated-lobe power 后发现：
+
+```text
+current code selected center = 900
+current selected lobe        ~= -64.00 dBc
+true largest lobe center     = 1300
+true largest lobe            ~= -63.54 dBc
+difference                   ~= 0.46 dB
+```
+
+这个例子不是常见的大失真，但证明了算法定义上存在不一致：
+
+```text
+reported SFDR 使用 integrated-lobe denominator；
+spur center search 却使用 center-bin peak criterion。
+```
+
+### 严重性
+
+```text
+P2/P3
+```
+
+原因：
+
+```text
+大多数普通 coherent spur 或明显单一最大 spur 场景不受影响；
+但在 windowed / non-coherent / close-spur 场景下，SFDR 可能选错 spur。
+这属于主动态指标数值口径问题，严重性低于 SNR harmonic-lobe 和 OSR THD bandwidth，但高于纯显示 marker 问题。
+```
+
+### 建议修复方向
+
+1. 抽一个 shared lobe-sum helper：
+
+```python
+_component_lobe_power(power_spectrum, center, side_bin, upper_bound)
+```
+
+2. `_extract_highest_spur(...)` 改成扫描 candidate centers 的 lobe sum，而不是先 `argmax(single_bin)`。
+
+3. 为避免同一 lobe 多个 center 重复竞争，可选择以下策略之一：
+
+```text
+Option A:
+  对所有 candidate center 计算 lobe sum，取最大；简单但相邻 center 可能返回相同 lobe。
+
+Option B:
+  先按 local maxima 找候选 center，再计算每个 local maximum 的 lobe sum；更符合 marker 语义。
+
+Option C:
+  构造 exclusion mask / connected components，按 contiguous non-signal components 计算总 power；
+  最严谨，但改动较大。
+```
+
+4. 增加 regression test：
+
+```text
+同一 spectrum 里放两个 spur：
+  A: center bin higher但 lobe sum 较低；
+  B: center bin较低但 lobe sum 较高。
+
+断言 SFDR 选择 B。
+```
+
+### 当前状态
+
+```text
+2026-07-02:
+  已由动态指标一致性审计发现并记录。
+  尚未修改 upstream 代码。
+```
+
+## 2026-07-01: Python spectrum plot marker 高度仍是 center-bin，而指标数字已是 integrated-lobe
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/plot_spectrum.py`
+
+```python
+spur_db = spec_db[spur_bin_idx]
+harmonic_power_db = spec_db[harmonic_bin_center]
+```
+
+- `python/src/adctoolbox/spectrum/plot_spectrum_virtuoso.py`
+  - 同样使用 center-bin `spec_db[...]` 绘制 harmonic / MaxSpur marker。
+- `matlab/src/plotspec.m`
+
+```matlab
+plot((sbin-1)/N_fft*Fs,10*log10(spur+10^(-20)),'rd');
+```
+
+MATLAB MaxSpur marker 当前画的是 integrated spur power，而 Python MaxSpur marker 仍画 center-bin height。
+
+### 问题陈述
+
+#65 / #67 后，计算指标已经采用 integrated-lobe convention：
+
+```text
+THD / harmonics_dbc:
+    harmonic lobe power
+
+SFDR:
+    spur lobe power
+```
+
+但 Python 图上的 marker 仍画在：
+
+```text
+harmonic center-bin height
+MaxSpur center-bin height
+```
+
+这不影响 `metrics["thd_dbc"]` / `metrics["sfdr_dbc"]` 的计算，但会造成图形语义歧义：
+
+```text
+图上的方块/钻石 y 值:
+    center-bin dBFS
+
+左侧/右侧指标文本:
+    integrated-lobe dBc
+```
+
+非矩形 window 下，center-bin height 与 lobe-integrated power 可能相差 ENBW 相关的 dB 数。
+
+### 影响范围
+
+```text
+P3: 可视化一致性 / 教学解释问题。
+```
+
+原因：
+
+```text
+不影响核心指标；
+但用户会自然用 marker 高度和 SFDR/THD 数字做视觉对应；
+Python 与 MATLAB MaxSpur marker 表现也不完全一致；
+在 Hann / Blackman-Harris / flattop 下尤其容易 confusing。
+```
+
+### 建议修复方向
+
+```text
+1. 保留 marker 放在 center frequency，但 y 值可选择 integrated-lobe dBFS。
+2. 或继续画 center-bin marker，但 tooltip/label/文档明确：
+   marker y = center-bin display height；
+   metrics = integrated-lobe power ratio。
+3. 更完整方案：
+   在 plot_data 中返回 harmonic_lobe_powers / spur_lobe_power_dbfs，
+   plotter 不再从 `spec_db[center]` 反推出 integrated metric 语义。
+```
+
+测试建议：
+
+```text
+1. Hann full-scale tone + spur:
+   marker center-bin height 与 integrated-lobe label 的差异应被测试覆盖或文档化。
+
+2. Python / MATLAB plot marker convention:
+   若目标是 parity，应统一 MaxSpur marker y 值。
+```
+
+### 当前状态
+
+```text
+2026-07-01:
+  已记录为 visualization consistency issue。
+  尚未修改 upstream 代码。
+```
+
+## 2026-07-01: `_calculate_harmonic_power_plotspec(...)` 旧 peak-bin helper 残留
+
+### 代码位置
+
+- `python/src/adctoolbox/spectrum/_harmonics.py`
+
+```python
+def _calculate_harmonic_power_plotspec(...):
+    """THD/HD like MATLAB plotspec: single FFT bin per harmonic, sum for THD."""
+```
+
+当前主路径：
+
+```python
+compute_spectrum(...) -> _calculate_harmonic_power(...)
+```
+
+不再调用 `_calculate_harmonic_power_plotspec(...)`。
+
+### 问题陈述
+
+这个 helper 是 #65 之前的 peak-bin style harmonic power 口径。现在默认 metric convention 已改为
+integrated-lobe，但旧 helper 仍保留在同一模块中，且名字里带 `plotspec`，容易造成维护误解：
+
+```text
+未来开发者可能误以为 MATLAB plotspec 仍是 single-bin harmonic convention；
+或在新增功能时误用旧 helper，重新引入 peak-bin / integrated-lobe 混用。
+```
+
+### 影响范围
+
+```text
+P3: dead code / maintenance risk。
+```
+
+它目前不影响 runtime 指标结果，因为没有被主路径引用。
+
+### 建议修复方向
+
+```text
+1. 如果不再需要 legacy helper，删除 `_calculate_harmonic_power_plotspec(...)`。
+2. 如果需要保留作为 legacy/reference，改名并加明确注释：
+   `_calculate_harmonic_power_peak_bin_legacy(...)`
+3. 增加测试或 grep check，确保 compute_spectrum 不再调用 legacy peak-bin helper。
+```
+
+### 当前状态
+
+```text
+2026-07-01:
+  已记录为 low-priority cleanup item。
+  尚未修改 upstream 代码。
+```
+
+## 2026-07-02: calibration `_post_process` 的 `snr_db` 命名与实际时域 residual ratio 不完全一致
+
+### 代码位置
+
+- `python/src/adctoolbox/calibration/_post_process.py`
+
+```python
+err_k = sig_k - dc_offset - ref_k
+p_sig = np.mean(ref_k**2)
+p_noise = np.mean(err_k**2)
+sndr_k = 10 * np.log10(p_sig / p_noise) if p_noise > 0 else 200.0
+...
+return {
+    ...
+    'snr_db': snr_list[0] if is_single else snr_list,
+    'enob': enob_list[0] if is_single else enob_list,
+}
+```
+
+### 问题陈述
+
+这里计算的是：
+
+```text
+best-fit / reconstructed reference sine power
+divided by
+time-domain residual error power
+```
+
+它不是 `compute_spectrum` 里的 FFT `SNR`：
+
+```text
+fundamental lobe power / non-harmonic noise power
+```
+
+也不是严格的 FFT `SNDR`：
+
+```text
+fundamental lobe power / all in-band non-fundamental power
+```
+
+更准确地说，它是 calibration 后处理里的：
+
+```text
+time-domain fitted-signal-to-residual ratio
+```
+
+如果 harmonic basis 被包含在 calibration fit 中，`ref_k` 还可能包含 harmonic nuisance / fitted reference
+成分；这时该 ratio 的含义更接近 residual goodness-of-fit，而不是标准 ADC FFT SNR。
+
+### 影响
+
+```text
+P3
+```
+
+原因：
+
+```text
+这不影响 compute_spectrum 主动态指标；
+但返回键叫 `snr_db`，内部变量叫 `sndr_k`，用户容易把它和 spectrum SNR/SNDR 混用。
+```
+
+### 建议修复方向
+
+1. 保留数值，但改名或增加别名：
+
+```text
+residual_ratio_db
+fit_residual_ratio_db
+time_domain_sndr_db
+```
+
+2. 为兼容旧 API，可暂时保留 `snr_db`，但文档注明：
+
+```text
+`snr_db` here is a time-domain fitted-reference / residual ratio,
+not the FFT SNR returned by analyze_spectrum.
+```
+
+3. 如果要报告标准动态指标，应在 calibrated signal 上显式调用 `analyze_spectrum(...)`。
+
+### 当前状态
+
+```text
+2026-07-02:
+  已由动态指标一致性审计发现并记录。
+  尚未修改 upstream 代码。
+```
+
+## 2026-07-02: MATLAB `plotspec.m` 的 `harmonic < 0` 注释与 metric 行为不完全一致
+
+### 代码位置
+
+- `matlab/src/plotspec.m`
+
+```matlab
+% Remove harmonics from spectrum for display if harmonic < 0
+if(harmonic < 0)
+    for i = 2:-harmonic
+        b = alias(round((bin_r-1)*i),N_fft);
+        spec(max(b+1-sideBin,1):min(b+1+sideBin,Nd2)) = 0;
+    end
+end
+```
+
+该段位于 metric 计算之前，后续 `SNDR` / `SFDR` / `SNR` / `THD` 都继续使用被修改后的 `spec`。
+
+### 问题陈述
+
+注释写的是：
+
+```text
+Remove harmonics from spectrum for display
+```
+
+但实际行为不是只影响 display。它会直接改变后续指标使用的 spectrum：
+
+```text
+SNDR:
+  harmonic 被从 noise+distortion spectrum 中提前清零后，SNDR 会变高。
+
+SFDR:
+  如果最大 spur 是 harmonic，清零后 SFDR 会变高或换成别的 spur。
+
+SNR:
+  后续 noise estimation 基于已修改 spec，也会受到影响。
+
+THD:
+  后续 THD 从被清零的 spec 中求 harmonic power，可能被压低。
+```
+
+因此 `harmonic < 0` 的真实语义更像：
+
+```text
+remove harmonics from analysis spectrum before metrics
+```
+
+而不是单纯 “for display”。
+
+### Python 影响
+
+当前 Python `compute_spectrum` / `analyze_spectrum` 没有等价的 `harmonic < 0` 参数，因此主 Python
+动态指标不会直接受这个 legacy 行为影响。
+
+但如果目标是 MATLAB/Python 文档语义一致，需要明确：
+
+```text
+MATLAB harmonic < 0 是 legacy analysis-modifying behavior；
+不是纯 display option。
+```
+
+### 严重性
+
+```text
+P3
+```
+
+原因：
+
+```text
+这是 MATLAB legacy 参数语义/注释问题；
+不影响 Python 主链路；
+但会影响 MATLAB 用户对 SNDR/SFDR/SNR/THD 的解释，尤其在对比 harmonic-included 与 harmonic-removed 分析时。
+```
+
+### 建议修复方向
+
+1. 若保持 MATLAB legacy 行为，修改注释和文档：
+
+```text
+Remove harmonics from the analysis spectrum and display when harmonic < 0.
+```
+
+2. 如果希望 display-only，可复制一份 `spec_plot = spec` 用于画图，不要改 metric 使用的 `spec`。
+
+3. 增加 MATLAB/Python parity note：Python 当前没有 `harmonic < 0` 分析修改模式。
+
+### 当前状态
+
+```text
+2026-07-02:
+  已由动态指标一致性审计发现并记录。
+  尚未修改 upstream 代码。
+```
+
+## 2026-06-30: `analyze_error_spectrum` residual 自归一化会弱化 dBFS 工程含义
+
+### 代码位置
+
+- `python/src/adctoolbox/aout/analyze_error_spectrum.py`
+  - `error_signal = signal - sig_ideal`
+  - `analyze_spectrum(error_signal, fs=fs, show_label=False, max_harmonic=5)`
+- `python/src/adctoolbox/spectrum/analyze_spectrum.py`
+  - 默认 `max_scale_range=None`
+- `python/src/adctoolbox/spectrum/_prepare_fft_input.py`
+  - `peak_amplitude = (np.max(data) - np.min(data)) / 2`
+  - `data_normalized = data_dc_removed / peak_amplitude`
+- `python/src/adctoolbox/examples/04_debug_analog/exp_a22_analyze_error_spectrum.py`
+  - 当前 example 对每个 non-ideality 调用 `analyze_error_spectrum(...)`，未显式传 ADC full-scale 标尺。
+
+### 问题陈述
+
+`analyze_error_spectrum` 的当前流程是：
+
+```text
+signal -> fit_sine_4param -> fitted_sine
+error_signal = signal - fitted_sine
+analyze_spectrum(error_signal, max_scale_range=None)
+```
+
+因为 `analyze_spectrum` 在 `max_scale_range=None` 时会使用输入数据自己的 peak-to-peak
+估计归一化参考，所以这里等价于：
+
+```text
+error_dc_removed = error_signal - mean(error_signal)
+error_peak       = (max(error_signal) - min(error_signal)) / 2
+error_normalized = error_dc_removed / error_peak
+```
+
+也就是说，`exp_a22` 中每个 panel 都把该 case 自己的 residual 拉伸到大约 `+-1`
+后再做频谱。这种视图适合看 residual 的频率指纹：
+
+```text
+宽带噪声？
+HD2 / HD3？
+AM sideband？
+reference spur？
+glitch-like broadband floor？
+```
+
+但它不适合直接比较不同 case 的真实严重程度，也不适合作为真实 ADC debug 的默认工程标尺。
+例如 AM Tone 在 residual-normalized 图里峰值接近图顶，并不表示它接近 ADC full-scale；
+只是说明它在自己的 residual 里占主导。
+
+真实测试时通常只有一颗 ADC / 一段 capture / 一个 residual spectrum，而不是像 example 那样
+并排比较 15 个已知机制。此时更直观的默认标尺应是 ADC full-scale：
+
+```text
+relative to ADC full-scale, in dBFS
+```
+
+因为它同时回答：
+
+```text
+频率形状是什么；
+这个 spur / floor 相对 ADC 满量程到底有多大。
+```
+
+### 原理推导
+
+以 AM Tone 为例，当前 example 的模型是：
+
+```text
+y(t) = A [1 + m sin(omega_m t)] sin(omega_in t)
+```
+
+展开得：
+
+```text
+y(t) = A sin(omega_in t)
+     + (mA/2) cos((omega_in - omega_m)t)
+     - (mA/2) cos((omega_in + omega_m)t)
+```
+
+所以 AM tone 会在 `fin +/- fm` 处产生两个确定性边带。当前参数：
+
+```text
+A = 0.49
+m = 0.05
+fm = 500 kHz
+
+sideband amplitude = mA/2 = 0.01225 Vpeak
+relative to carrier = 20log10(m/2) ~= -32.04 dBc
+```
+
+在 `error_signal` 中，主基波被 `fit_sine_4param` 吸收，剩下的主要就是两个 AM 边带。
+如果此时再按 residual 自己的峰值归一化，这些边带自然会接近 residual spectrum 顶部。
+
+### 实验证据
+
+用同一批 `exp_a22` residual 做了两种标尺对照：
+
+```text
+left:
+  residual-normalized, 即当前默认 max_scale_range=None
+
+right:
+  ADC full-scale, 即 max_scale_range=(0, 1)
+```
+
+生成图：
+
+```text
+E:/ADCToolbox/python/src/adctoolbox/examples/04_debug_analog/output/exp_a22_scale_check.png
+```
+
+关键峰值对照：
+
+```text
+Case                    residual-normalized peak    ADC full-scale peak
+Thermal Noise            -44.84 dB                  -101.18 dBFS
+Static HD3               -3.45 dB                   -71.95 dBFS
+AM Tone                  -7.80 dB                   -33.99 dBFS
+Reference Error          -5.06 dB                   -77.51 dBFS
+Glitch                   -53.33 dB                  -73.32 dBFS
+```
+
+该实验说明：
+
+```text
+当前默认图主要是 shape / fingerprint view；
+ADC full-scale 图同时保留频率形状和真实幅度语义；
+AM Tone 的高峰主要来自 residual 自归一化，而不是接近 ADC 满量程。
+```
+
+### 建议优化方向
+
+不建议简单删除 residual-normalized 视图。它对教学和机制指纹识别仍然有价值。
+更合理的优化是把标尺语义显式化：
+
+```python
+analyze_error_spectrum(
+    signal,
+    fs=...,
+    max_scale_range=(0, 1),   # ADC full-scale / engineering diagnostic
+)
+
+analyze_error_spectrum(
+    signal,
+    fs=...,
+    scale_mode="residual",    # residual-normalized / shape-only view
+)
+```
+
+或者提供更明确的参数：
+
+```text
+scale_mode="adc_fs"       -> 使用 ADC full-scale，推荐真实诊断默认
+scale_mode="residual"     -> 使用 residual 自身幅度，只看频率指纹
+```
+
+如果担心 full-scale 标尺下小 residual 看不清，应通过以下方式改善可读性，而不是隐式改标尺：
+
+```text
+调整 y-axis；
+增加 max spur marker；
+报告 peak spur dBFS；
+报告 residual RMS / pk-pk LSB；
+提供 zoom / inset；
+在 example 中并排展示 fingerprint view 与 ADC-FS view。
+```
+
+### 优先级判断
+
+```text
+P2
+```
+
+原因：
+
+```text
+这不是底层算法 bug；
+但它会影响 `analyze_error_spectrum` 作为真实 ADC 诊断工具时的可解释性。
+当前默认 residual 自归一化适合看图样，却容易让用户误读不同 case 的误差严重程度。
+建议先文档化，再考虑 API 增加显式 scale mode。
+```
+
+## 2026-06-30: `exp_a31_fit_static_nonlin` 只给 k2/k3，缺少误差量级判断
+
+### 涉及位置
+
+- `python/src/adctoolbox/examples/04_debug_analog/exp_a31_fit_static_nonlin.py`
+  - 当前 example 注入 `k2*x^2 + k3*x^3 + noise`；
+  - 调用 `fit_static_nonlin(sig_distorted, order=3)`；
+  - 绘制 transfer curve 和 residual curve；
+  - 只打印 injected / extracted `k2`、`k3`。
+- `python/src/adctoolbox/aout/fit_static_nonlin.py`
+  - 先对 distorted waveform 做 sine fit；
+  - 再用 `fitted_sine -> sig_distorted` 拟合静态多项式；
+  - 返回 `k2_extracted`、`k3_extracted`、`fitted_sine`、`fitted_transfer`。
+
+### 问题描述
+
+`exp_a31` 当前主要回答：
+
+```text
+能不能从 distorted sine 里拟合出 k2 / k3？
+```
+
+但没有回答更工程的问题：
+
+```text
+这些 k2 / k3 到底造成了多大的误差？
+这个误差相对 noise、signal、LSB 或 full-scale 是否显著？
+为什么 transfer curve 上几乎看不出差异，但 residual 里能看见结构？
+```
+
+这会让读者只看到“形状参数”，却缺少“误差量级”。对于 ADC 诊断来说，二者都重要：
+
+```text
+k2 / k3:
+  说明误差形状和可能机制。
+
+RMS / dBFS / LSB:
+  说明误差严重程度和是否超过噪声底。
+```
+
+### 原理说明
+
+当前 example 的数据模型是：
+
+```text
+x[n] = A sin(omega n)
+
+y[n] = x[n]
+     + k2 * x[n]^2
+     + k3 * x[n]^3
+     + noise[n]
+```
+
+`fit_static_nonlin` 先拟合最佳正弦：
+
+```text
+fitted_sine[n] ~= best fundamental component of y[n]
+residual[n] = y[n] - fitted_sine[n]
+```
+
+因此 residual 不是原始 `k2*x^2 + k3*x^3` 的全部，而是去掉 DC / fundamental / gain / phase 后剩下的误差。
+
+对单音输入：
+
+```text
+x^2 = A^2 sin^2(omega t)
+    = A^2/2 - A^2/2 * cos(2 omega t)
+
+x^3 = A^3 sin^3(omega t)
+    = 3A^3/4 * sin(omega t) - A^3/4 * sin(3 omega t)
+```
+
+所以：
+
+```text
+k2*x^2:
+  产生 DC + HD2。
+  DC 会被 offset 吸收，post-fit residual 主要剩 HD2。
+
+k3*x^3:
+  产生 fundamental + HD3。
+  fundamental 会被 sine fit 吸收，post-fit residual 主要剩 HD3。
+```
+
+对应的 post-fit distortion RMS 近似为：
+
+```text
+HD2 residual RMS ~= |k2| * A^2 / (2*sqrt(2))
+HD3 residual RMS ~= |k3| * A^3 / (4*sqrt(2))
+```
+
+在当前 example 参数下：
+
+```text
+A = 0.5
+k2 = 0.01
+k3 = 0.01
+noise_rms = 500 uVrms
+```
+
+理论量级约为：
+
+```text
+HD2 residual RMS ~= 0.884 mVrms
+HD3 residual RMS ~= 0.221 mVrms
+noise RMS        = 0.500 mVrms
+```
+
+这解释了一个教学上很重要的现象：
+
+```text
+顶部 transfer curve 使用 +-0.5 V 量级，看 mV 级非线性并不敏感；
+底部 residual 图直接显示误差，因此更容易看见二次/三次结构；
+同样 k=0.01 时，HD2 residual 比 HD3 residual 更大。
+```
+
+### 建议补充的 RMS 指标
+
+建议在 `exp_a31` 中补充以下统计：
+
+```text
+noise_rms:
+  已知注入噪声，当前为 500 uVrms。
+
+measured_residual_rms:
+  rms(sig_distorted - fitted_sine)，表示 post-fit 总误差。
+
+expected_hd2_rms:
+  |k2_inject| * A^2 / (2*sqrt(2))。
+
+expected_hd3_rms:
+  |k3_inject| * A^3 / (4*sqrt(2))。
+
+excess_rms:
+  sqrt(max(measured_residual_rms^2 - noise_rms^2, 0))，
+  用于粗略估计扣除随机噪声后的确定性误差量级。
+```
+
+可选地同时报告：
+
+```text
+residual_rms_dBFS:
+  20*log10(measured_residual_rms / full_scale_rms_or_peak_convention)
+
+residual_rms_LSB:
+  measured_residual_rms / LSB
+```
+
+但必须在图注或文档里说明 full-scale / LSB 的定义，否则容易产生新的标尺歧义。
+
+### 需要避免的误用
+
+不要直接对图中的 `nonlinearity_curve = transfer_y - transfer_x` 按均匀横轴取 RMS，并把它解释成动态测试里的误差 RMS。
+
+原因是：
+
+```text
+transfer curve 横轴是均匀扫 amplitude；
+真实 sine 输入在幅值两端停留时间更长；
+二者的样本权重不同。
+```
+
+如果要和 spectrum、SNDR、residual 解释一致，RMS 应该优先在真实时间样本上计算：
+
+```text
+residual[n] = sig_distorted[n] - fitted_sine[n]
+```
+
+### 建议展示方式
+
+每个 panel 的标题或角落 annotation 可以从：
+
+```text
+Injected: k2=..., k3=...
+Extracted: k2=..., k3=...
+```
+
+扩展为：
+
+```text
+Injected:  k2=..., k3=...
+Extracted: k2=..., k3=...
+Residual RMS: ... uVrms
+Expected HD2/HD3 RMS: ... / ... uVrms
+Noise RMS: ... uVrms
+```
+
+console 输出也应同步改成一行可比较的表格：
+
+```text
+k2_inj  k3_inj  k2_ext  k3_ext  residual_rms(uV)  expected_hd2(uV)  expected_hd3(uV)  noise_rms(uV)
+```
+
+### 优先级判断
+
+```text
+P3
+```
+
+原因：
+
+```text
+这不是底层算法错误；
+`fit_static_nonlin` 已经能正确提取 k2/k3 的主要形状信息。
+但作为 example / teaching demo，当前输出缺少误差量级，导致读者难以判断：
+  - 拟合出来的 k2/k3 是否工程上显著；
+  - residual 图里的结构是否已经超过噪声；
+  - 为什么 transfer curve 看不出东西。
+```
+
+建议先作为 example 可视化和文档增强处理；如果后续 `fit_static_nonlin` API 要返回 diagnostics，
+可以把 `rmse`、`residual_rms`、`poly_residual_rms` 等作为可选诊断字段。
+
+## 2026-06-30: `exp_d11_bit_activity` 的 DC offset case 混入 clipping/headroom 问题
+
+### 涉及位置
+
+- `python/src/adctoolbox/examples/05_debug_digital/exp_d11_bit_activity.py`
+  - `A = 0.499`
+  - `sine = 2 * A * sin(...)`
+  - test cases 包含 `sine + 0.01` 和 `sine - 0.01`
+  - 同时展示 `analyze_bit_activity(dout)` 和 `analyze_spectrum(dout @ ideal_weights)`
+- `python/src/adctoolbox/dout/analyze_bit_activity.py`
+  - 该工具本身只是统计每个 bit 为 1 的比例。
+
+### 问题描述
+
+`exp_d11` 名义上想展示：
+
+```text
+bit activity 可以检查 bit matrix 是否健康。
+```
+
+这对 stuck bit、poor contact、dead bit、输入覆盖不足等问题是合理的。
+但当前 `+1% DC Offset` / `-1% DC Offset` case 的教学归因不够干净。
+
+当前输入幅度是：
+
+```text
+A = 0.499
+sine peak = 2*A = 0.998
+```
+
+这已经非常接近 SAR 可表示范围。加上 `+0.01` 或 `-0.01` DC 后：
+
+```text
++1% DC:
+  input range ~= [-0.988, +1.008]
+
+-1% DC:
+  input range ~= [-1.008, +0.988]
+```
+
+因此这两个 case 不是纯粹的“DC offset 导致 bit activity bias”，而是：
+
+```text
+near-full-scale sine + DC offset
+  -> input headroom 不够
+  -> 单边 clipping / overrange
+  -> harmonic distortion
+  -> ENOB 大幅下降
+```
+
+实测量化：
+
+```text
+SAR correction span excluding last comparator bit ~= +/-0.999512
+
+ideal:
+  input range = [-0.998, +0.998]
+  overrange = 0%
+  ENOB ~= 12.00 bit
+  bit activity ~= 50.0%
+
++1% DC:
+  input range = [-0.988, +1.008]
+  positive overrange ~= 4.16% samples
+  ENOB ~= 8.95 bit
+  bit activity ~= 50.3% - 53.3%
+
+-1% DC:
+  input range = [-1.008, +0.988]
+  negative overrange ~= 4.16% samples
+  ENOB ~= 8.95 bit
+  bit activity ~= 46.7% - 49.7%
+```
+
+所以 ENOB 的大幅下降主要来自 clipping / headroom，不是 bit activity 偏离 50% 本身。
+如果读者只看 example 标题，容易误解为：
+
+```text
+1% DC offset -> bit activity 偏一点 -> ENOB 掉 3 bit
+```
+
+更准确的因果链应是：
+
+```text
+1% DC offset 在 near-full-scale 条件下造成 overrange；
+overrange 造成削顶；
+削顶造成强 harmonic；
+harmonic 造成 SNDR / ENOB 下降。
+```
+
+### 这是不是代码库 bug？
+
+```text
+不是底层算法 bug。
+```
+
+原因：
+
+```text
+analyze_bit_activity 只是统计 bit matrix 每列为 1 的比例；
+它没有承诺区分 activity bias、input clipping、stuck bit 或测试覆盖不足。
+```
+
+问题在于 `exp_d11` 的 case 设计和文档说明：
+
+```text
+工具方向是对的；
+Poor contact in Bit-11 是很好的 bit-activity demo；
+但 +/-1% DC Offset case 实际是 headroom/clipping demo，
+不应被当成纯 bit-activity 健康检查案例。
+```
+
+### 建议优化方向
+
+建议把 example 拆成三个更清晰的对照：
+
+```text
+1. Clean activity-bias case:
+   降低幅度，比如 A = 0.45；
+   加 +/-1% DC offset；
+   确保不过量程；
+   用来展示 activity 从 50% 稍微偏移，但不必然造成灾难性 ENOB 下降。
+
+2. Explicit clipping/headroom case:
+   保留 A = 0.499 + DC offset；
+   但标题明确写成 "DC offset causing clipping" 或 "Headroom violation"；
+   同时报告 endpoint-code fraction / overrange fraction。
+
+3. Bit-health case:
+   保留 Poor contact / stuck bit；
+   这是 analyze_bit_activity 最有代表性的用途。
+```
+
+推荐在 example 输出中额外打印：
+
+```text
+input min/max；
+estimated overrange fraction；
+endpoint-code fraction；
+bit activity min/max。
+```
+
+这样可以把三类现象分开：
+
+```text
+bit activity abnormality:
+  某列 bit 的 1/0 占比异常。
+
+input headroom / clipping:
+  输入越界或端点码堆积。
+
+dynamic performance degradation:
+  由 clipping、harmonic、noise、glitch 等导致的 SNDR/ENOB 下降。
+```
+
+### 优先级判断
+
+```text
+P3
+```
+
+原因：
+
+```text
+这不是算法错误；
+但当前 demo 容易造成教学误解。
+建议先在 Stage 11 / notes 中说明该 case 的真实因果链；
+后续再考虑改 example，把 no-clipping offset 和 clipping/headroom 分开。
+```
+
+## 2026-07-02: `ifilter` 后做 unit-element / thermometer 权重校准会造成病态非物理解
+
+### 涉及位置
+
+- `python/src/adctoolbox/oversampling/ifilter.py`
+  - `ifilter(sigin, passband)` 直接调用 `extract_freq_components`。
+- `python/src/adctoolbox/spectrum/extract_freq_components.py`
+  - `np.fft.fft(din, axis=0)`
+  - 构造理想 brickwall frequency mask。
+  - `spec = spec * mask[:, np.newaxis]`
+  - `np.real(np.fft.ifft(spec, axis=0))`
+- `python/src/adctoolbox/calibration/_lstsq_solver.py`
+  - 校准权重本质是无约束 least-squares。
+  - 当前没有对 unit-element 权重施加非负、平滑、接近 nominal、total-variation 或 ridge/Tikhonov 约束。
+- 相关 example：
+  - `python/src/adctoolbox/examples/10_oversampling/exp_o02_ifilter_band_analysis.py`
+  - 该 example 只展示 `ifilter` 作为频带提取工具，本身没有做权重校准。
+
+### 问题背景
+
+讨论中有一张内部验证图，标题大意为：
+
+```text
+64-bit 温度计码字区通过 noise shaping / ifilter 后做权重校准，
+unit 权重从近似平坦变成强烈振荡的非物理权重。
+
+NSSAR ifilter + 权重校准：
+  基本无发散问题；
+  但自由度过高；
+  矩阵条件数差；
+  非因果滤波导致带外不合理抬升。
+```
+
+这里需要把问题说精确：
+
+```text
+不是 NTF(z) = (1 - z^-1)^L 本身在 Nyquist 后无界发散；
+也不是 ifilter 单独会放大信号；
+而是：把 ifilter 处理后的 thermometer / unit-element code matrix
+拿去做无约束权重最小二乘，会形成病态逆问题。
+```
+
+`ifilter` 在本库中是理想 FFT brickwall filter：
+
+```text
+FFT -> 频域 mask -> IFFT
+```
+
+它是离线、全记录、非因果滤波器。作为频带提取工具是合理的；但它会改变每一列 code
+column 的频谱内容。如果对 64 个 thermometer/unit columns 分别滤波，再用滤波后的矩阵
+去拟合 unit weights，就等价于：
+
+```text
+只要求这些权重在指定带内拟合训练目标；
+带外行为不被训练目标约束；
+列与列之间在带内更难区分；
+最小二乘可以利用近似 null-space 生成大幅正负振荡权重。
+```
+
+### 数学解释
+
+设原始 unit-element code matrix 为：
+
+```text
+B_raw, shape = (N samples, 64 units)
+```
+
+理想 unit 权重应近似平坦、非负：
+
+```text
+w_unit ~= constant > 0
+```
+
+若先对每列做带内 `ifilter`，得到：
+
+```text
+B_filt = ifilter(B_raw, passband)
+```
+
+再做：
+
+```text
+min_w || B_filt @ w - y_inband ||_2
+```
+
+此时最小二乘只关心带内误差。若 `B_filt` 的列相关性很强，则存在很多近似 null-space 方向：
+
+```text
+B_filt @ delta_w ~= 0
+```
+
+这些方向几乎不改变带内训练误差，却可以让权重变成：
+
+```text
+w + delta_w
+```
+
+并出现：
+
+```text
+正负交替；
+大幅振荡；
+unit 权重为负；
+total variation 极大；
+用于未滤波 raw bits 时产生非物理带外/时域行为。
+```
+
+所以问题本质是：
+
+```text
+ifilter 后的训练目标只约束带内；
+无约束 least-squares 没有物理先验；
+病态矩阵把不可观测自由度转化成非物理权重。
+```
+
+### 复核实验
+
+用一个合成 64 列 thermometer code matrix 做复核：
+
+```text
+N = 8192
+M = 64 unit columns
+OSR = 32
+输入为单音正弦驱动的 thermometer code
+对每列做 centered，然后比较 raw matrix 与 in-band ifilter matrix
+```
+
+结果：
+
+```text
+raw centered thermometer:
+  rank(1e-12) = 58
+  cond_eff    ~= 5.29e1
+
+ifiltered in-band thermometer:
+  rank(1e-12) = 58
+  cond_eff    ~= 4.19e4
+```
+
+`ifilter` 没有显著改变有效 rank，但把最小有效奇异值压得很小，条件数恶化接近 800 倍。
+
+同一目标下做无约束 least-squares，权重形态变为：
+
+```text
+raw fit:
+  weight std       ~= 1.0e-2
+  weight min/max   ~= 0 ~ 3.6e-2
+  total variation  ~= 8.1e-2
+
+ifilter fit:
+  weight std       ~= 2.0e-1
+  weight min/max   ~= -0.83 ~ 0.64
+  total variation  ~= 9.6
+```
+
+这复现了“unit 权重从近似平坦变成强烈振荡、甚至负权重”的现象。
+
+另一个复核点：
+
+```text
+ifilter-trained weights 用在 ifiltered matrix 上：
+  训练带内误差很小。
+
+ifilter-trained weights 用回 unfiltered raw bits：
+  权重的带外/时域行为不受约束，可能出现非物理振荡和异常 spur。
+```
+
+这就是典型的训练目标过窄 + 病态逆问题，而不是物理 unit 权重被真实校准出来。
+
+### 这是不是代码库 bug？
+
+判断：
+
+```text
+不是 `ifilter` 单独的 bug。
+不是 `calibrate_weight_sine` 单独的 bug。
+但如果库或示例把 `ifilter(B)` 后的 code matrix 直接用于物理 unit 权重校准，
+这是一个真实且严肃的 workflow 风险。
+```
+
+原因：
+
+```text
+ifilter:
+  作为离线频带提取工具合理。
+
+least-squares weight calibration:
+  作为一般线性拟合工具合理。
+
+组合问题:
+  对 unit-element / thermometer 权重，物理先验非常强；
+  无约束 LS 没有这些先验；
+  ifilter 又只保留带内信息；
+  组合后容易得到数学上拟合好、物理上荒谬的权重。
+```
+
+### 建议优化方向
+
+如果未来要支持 “NSSAR / noise-shaping SAR / thermometer unit-element ifilter + 权重校准”
+这类 workflow，应增加显式诊断和约束。
+
+建议至少增加诊断：
+
+```text
+1. report rank / singular values / condition number:
+   cond(B_raw), cond(B_filt), singular value spectrum。
+
+2. report weight physicality:
+   min(weight), max(weight), negative_weight_fraction,
+   std(weight), total_variation(weight), max_abs_jump。
+
+3. compare train vs validation:
+   fit on ifiltered training target；
+   apply weights to unfiltered raw bits；
+   evaluate independent frequency/amplitude/phase capture。
+
+4. compare raw-fit vs ifilter-fit weights:
+   ||w_raw - w_ifilter||；
+   TV(w_raw) vs TV(w_ifilter)；
+   reconstructed spectrum before/after。
+```
+
+建议增加可选约束 / 正则：
+
+```text
+ridge / Tikhonov:
+  min ||B_filt w - y||^2 + lambda ||w - w_nom||^2
+
+smoothness / total variation:
+  min ||B_filt w - y||^2 + lambda ||D w||^2
+
+non-negative least squares:
+  w_i >= 0
+
+bounded unit variation:
+  |w_i - w_nom_i| <= tolerance
+
+monotonic / segmented prior:
+  对 thermometer / unit array 使用更接近物理 layout 的约束。
+```
+
+对于教学示例，应明确写：
+
+```text
+ifilter 适合做频带提取和 in-band 性能分析；
+不应默认把 ifilter 后的 code matrix 当成物理 unit 权重校准输入；
+如果这么做，必须报告 conditioning 和 weight physicality。
+```
+
+### 优先级判断
+
+```text
+P2
+```
+
+原因：
+
+```text
+这不是普通可视化瑕疵；
+如果用户把该 workflow 用于真实 NSSAR / thermometer unit-element calibration，
+可能得到训练指标看似改善、但权重明显非物理且不可泛化的结果。
+```
+
+但当前库公开 example 中 `exp_o02_ifilter_band_analysis.py` 只展示 ifilter 频带提取，
+并未直接宣称 ifilter 后可用于物理 unit 权重校准。因此优先级低于会直接崩溃或错误输出的
+API bug，但高于纯文档表达优化。
