@@ -10,6 +10,38 @@
 - 条目应保留问题出现的上下文，避免改写成脱离代码的泛泛结论。
 - 如果后续代码或文档已经修正，应在原条目下追加“处理状态”，不要删除历史记录。
 
+## 2026-07-09: Alignment / Optimization Close-Out
+
+本文件包含两类内容：
+
+```text
+1. MATLAB/Python alignment 或 API contract 相关 corner；
+2. 更长期的优化、研究性约束、教学示例增强。
+```
+
+截至 2026-07-09，第一类中已经进入主线跟踪的 notable 问题已闭环：
+
+```text
+plotspec / spectrum mask and integrated-lobe policy      -> #71, #76
+error spectrum full-scale reference                       -> #82
+calibration matrix diagnostics                            -> #81
+calibration scale / overrange / frequency-radix contracts -> #79, #80, #84-#87
+ovfchk, bitsweep, errevspec, sinfit, ntfperf, plotphase,
+errsin, cdacwgt contract fixes                            -> #88-#95, #97
+```
+
+因此，本文中早期出现的 “尚未修改 upstream 代码 / PR-SUBMITTED / TODO”
+如果对应上述 PR，应按“历史记录已闭环”理解。未闭环的内容主要是第二类：
+
+```text
+NNLS / ridge / smoothness / train-vs-validation 等 calibration 物理约束；
+更多 plotspec / spectrum collision golden cases；
+dashboard / adcpanel migration note；
+教学 example 的可视化和解释增强。
+```
+
+这些仍有价值，但不再表示当前存在已知 MATLAB/Python 核心对齐缺陷。
+
 ## 2026-06-22: `fit_sine_4param` 的正交性条件和 residual 解释边界
 
 ### 代码位置
@@ -1641,7 +1673,7 @@ except OSError as exc:
   - 当前仅作为本地 optimization/corner 记录保留。
   - 若后续决定提交，可使用建议标题：`Windows: run_matlab_tests.py accepts non-executable files because os.access(X_OK) is unreliable`
   - 主要范围：`matlab/tests/run_matlab_tests.py` 的 `_is_executable_file(...)` 与显式 `--matlab-executable` 校验。
-- 2026-06-25：`PR-SUBMITTED / P2`
+- 2026-06-25：`PR-SUBMITTED / P2`（历史状态；最终已于 2026-07-01 合并，见下方）
   - GitHub PR：`#57 Fix Windows MATLAB runner executable validation`
   - 分支：`chenzc24:codex/fix-windows-matlab-runner` -> `Arcadia-1/ADCToolbox:main`
   - 主要修复：Windows 上不再依赖 `os.access(path, os.X_OK)` 判断 MATLAB runner executable；对 `.exe` 做 PE 签名校验，并对 `shutil.which(...)` 结果复用同一校验。
@@ -1652,7 +1684,7 @@ except OSError as exc:
 
 - 2026-06-24：已记录 optimization。尚未修改 MATLAB runner 分支代码或测试。
 - 2026-06-25：已基于当前 `main` 提交修复 PR `#57`；尚未合并 upstream/main。
-- 2026-06-28：复核确认 PR `#57` 仍 OPEN 未合并；upstream/main 的 `_is_executable_file` 仍是 `path.is_file() and os.access(path, os.X_OK)`，Windows 上不可靠的问题仍在。
+- 2026-06-28：历史复核时 PR `#57` 仍 OPEN 未合并；upstream/main 的 `_is_executable_file` 仍是 `path.is_file() and os.access(path, os.X_OK)`。
 - 2026-07-01：upstream 已合并 PR `#57 Fix Windows MATLAB runner executable validation`。
   - 合并 commit：`59680024b79961188e8931715377e4be4f954f21`
   - 已落地：Windows 上不再只依赖 `os.access(path, os.X_OK)`；显式路径、`shutil.which(...)` 结果和 launch-time `OSError` 都进入统一 invalid executable 处理。
@@ -1832,7 +1864,7 @@ data_normalized = data / 0.5
 建议定性为：
 
 ```text
-ISSUE-CANDIDATE / P2
+RESOLVED / MERGED / P2-HARDENING
 类型：API robustness / documentation / example consistency
 影响：容易造成 dBFS 绝对尺度、noise floor、NSD 误读
 不影响：校准相对权重趋势、SFDR/SNDR 比值类指标的基本结论
@@ -1947,6 +1979,51 @@ Clarify calibrate_weight_sine output scale and warn on dBFS full-scale mismatch
 ```
 
 - 2026-06-28：复核确认上游状态未变——`calibrate_weight_sine` 的 Returns docstring 仍未说明 `weight`/`calibrated_signal` 是 solver-unit-sine 尺度而非 ADC voltage 尺度；`_prepare_fft_input` 仍按 `peak_amplitude` 归一化且不 clamp / 不对 over-range warn。核心机制（半量程输入 A=0.49 → calibrated_signal peak ≈ 2.0 ≈ 1/A，analyze_spectrum 报 +6.02 dBFS）经实验复现仍然成立。
+
+- 2026-07-04：处理标记更新为 `MERGED / RESOLVED / P2-HARDENING`。
+  - Upstream PR：`#79 Clarify calibration output scale contract`
+    - URL: `https://github.com/Arcadia-1/ADCToolbox/pull/79`
+    - 状态：MERGED。
+  - PR 内容：
+    - Python 新增 `scale_calibration_output(...)`，并在 `calibrate_weight_sine` 输出中加入
+      `scale_convention = "solver_unit_sine"`。
+    - MATLAB 新增 `wcalrescale(...)`，同步 `wcalsin` 文档和 dout 测试。
+    - 官方 digital calibration examples 改为显式映射回 ADC/code reference scale。
+  - 验证结论：
+    - `SNDR` / `SNR` / `ENOB` / `SFDR` / `THD` 这类比值指标对单一线性 scale 不敏感；
+      raw solver scale 与 ADC-rescaled 后数值一致。
+    - `sig_pwr_dbfs` / `noise_floor_dbfs` / `NSD` 是 full-scale-referenced 绝对量；
+      如果 raw solver-scale waveform 未 rescale 就送入 spectrum analysis，会失去 ADC full-scale
+      物理意义。
+    - 同一 SAR mismatch capture 中：
+      ```text
+      before nominal weights:
+        Sig=-0.1767 dBFS, SNDR=72.1091 dB, SNR=72.9141 dB, NSD=-70.0805 dBFS/Hz
+      after calibration, raw solver scale:
+        Sig=+6.0206 dBFS, SNDR=73.8003 dB, SNR=73.8009 dB, NSD=-64.7700 dBFS/Hz
+      after calibration, ADC-rescaled:
+        Sig=-0.1767 dBFS, SNDR=73.8003 dB, SNR=73.8009 dB, NSD=-70.9673 dBFS/Hz
+      ```
+      因此校准后的真实 noise floor / NSD 是下降的；raw solver scale 下看到的上升是
+      dBFS reference mismatch，而不是校准变差。
+  - 备注：
+    - 早期记录中的 `1/A` 只适合作为该 demo 的近似现象解释，不应写成通用公式。
+      PR 采用的正式修复口径是显式 scale contract：`target_weights` / `target_sine_peak` /
+      direct `scale`，而不是假定权重总是按 `1/A` 缩放。
+
+- 2026-07-04：`_prepare_fft_input` overrange warning 已从 #79 拆出为独立 upstream PR。
+  - Upstream PR：`#80 Warn when spectrum input exceeds declared range`
+    - URL: `https://github.com/Arcadia-1/ADCToolbox/pull/80`
+    - 状态：MERGED。
+  - 处理标记：`MERGED / RESOLVED / P2-P3`。
+  - PR 边界：
+    - 只在用户显式传入 `max_scale_range` 且输入超过声明范围时 warning。
+    - `max_scale_range=None` 仍保持 self-referenced auto-scale 行为。
+    - 不改变 spectrum 数值计算，只增加可解释性保护。
+
+- 2026-07-09：alignment close-out 复核：
+  - scale contract、ADC rescale helper、overrange warning、相关文档均已合并。
+  - 本条不再是 active alignment blocker；后续仅保留为 full-scale / solver-scale 教学边界说明。
 
 ## 2026-06-27: `calibrate_weight_sine` dual-basis 分支选择的严谨性与可审计性
 
@@ -2229,6 +2306,17 @@ This is a small eigen/SVD problem in the 2-D fundamental subspace.
 ```
 
 ## 2026-06-27: `calibrate_weight_sine` harmonic nuisance 的物理归因与可辨识性风险
+
+处理标记：RESOLVED / MERGED / P2-HARDENING  
+Upstream Issue: https://github.com/Arcadia-1/ADCToolbox/issues/83  
+Upstream PR: https://github.com/Arcadia-1/ADCToolbox/pull/84
+
+2026-07-09 更新：
+
+```text
+#84 已合并。`harmonic_order` 的 residual / nuisance semantics 已文档化并进入测试保护。
+本条不再作为 active alignment blocker；保留为物理归因和可辨识性边界说明。
+```
 
 ### 问题一句话
 
@@ -2649,6 +2737,17 @@ P3: harmonic_policy 可以作为 v2 API 方向，先不要破坏现有 `harmonic
   课程侧的解释（H=1 作为 baseline、H>=3 作为 source-nuisance 假设、multi-capture 边界）
   已在 stage_06 §5 (harmonic_order) 落地，本条只保留源码侧的可辨识性结论、
   实验证据（multi-capture 表、外部 H3 数据）和 API 优化建议。
+2026-07-04:
+  已提交 upstream issue #83，完整记录 harmonic_order>1 的语义风险、代码位置、
+  Python/MATLAB 文档表述问题，以及理想 ADC + source H3 的频域/时域实验结果。
+  关键实验结论：harmonic_order=3 会把 H3 纳入 fitted ideal，使 calibration SNR
+  从 28.80 dB 提高到 67.80 dB，但 calibrated_signal 的 FFT SNDR 仍约 25.84 dBc，
+  HD3 仍存在。因此 result["snr_db"]/result["enob"] 应解释为 fitted-residual 指标，
+  不能替代 analyze_spectrum(calibrated_signal) 的真实动态指标。
+2026-07-04:
+  已基于 upstream/main 提交 PR #84。PR 不改 solver 数学、默认值或返回 key；
+  只澄清 Python/MATLAB 文档与注释，并新增 regression test 锁住 fitted-residual
+  SNR 与 FFT dynamic SNDR/HD3 的区别。
 ```
 
 ## 2026-06-27: rank-deficiency patch 的全秩亏崩溃与静默不可观测 bit 风险
@@ -2939,6 +3038,22 @@ P3:
   本条的算法解释（nominal ratio 分配、merge 顺序、rank patch + scaling 耦合）
   已在 stage_06 第 8 节及补充、第 9 节完整覆盖，故从本文件移除这些重复内容。
   本文件只保留源码 bug 的最小复现脚本、traceback 定位和针对性修复/测试建议。
+2026-07-04:
+  处理标记：RESOLVED / MERGED。
+  Upstream 已合并 PR #75:
+  https://github.com/Arcadia-1/ADCToolbox/pull/75
+
+  已落地内容：
+  - all-constant / no effective bit column case 改为明确 ValueError fail-fast。
+  - 部分不可观测 bit 增加 warning / diagnostics，避免用户把静默置零误读为物理权重为零。
+  - 相关 calibration 单测已覆盖。
+
+  后续基础诊断增强已单独合并 PR #81:
+  https://github.com/Arcadia-1/ADCToolbox/pull/81
+  处理标记：MERGED / P2-HARDENING。
+  该 PR 新增 `diagnose_calibration_matrix(...)`，用于报告 rank、condition number、
+  binary/continuous input classification 和 weight physicality metrics；它是后续
+  ifilter/unit-weight workflow 诊断的地基，但不直接解决 ifilter 后无约束 LS 的物理约束问题。
 ```
 
 ## 2026-06-28: Stage 09 subsample debug output 的 multi-N alias 反推缺口
@@ -3276,14 +3391,25 @@ gcd(N, M) == 1
 ### 建议优先级
 
 ```text
-P2:
-  增加文档边界声明 + multi-N demo。
-
-P2/P3:
+P3 / low-P2:
   增加 alias candidate / collision score helper。
 
 P3:
+  增加 multi-N demo / README 边界声明。
+
+P3:
   将 helper 从 example 提升为 public API，视用户需求和真实项目使用频率决定。
+```
+
+降级理由：
+
+```text
+精确 alias collision 对随机频率不是高概率事件；
+核心 spectrum / subsample 数值计算并未因此错误；
+主要风险是 debug 解释歧义：单个 N 的 folded spur 无法唯一反推出原始频率。
+
+因此该条不再按 P2 主链路问题处理，而作为 P3 诊断工具 / 教学解释增强跟踪。
+若真实项目大量依赖低速 debug 口做 spur source attribution，可临时提升到 low-P2。
 ```
 
 ### 处理状态
@@ -3296,6 +3422,11 @@ P3:
   课程文档侧（stage_09）的相关 caveat 已齐备，并在 §4 补上了 collision 相量相加
   机制的展开；剩余缺口纯粹是源码侧的 example / 工具（alias_candidates、
   exp_d01 multi-N、score_debug_downsample_factor），仍在此跟踪。
+2026-07-04:
+  处理标记：DOWNGRADED / OPEN。
+  当前判断：自然触发精确 collision 的概率较小；问题主要是 single-N subsample debug
+  的来源解释歧义，而不是主频谱计算错误。后续若实现，应优先做轻量 helper / warning /
+  example，而不是改动主分析链路。
 ```
 
 ## 2026-06-29: `analyze_error_by_value` 把 value-binned residual 标成 INL 的语义边界
@@ -3794,7 +3925,7 @@ P1/P2
   `learner/controversial-questions.md`
   "FFT 动态指标是否应该统一使用 integrated-lobe power？"
 
-  当前仅记录问题和建议方向；尚未修改 `compute_spectrum.py` / `_harmonics.py`。
+  当时状态：仅记录问题和建议方向；尚未修改 `compute_spectrum.py` / `_harmonics.py`。
 
 2026-07-01:
   upstream 已关闭 issue:
@@ -3822,6 +3953,10 @@ P1/P2
   当前判断：
   本条 peak-bin / integrated-lobe 口径混用问题已在 upstream/main 解决。
   课程侧仍需保留“integrated-lobe 不是真实频谱恢复”的边界说明。
+
+2026-07-09:
+  alignment close-out 复核：该条已由 #65 / #67 / #76 进入闭环；
+  不再作为 active MATLAB/Python parity issue。
 ```
 
 ## 2026-07-01: `SNR` harmonic-lobe exclusion 与 integrated-lobe 指标体系不一致
@@ -3978,38 +4113,30 @@ P1/P2: 系统一致性问题。
 2026-07-01:
   已记录为独立 optimization item。
   这不是 #65/#67 的 integrated-lobe 主修复回退，而是其后暴露出的 SNR noise-estimator consistency 问题。
-  尚未修改 upstream 代码，建议后续单独提 issue / PR。
+  当时尚未修改 upstream 代码，建议后续单独提 issue / PR。
 
 2026-07-02:
-  PR #71 已针对主问题提交修复：`nf_method=3` / `NFMethod='exclude'` 改为 harmonic-lobe exclusion，
+  处理标记：RESOLVED / MERGED / P1-P2。
+  Upstream 已合并 PR #71:
+  https://github.com/Arcadia-1/ADCToolbox/pull/71
+
+  PR #71 已针对主问题完成修复：`nf_method=3` / `NFMethod='exclude'` 改为 harmonic-lobe exclusion，
   并补了 band-edge lobe clip。该 PR 解决 center-bin-only 与 OSR band-edge 问题。
-  但 near-fundamental harmonic collision 的 Python/MATLAB policy 仍不一致，见下一条独立记录。
+  near-fundamental harmonic collision 后续复核确认也已由 PR #71 的 annulus mask 逻辑覆盖，见下一条记录。
 ```
 
-## 2026-07-02: `SNR`/`THD` near-fundamental harmonic collision 的 Python/MATLAB 口径不一致
+## 2026-07-02: `SNR`/`THD` near-fundamental harmonic collision 复核
 
 ### 代码位置
 
 - `python/src/adctoolbox/spectrum/_estimate_noise_power.py`
   - `_estimate_noise_power(...)`
   - `nf_method=3` 的 `_exclude_noise()`
-  - 当前有 fundamental-collision guard：
-
-```python
-if abs(h_bin - bin_idx) <= 2 * side_bin:
-    continue
-```
+  - PR #71 后：先 zero DC / fundamental lobe，再对 harmonic lobe 做 clipped zeroing。
 
 - `python/src/adctoolbox/spectrum/_harmonics.py`
   - `_calculate_harmonic_power(...)`
-  - THD / `harmonics_dbc` 也有相同类型的 guard：
-
-```python
-is_fundamental_collision = abs(harmonic_bin_center - fundamental_bin) <= 2 * side_bin
-if is_fundamental_collision:
-    collided_harmonics.append(harmonic_order)
-    continue
-```
+  - PR #71 后：先构造 harmonic lobe，再扣除 DC / fundamental lobe；若外侧 annulus 仍可见，则计入 THD / `harmonics_dbc`。
 
 - `matlab/src/plotspec.m`
   - `NFMethod='exclude'` 的 harmonic exclusion：
@@ -4028,11 +4155,11 @@ h_end = min(b+sideBin,inbandEnd);
 thd_mask(h_start:h_end) = true;
 ```
 
-MATLAB 当前没有 Python 侧的 `abs(h_bin - fundamental_bin) <= 2*side_bin` guard。
-
 ### 问题陈述
 
-当某个 harmonic alias 到 fundamental 附近时，Python 和 MATLAB 对同一段 bins 的物理分类不同。
+原始担忧是：当某个 harmonic alias 到 fundamental 附近时，Python 可能把它视为
+fundamental collision 后整条跳过，而 MATLAB 会对 clipped harmonic lobe 继续处理，
+导致 `SNR` / `THD` 在同一段 bins 上分类不同。
 
 以 0-based bin 表达：
 
@@ -4046,47 +4173,79 @@ harmonic lobe = 102..106
 abs(104 - 100) = 4 = 2*side_bin
 ```
 
-Python：
+合理语义应是：
 
 ```text
-认为 harmonic 与 fundamental collision；
-SNR nf_method=3: 不额外清 harmonic lobe；
-THD / harmonics_dbc: 不计入该 harmonic；
-结果：103..106 仍可能被当成 noise，且不进入 THD。
+fundamental lobe 内的重叠部分不可分辨，应被排除；
+fundamental lobe 外侧的 harmonic annulus 仍可见，应按 harmonic lobe 处理。
 ```
 
-MATLAB：
+PR #71 的最终实现已经采用这个语义：
 
 ```text
-先清掉 fundamental lobe；
-随后仍对 harmonic lobe 做 clip / mask；
-结果：103..106 会被 NFMethod='exclude' 从 noise 中排除；
-THD 也会把 103..106 计入 harmonic distortion。
+THD / harmonics_dbc:
+  harmonic lobe - DC lobe - fundamental lobe；
+  若剩余 annulus 非空，则计入 distortion。
+
+SNR nf_method=3 / NFMethod='exclude':
+  先 zero DC / fundamental lobe；
+  再 zero clipped harmonic lobe；
+  重叠部分是 no-op，外侧 annulus 会从 noise 中排除。
 ```
 
-因此同一个 near-fundamental aliased harmonic：
+因此原先记录的“Python 整条跳过、MATLAB clip annulus”的 P1 不一致，在 PR #71
+最终实现中已不再成立。
+
+### 复核实验
+
+在 PR #71 分支 `8edda1f Align near-fundamental harmonic masks` 上构造人工 power spectrum：
 
 ```text
-Python SNR: 更保守，可能偏低；
-MATLAB SNR: 更乐观，可能偏高；
-
-Python THD: 可能偏低，因为整条 collided harmonic 被跳过；
-MATLAB THD: 可能偏高/更接近 clipped-lobe 口径，因为 fundamental lobe 外侧 annulus 被计入。
+fundamental_bin = 50
+side_bin = 2
+fundamental lobe = 48..52
+harmonic center sweep = 45..55
 ```
 
-这不是 PR #71 的 band-edge clip 问题。#71 已解决：
+逐 bin 比对：
 
 ```text
-harmonic center 在 analysis band 边界外，但 lobe 仍部分在带内时，
-Python 与 MATLAB 都应自然 clip。
+Python _calculate_harmonic_power
+vs MATLAB-like thd_mask after fundamental-lobe zeroing
+
+Python _estimate_noise_power(nf_method=3)
+vs MATLAB-like NFMethod='exclude' after fundamental-lobe zeroing
 ```
 
-本条是另一类问题：
+结果：
 
 ```text
-harmonic center 在 fundamental 附近时，
-Python 选择 collision skip；
-MATLAB 选择 unconditional lobe clip。
+11 / 11 near-fundamental cases matched exactly.
+完全重叠时 THD=0 且 noise mask 不重复计数；
+部分重叠时只统计 / 排除外侧 annulus；
+完全分离时统计完整 harmonic lobe。
+```
+
+PR #71 已包含相关回归测试：
+
+```text
+python/tests/unit/spectrum/test_dynamic_metric_masks.py
+  - test_thd_counts_harmonic_annulus_near_fundamental_lobe
+  - test_nf_method3_excludes_harmonic_annulus_near_fundamental_lobe
+  - test_compute_spectrum_handles_hd2_alias_near_fundamental_lobe
+
+matlab/tests/aout/run_plotspec_dynamic_metric_masks.m
+  - Harmonic lobes near the fundamental should keep the visible annulus.
+```
+
+验证命令：
+
+```text
+uv run --with pytest pytest tests/unit/spectrum/test_dynamic_metric_masks.py -q
+  -> 9 passed
+
+uv run python matlab/tests/run_matlab_tests.py aout --missing-ok
+  -> passed, including run_plotspec_dynamic_metric_masks
 ```
 
 ### 原理解释
@@ -4099,89 +4258,62 @@ near-fundamental spur / AM sideband / phase-noise skirt
 aliased harmonic lobe
 ```
 
-这些能量可能落在相邻 bins，有限 FFT 和 window 下无法仅凭 bin index 完全区分。因此 Python 的 guard 有保守意义：
+这些能量可能落在相邻 bins，有限 FFT 和 window 下无法仅凭 bin index 完全区分。
+PR #71 采用的折中是：
 
 ```text
-避免把 fundamental 附近的真实 noise / sideband 误删；
-避免把无法可靠分离的 harmonic 强行报告为 THD。
+fundamental lobe 内：
+  不尝试区分 fundamental leakage 与 collided harmonic。
+
+fundamental lobe 外侧 annulus：
+  若 harmonic lobe 仍可见，则按 harmonic distortion / harmonic exclusion 处理。
 ```
 
-但 MATLAB 当前行为也有另一种一致性：
-
-```text
-只要 harmonic lobe 的一部分落在 analysis band 内，
-就按 lobe mask 处理；
-fundamental lobe 已经提前清零，重叠部分是 no-op，
-非重叠 annulus 仍按 harmonic lobe 处理。
-```
-
-问题不在于哪一种一定物理错误，而在于 Python / MATLAB 当前选择了不同 policy，
-导致 `SNR` / `THD` 在这个 corner 下不能 parity。
+这与 MATLAB `plotspec.m` 当前 mask 行为一致，也避免把可见 annulus 错当成 noise 或漏掉 THD。
 
 ### 严重程度
 
 ```text
-P1: 动态指标定义一致性问题。
+P3 / RESOLVED-BY-PR:
+  原 P1 parity 风险经复核已由 PR #71 覆盖。
 ```
 
 原因：
 
 ```text
-发生概率低于常规 harmonic-lobe / OSR band-edge 问题；
-但一旦 harmonic alias 接近 fundamental，SNR 与 THD 的差异可能很大；
-该差异会直接影响 Python↔MATLAB parity；
-也会影响教学中“同一套 dynamic metric mask convention”的解释。
+PR #71 已实现并测试 near-fundamental annulus policy；
+Python / MATLAB 对该 corner 的核心 SNR / THD mask 已对齐；
+剩余风险主要是维护文档、metadata 和更多边界测试，而不是已知核心数值错误。
 ```
 
-这不是显示层 bug，也不是单纯文档问题；它会改变 `snr_dbc`、`noise_floor_dbfs`、`nsd_dbfs_hz`、
-`thd_dbc` 和 `harmonics_dbc` 的数值。
-
-### 建议修复方向
-
-需要先明确项目 policy，再同步 Python 和 MATLAB。不要只在一侧打补丁。
-
-可选方向：
+### 剩余跟踪
 
 ```text
-Option A: 严格 MATLAB parity / unconditional clipped lobe
-  - 去掉 Python NF / THD 的 fundamental-collision guard；
-  - 统一用 clipped harmonic lobe mask；
-  - fundamental lobe 已清零，重叠部分自然 no-op；
-  - 优点：Python/MATLAB 对齐，mask 逻辑简单；
-  - 风险：near-fundamental AM sideband / phase-noise skirt 可能被误排除，SNR 可能偏乐观。
+1. 文档可明确 near-fundamental policy：
+   fundamental lobe 内不可分辨，外侧 annulus 仍按 harmonic lobe 处理。
 
-Option B: 保守 collision policy
-  - 保留 Python guard；
-  - MATLAB NF / THD 增加同等 collision guard；
-  - 优点：不把不可分辨的 near-fundamental 能量强行分类为 harmonic；
-  - 风险：偏离 MATLAB 当前 legacy 行为，THD 可能低估 collided harmonic 的可见 annulus。
+2. 可继续审计 DC collision 边界：
+   Python 和 MATLAB 在 DC-side `side_bin` 边界上历史上有 0-based / 1-based 语义差异，
+   这不是本条 near-fundamental 问题。
 
-Option C: 显式 policy 参数
-  - 例如 harmonic_collision_policy = "clip" / "skip" / "warn"；
-  - 默认选择需谨慎，避免破坏 legacy 行为；
-  - 实现和文档成本较高，不适合作为小修。
-```
-
-无论选择哪一项，都应增加 Python 与 MATLAB 的共同回归测试：
-
-```text
-1. harmonic center 距 fundamental <= side_bin:
-   完全不可分辨，应按选定 policy 一致处理。
-
-2. harmonic center 距 fundamental 在 (side_bin, 2*side_bin]：
-   lobe 与 fundamental lobe 部分重叠，annulus 是关键差异区。
-
-3. near-fundamental AM sideband / spur:
-   验证 chosen policy 对 SNR 乐观/保守偏差的说明。
+3. 可补更多 MATLAB/Python golden parity cases：
+   harmonic center = fundamental ± k, k=0..2*side_bin+1。
 ```
 
 ### 当前状态
 
 ```text
 2026-07-02:
-  已记录为未解决 high-priority optimization / parity issue。
-  PR #71 未修改该 guard；#71 只修 harmonic-lobe exclusion、OSR in-band clip 和 band-edge lobe clip。
-  建议后续单独开 issue / PR，先决定 Python/MATLAB near-fundamental collision policy。
+  初始记录为 high-priority parity issue。
+
+2026-07-02 复核:
+  处理标记：RESOLVED / MERGED / DOWNGRADED。
+  Upstream 已合并 PR #71:
+  https://github.com/Arcadia-1/ADCToolbox/pull/71
+
+  PR #71 已包含 near-fundamental harmonic annulus 修复与测试；
+  Python 与 MATLAB 在该 corner 的 THD / NF exclude mask 语义已对齐。
+  本条不再作为待处理 P1；若继续跟踪，应作为 P3 文档 / 额外 parity golden tests。
 ```
 
 ## 2026-07-01: OSR 下 Python `THD` / `harmonics_dbc` 未受 in-band 限制
@@ -4317,8 +4449,15 @@ P1/P2: OSR 场景下的核心动态指标一致性问题。
 ```text
 2026-07-01:
   已由动态指标一致性审计发现并记录。
-  尚未修改 upstream 代码。
-  建议优先级与 SNR harmonic-lobe exclusion 相近，适合一起作为 dynamic metric mask consistency PR 处理。
+
+2026-07-02:
+  处理标记：RESOLVED / MERGED / P1-P2。
+  Upstream 已合并 PR #71:
+  https://github.com/Arcadia-1/ADCToolbox/pull/71
+
+  PR #71 已完成修复：Python `THD` / `harmonics_dbc` 增加 OSR in-band limit，
+  并与 MATLAB `plotspec.m` 的 in-band THD 口径对齐。
+  near-fundamental harmonic annulus policy 也已在 PR #71 复核为 Python/MATLAB 对齐，见上一条记录。
 ```
 
 ## 2026-07-01: `perfosr` / `sweep_performance_vs_osr` 与主动态指标存在 SNDR/SFDR 口径差异
@@ -4490,8 +4629,17 @@ Option B: 与 ADCToolbox 主动态指标 convention 统一
 ```text
 2026-07-01:
   已记录为 dynamic metric consistency audit 发现的问题。
-  尚未修改 upstream 代码。
-  需要先决定 perfosr 是追求 MATLAB legacy 复刻，还是追求 toolbox 内部 metric convention 一致。
+
+2026-07-02:
+  处理标记：RESOLVED / MERGED for 3.01 dB scaling bug; REMAINING P3 for exact SFDR lobe parity。
+  Upstream 已合并 PR #73:
+  https://github.com/Arcadia-1/ADCToolbox/pull/73
+
+  PR #73 已修复 `perfosr` / `sweep_performance_vs_osr` 的 residual spectrum 单边功率缩放问题，
+  并同步 Python / MATLAB 的 in-band bin count 口径。该 PR 解决 SNDR/ENOB 约 3.01 dB 系统性偏低问题。
+  PR #73 保留 `perfosr` 的 fast residual-path 定位和 single-bin SFDR 近似；SFDR integrated-lobe
+  完全对齐不属于该 PR，若未来需要应另行设计。当前将该尾巴问题按 P3 维护性/定义增强跟踪，
+  不再视为本条 P2 主问题。
 ```
 
 ## 2026-07-01: `quick_sndr` 默认 `side_bin` 行为与 `compute_spectrum` 默认行为不一致
@@ -4614,7 +4762,15 @@ non-coherent 场景下会产生很大的 pessimistic SNDR。
 ```text
 2026-07-01:
   已记录为 consistency/documentation issue。
-  尚未修改 upstream 代码。
+
+2026-07-02:
+  处理标记：RESOLVED / MERGED / P2-P3。
+  Upstream 已合并 PR #72:
+  https://github.com/Arcadia-1/ADCToolbox/pull/72
+
+  PR #72 已完成修复：保持 `side_bin=None` 的 fast/coherent default 不变，
+  新增显式 opt-in 的 `side_bin="auto"`，用于 non-coherent capture 下对齐 `compute_spectrum(side_bin=None)`
+  的 side-bin auto detection；文档同步说明该模式会增加一次 FFT，不是默认 fast path。
 ```
 
 ## 2026-07-02: `SFDR` spur 搜索仍先按 center-bin peak 选中心，再计算 integrated-lobe power
@@ -4741,6 +4897,10 @@ Option C:
 2026-07-02:
   已由动态指标一致性审计发现并记录。
   尚未修改 upstream 代码。
+
+2026-07-09:
+  保留为 optional P3 cleanup / visualization consistency item。
+  不属于当前 active MATLAB/Python alignment blocker。
 ```
 
 ## 2026-07-01: Python spectrum plot marker 高度仍是 center-bin，而指标数字已是 integrated-lobe
@@ -4837,7 +4997,15 @@ Python 与 MATLAB MaxSpur marker 表现也不完全一致；
 ```text
 2026-07-01:
   已记录为 visualization consistency issue。
-  尚未修改 upstream 代码。
+
+2026-07-02:
+  处理标记：RESOLVED / MERGED / P3。
+  Upstream 已合并 PR #74:
+  https://github.com/Arcadia-1/ADCToolbox/pull/74
+
+  PR #74 已完成修复：Python `plot_spectrum` / `plot_spectrum_virtuoso` 与 MATLAB `plotspec.m`
+  统一 MaxSpur 可视化约定——diamond marker 使用 center-bin per-bin 高度，新增 lobe highlight
+  表示 integrated spur bins；SFDR 数值计算不变。
 ```
 
 ## 2026-07-01: `_calculate_harmonic_power_plotspec(...)` 旧 peak-bin helper 残留
@@ -4892,6 +5060,10 @@ P3: dead code / maintenance risk。
 2026-07-01:
   已记录为 low-priority cleanup item。
   尚未修改 upstream 代码。
+
+2026-07-09:
+  保留为 optional cleanup。当前无 open issue / PR 追踪，
+  不影响已闭环的主要 spectrum metric parity。
 ```
 
 ## 2026-07-02: calibration `_post_process` 的 `snr_db` 命名与实际时域 residual ratio 不完全一致
@@ -4982,6 +5154,10 @@ not the FFT SNR returned by analyze_spectrum.
 2026-07-02:
   已由动态指标一致性审计发现并记录。
   尚未修改 upstream 代码。
+
+2026-07-09:
+  保留为 naming / documentation cleanup 候选。
+  不属于当前 active MATLAB/Python alignment blocker。
 ```
 
 ## 2026-07-02: MATLAB `plotspec.m` 的 `harmonic < 0` 注释与 metric 行为不完全一致
@@ -5078,6 +5254,10 @@ Remove harmonics from the analysis spectrum and display when harmonic < 0.
 2026-07-02:
   已由动态指标一致性审计发现并记录。
   尚未修改 upstream 代码。
+
+2026-07-09:
+  保留为 MATLAB display/analysis note 候选。
+  不属于当前 active MATLAB/Python alignment blocker。
 ```
 
 ## 2026-06-30: `analyze_error_spectrum` residual 自归一化会弱化 dBFS 工程含义
@@ -5260,6 +5440,35 @@ P2
 但它会影响 `analyze_error_spectrum` 作为真实 ADC 诊断工具时的可解释性。
 当前默认 residual 自归一化适合看图样，却容易让用户误读不同 case 的误差严重程度。
 建议先文档化，再考虑 API 增加显式 scale mode。
+```
+
+### 处理状态
+
+```text
+2026-07-04:
+  处理标记：MERGED / RESOLVED-FOR-SCALE-CONTRACT / P2-HARDENING。
+  Upstream PR:
+  https://github.com/Arcadia-1/ADCToolbox/pull/82
+
+  PR 边界：
+  - `analyze_error_spectrum(...)` 新增 `max_scale_range`，并透传给 `analyze_spectrum(...)`。
+  - 默认 `max_scale_range=None` 保持旧行为：residual 自归一化，适合 fingerprint / shape view。
+  - 显式 `max_scale_range=(0, 1)` 或其他 ADC full-scale range 时，residual spectrum 以 ADC
+    full-scale 为 dBFS reference，适合工程严重程度、noise floor 和 NSD 判断。
+  - `exp_a22_analyze_error_spectrum.py` 改为使用 `params["adc_range"]` 生成 ADC-FS residual
+    spectrum 图。
+  - 不修改 `_prepare_fft_input`，不引入 overrange warning，因此不依赖 #80。
+  - 不涉及 `calibrate_weight_sine` solver scale，因此不依赖 #79。
+
+  验证：
+  - `tests/unit/aout/test_analyze_error_spectrum.py`: 3 passed。
+  - `tests/unit/aout/test_error_fit_options.py`: 3 passed。
+  - `tests/unit/aout`: 80 passed。
+  - `exp_a22_analyze_error_spectrum.py` 已生成 ADC-FS 图，y 轴为 `Error Spectrum (dBFS)`。
+
+2026-07-09:
+  #82 已合并 upstream。该条不再作为 active alignment blocker；
+  后续若继续讨论 `scale_mode="residual" | "adc_fs"`，属于 API polish / teaching view 增强。
 ```
 
 ## 2026-06-30: `exp_a31_fit_static_nonlin` 只给 k2/k3，缺少误差量级判断
@@ -5911,3 +6120,26 @@ P2
 但当前库公开 example 中 `exp_o02_ifilter_band_analysis.py` 只展示 ifilter 频带提取，
 并未直接宣称 ifilter 后可用于物理 unit 权重校准。因此优先级低于会直接崩溃或错误输出的
 API bug，但高于纯文档表达优化。
+
+### 处理状态
+
+```text
+2026-07-04:
+  处理标记：PARTIALLY-RESOLVED / P2，supporting diagnostics PR merged。
+
+  支持性 PR #81 已合并：
+  https://github.com/Arcadia-1/ADCToolbox/pull/81
+
+  #81 新增 `diagnose_calibration_matrix(...)`，覆盖 rank / condition number /
+  binary-vs-continuous input classification / weight physicality metrics，可作为后续
+  ifilter + unit-weight workflow 诊断地基。
+
+  但本条 broader optimization 仍未作为默认 solver 行为解决：
+  - ifilter 后无约束 LS 仍可能产生非物理 unit weights。
+  - 尚未加入 NNLS / ridge / smoothness / bounded variation 等物理约束。
+  - 尚未在 ifilter workflow 中自动要求 train-vs-validation 或 raw-vs-filtered 对照。
+
+2026-07-09:
+  该条不再属于 MATLAB/Python alignment blocker。剩余内容是长期 calibration
+  optimization / physical-prior design，可在未来单独成 issue / research PR。
+```

@@ -19,6 +19,27 @@
 后续验证方向
 ```
 
+## 2026-07-09: Close-Out 状态
+
+截至 2026-07-09，本文件中与 MATLAB/Python alignment 直接相关的争议已进入 settled 状态：
+
+```text
+FFT dynamic metrics:
+  upstream 已通过 #65 / #67 / #76 统一到 integrated-lobe convention。
+
+ENOB bit sweep:
+  #89 引入 mode split，#97 最终确认 full-bit calibration prefix 是 canonical default，
+  subset recalibration 仅作为 diagnostic。
+```
+
+仍值得保留的开放边界主要是方法论层面：
+
+```text
+integrated-lobe 不是 true-spectrum recovery；
+window / side_bin / tone collision 仍需要在教学和 regression tests 中明确边界；
+工程默认应优先表达真实实验问题，而不是盲目追随某一端当前实现。
+```
+
 ## 2026-06-30：Window correction 是否能还原真实频谱？
 
 ### 问题

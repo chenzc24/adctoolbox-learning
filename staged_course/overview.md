@@ -1,4 +1,4 @@
-# ADC 十二个阶段学习总览
+# ADC 十三个阶段学习总览
 
 本课程面向“代码能力较强，但 ADC 和相关数学还在入门阶段”的学习者。
 
@@ -16,7 +16,8 @@ Python 数值仿真基础
   -> Time-Interleaved ADC（时间交织 ADC）的失配与校准
   -> Subsample Debug Output（无滤波下采样调试口）
   -> Oversampling 与 Noise Shaping（过采样和噪声整形）
-  -> ADCToolbox Examples 全量专题（59 个 runnable examples 的运行与解释地图）
+  -> ADCToolbox Examples 全量专题（64 个 runnable examples 的运行与解释地图）
+  -> MATLAB / Python 版本对齐与 corner case 审计
 ```
 
 每个阶段都包含三条线：
@@ -64,11 +65,13 @@ staged_course/
 │   └── stage_09_downsample_debug.md
 ├── stage_10_oversampling_noise_shaping/
 │   └── stage_10_oversampling_noise_shaping.md
-└── stage_11_examples_beyond/
-    └── stage_11_examples_beyond.md
+├── stage_11_examples_beyond/
+│   └── stage_11_examples_beyond.md
+└── stage_12_matlab_python_parity/
+    └── stage_12_matlab_python_parity.md
 ```
 
-## 十二个阶段
+## 十三个阶段
 
 | 阶段 | 主题 | 你应该获得的能力 |
 |---|---|---|
@@ -83,7 +86,8 @@ staged_course/
 | Stage 08 | 时间交织 ADC（TI-ADC）| 能区分 TI spur 与单通道谐波，理解 per-channel offset/gain/skew 失配及其校准 |
 | Stage 09 | Subsample debug output | 能解释无滤波低速调试口中的 alias、spur 高度守恒、NSD 变化和 TI 通道覆盖 |
 | Stage 10 | Oversampling / noise shaping | 能解释 OSR、NTF、noise shaping、带内噪声积分和 `ntf_analyzer` |
-| Stage 11 | ADCToolbox Examples 全量专题 | 能跑完并解释 59 个 runnable examples，知道每个脚本对应的知识背景和诊断目的 |
+| Stage 11 | ADCToolbox Examples 全量专题 | 能跑完并解释 64 个 runnable examples，知道每个脚本对应的知识背景和诊断目的 |
+| Stage 12 | MATLAB / Python parity 与 corner audit | 能对齐 MATLAB/Python API 语义，识别默认值、单位、形状、测试覆盖和 corner case 风险 |
 
 ## 推荐学习节奏
 
@@ -194,7 +198,7 @@ bits @ weights ≈ ideal sine
 
 Stage 07 会提醒你：一个校准结论是否可信，不只取决于训练数据上的 ENOB，而取决于独立验证、误差来源、模型边界和测试条件是否讲清楚。
 
-Stage 08–11 是四个互不重复的进阶/收尾主题：
+Stage 08–12 是五个互不重复的进阶/收尾主题：
 
 | 阶段 | 关键词 | 核心问题 |
 |---|---|---|
@@ -202,5 +206,6 @@ Stage 08–11 是四个互不重复的进阶/收尾主题：
 | Stage 09 | subsample debug output | 低速 raw debug 口把 spur 折叠到哪里？ |
 | Stage 10 | oversampling / NTF | 信号带内噪声怎样随 OSR 和 NTF 下降？ |
 | Stage 11 | examples atlas / polar / phase-plane / INL-DNL / averaging | 怎么把现存 examples 全部放回 ADC 知识地图里解释？ |
+| Stage 12 | MATLAB/Python parity / corner audit | MATLAB 原版、Python port、tests 和 legacy 行为是否真正对齐？ |
 
 看到“采样率变化”时先问清楚目的：是保留 raw spur 做调试，还是限制 signal band 来降低带内噪声。
